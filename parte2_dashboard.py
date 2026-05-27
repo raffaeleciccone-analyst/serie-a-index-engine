@@ -1225,25 +1225,26 @@ window.onerror=function(m,s,l){
 <nav class="nav">
   <div class="nav-brand">Serie A 25/26 <small>Scout&nbsp;Index</small></div>
   <div class="nav-btn-group">
-    <button class="nav-home-btn" onclick="showHome()" title="Torna alla classifica">
-      &#127942; <span class="home-label">Classifica</span>
+    <button class="nav-home-btn" onclick="showHome()" data-i18n-title="nav_back_ranking" title="Torna alla classifica">
+      &#127942; <span class="home-label" data-i18n="term_ranking">Classifica</span>
     </button>
-    <button class="nav-glass-btn" id="nav-back-btn" onclick="histBack()" title="Indietro" disabled>&#8592;</button>
-    <button class="nav-glass-btn" id="nav-fwd-btn"  onclick="histForward()" title="Avanti" disabled>&#8594;</button>
+    <button class="nav-glass-btn" id="nav-back-btn" onclick="histBack()" data-i18n-title="nav_back" data-i18n-aria-label="nav_back" title="Indietro" disabled>&#8592;</button>
+    <button class="nav-glass-btn" id="nav-fwd-btn"  onclick="histForward()" data-i18n-title="nav_forward" data-i18n-aria-label="nav_forward" title="Avanti" disabled>&#8594;</button>
   </div>
-  <div class="nav-right-group">
-    <a class="nav-orng-btn" href="homepage.html" title="Torna alla Homepage">
-      &#127968; <span class="hp-label">Homepage</span>
+  <div class="nav-right-group" style="display:flex;align-items:center;gap:8px">
+    <span data-i18n-switcher></span>
+    <a class="nav-orng-btn" href="homepage.html" data-i18n-title="nav_back_homepage" title="Torna alla Homepage">
+      &#127968; <span class="hp-label" data-i18n="nav_home">Homepage</span>
     </a>
-    <a class="nav-purp-btn" href="validazione.html" title="Validazione TPI">
-      &#128202; <span class="val-label">Validazione</span>
+    <a class="nav-purp-btn" href="validazione.html" data-i18n-title="nav_validation" title="Validazione TPI">
+      &#128202; <span class="val-label" data-i18n="nav_validation">Validazione</span>
     </a>
   </div>
 </nav>
 
 <!-- Back bar -->
 <div class="back-bar" id="back-bar">
-  <button class="back-btn" id="back-btn-main" onclick="histBack()">&#8592; <span id="back-label">Classifiche</span></button>
+  <button class="back-btn" id="back-btn-main" onclick="histBack()">&#8592; <span id="back-label" data-i18n="term_ranking">Classifiche</span></button>
   <span class="back-cur" id="back-cur"></span>
 </div>
 
@@ -2726,6 +2727,7 @@ window.addEventListener("orientationchange", () => {
 }
 </style>
 
+<script src="i18n.js"></script>
 </body>
 </html>"""
 
