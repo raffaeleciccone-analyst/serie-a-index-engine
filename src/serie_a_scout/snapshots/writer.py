@@ -74,7 +74,7 @@ class SnapshotWriter:
     giornata : int
         Matchday number (1..38). Zero-padded to two digits in the dirname.
     db_url : str
-        SQLAlchemy URL (e.g. ``mysql+pymysql://USER:PASS@host/db``).  # pragma: allowlist secret
+        SQLAlchemy URL (e.g. ``mysql+pymysql://<user>:<pass>@host/db``).
     base_dir : Path
         Root for all snapshots. The actual snapshot dir is
         ``base_dir / season / "giornata_NN"``.

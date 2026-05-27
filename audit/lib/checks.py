@@ -504,14 +504,15 @@ def check_credentials_in_code(report: Report) -> None:
     SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv", "venv", "dashboard_output", "debug_html"}
     SCAN_EXT = (".py", ".ini", ".yaml", ".yml", ".toml", ".json", ".env")
 
-    # NB: i pattern escludono `{` `}` `$` per evitare false positives su
-    # f-string Python (`{DB_PASSWORD}`), ${env_var}, ecc.
+    # Esclusi: { } $ < > per evitare false positives su f-string Python
+    # ({DB_PASSWORD}), env-var ($PWD), e placeholder docstring (<user>:<pass>).
+    EXCL = r"'\"\s{}$<>"
     patterns = [
-        re.compile(r"(?i)password\s*[:=]\s*['\"][^'\"\s{}$]{4,}['\"]"),
-        re.compile(r"(?i)mysql\+?\w*://[^:/\s'\"{}$]+:[^@/\s'\"{}$]{4,}@"),
-        re.compile(r"(?i)\bDB_PASSWORD\s*=\s*['\"][^'\"\s{}$]{4,}['\"]"),
-        re.compile(r"(?i)\bsecret(_key)?\s*[:=]\s*['\"][^'\"\s{}$]{8,}['\"]"),
-        re.compile(r"(?i)\bapi[-_]?key\s*[:=]\s*['\"][^'\"\s{}$]{8,}['\"]"),
+        re.compile(rf"(?i)password\s*[:=]\s*['\"][^{EXCL}]{{4,}}['\"]"),
+        re.compile(rf"(?i)mysql\+?\w*://[^:/{EXCL}]+:[^@/{EXCL}]{{4,}}@"),
+        re.compile(rf"(?i)\bDB_PASSWORD\s*=\s*['\"][^{EXCL}]{{4,}}['\"]"),
+        re.compile(rf"(?i)\bsecret(_key)?\s*[:=]\s*['\"][^{EXCL}]{{8,}}['\"]"),
+        re.compile(rf"(?i)\bapi[-_]?key\s*[:=]\s*['\"][^{EXCL}]{{8,}}['\"]"),
     ]
     # Whitelist: l'_unico_ file dove ci si aspetta DB_PASSWORD=valore è .env (gitignored)
     whitelist_paths = {os.path.join(root, ".env")}
