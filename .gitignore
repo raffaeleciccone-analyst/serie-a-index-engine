@@ -1,0 +1,56 @@
+# Credenziali DB — MAI su GitHub
+.env
+.env.*
+*.env
+
+# Secret backups e detect-secrets baseline
+audit/reports/sec_backup/
+.secrets.baseline.private
+
+# Audit JSON reports (contengono dati DB)
+audit/reports/*.json
+logs/quarantine/
+
+# DB backups e snapshot dati (pesanti, locali)
+backup/
+snapshots/2025-26/
+snapshots/__pycache__/
+
+# Log temporanei dei singoli run
+parte4_log.txt
+*_log.txt
+
+# Reports temporanei (anomaly, lineage, regression)
+reports/anomaly/
+reports/lineage/
+reports/regression/
+
+# Sub-mirror della cartella demo (era la vecchia destinazione di parte2)
+serie-a-scout-demo/
+
+# obs/ e backup config locali
+obs/cache/
+
+# Output generati (dati tuoi)
+dashboard_output/
+debug_html/
+
+# Log e CSV generati dallo script
+*.csv
+anagrafica_update_log.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

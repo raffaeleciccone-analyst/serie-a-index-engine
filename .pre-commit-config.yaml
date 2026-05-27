@@ -1,0 +1,27 @@
+# Pre-commit hooks — installa una volta con:  pre-commit install
+# Esegui manualmente su tutti i file:           pre-commit run --all-files
+repos:
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+        exclude: |
+          (?x)^(
+            \.git/.* |
+            __pycache__/.* |
+            dashboard_output/.* |
+            debug_html/.* |
+            audit/reports/.*\.json
+          )$
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=2048']
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace

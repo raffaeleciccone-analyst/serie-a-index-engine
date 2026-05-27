@@ -1,0 +1,20 @@
+# Serie A Scout Index — Dipendenze Python
+# Installa con: pip install -r requirements.txt
+
+# Database
+sqlalchemy>=2.0.0
+pymysql>=1.1.0
+mysql-connector-python>=8.0.0
+
+# Dati calcio (FBref)
+soccerdata>=1.6.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Statistica (validazione TPI)
+scipy>=1.11.0
+
+# Opzionale: per notifiche email/Telegram dopo aggiornamento
+# requests>=2.31.0
