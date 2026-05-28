@@ -102,11 +102,12 @@ class Config:
     # la finalizzazione (gol vs xG) entra con peso piccolo così chi non converte
     # scende. Somma = 1.0. Re-normalizzati sui dim effettivamente disponibili.
     tpi_weights: dict[str, float] = field(default_factory=lambda: {
-        "output_adj":  0.42,
-        "centralita":  0.17,
-        "boost_ratio": 0.13,
-        "consistenza": 0.13,
-        "finishing":   0.15,
+        "output_adj":  0.36,   # qualità: xG+xA/90 SOS-adj (azioni finali)
+        "buildup_adj": 0.12,   # coinvolgimento nella manovra (xGBuildup, no tiro/assist)
+        "centralita":  0.15,   # quota produzione squadra (uso)
+        "boost_ratio": 0.10,   # team con/senza (uso, shrinkato)
+        "consistenza": 0.12,   # regolarità
+        "finishing":   0.15,   # gol vs npxG (conversione)
     })
 
     # Contesti & soglie
@@ -235,7 +236,7 @@ CFG.output_dir = os.path.join(
 os.makedirs(CFG.output_dir, exist_ok=True)
 
 CONTESTI = ["totale", "casa", "trasferta", "vs_top6", "vs_forti"]
-DIMS = ["output_adj", "centralita", "boost_ratio", "consistenza"]
+DIMS = ["output_adj", "buildup_adj", "centralita", "boost_ratio", "consistenza"]
 
 # Mappa posizione Understat → ruolo (per linea di campo).
 # Wing-back (DML/DMR) → DIF; mediani/mezzali (DMC/M*) → CEN;
@@ -502,6 +503,7 @@ class DatabaseLayer:
                 COALESCE(gp.npg,  gp.goal) AS npg_ind,
                 COALESCE(gp.npxg, gp.xg)   AS xg_ind,
                 gp.xa                 AS xa_ind,
+                COALESCE(gp.xg_buildup, 0) AS buildup_ind,
                 sc.xg                 AS xg_team,
                 sgl.avversario_id,
                 sgl.{xg_avv_col}      AS xg_avversario
@@ -776,6 +778,12 @@ def compute_dimensions(
     sos_ctx = float(sos_vals.mean()) if len(sos_vals) > 0 else 1.0
     output_adj = output_p90 / sos_ctx if sos_ctx > 0 else output_p90
 
+    # Buildup: coinvolgimento nella manovra (xGBuildup, esclude tiro+assist del
+    # giocatore → ortogonale a output_adj). Per-90, SOS-adjusted come l'output.
+    buildup_tot = float(df_con["buildup_ind"].fillna(0).sum()) if "buildup_ind" in df_con.columns else 0.0
+    buildup_p90 = buildup_tot / min_tot * 90
+    buildup_adj = buildup_p90 / sos_ctx if sos_ctx > 0 else buildup_p90
+
     xg_team_tot = float(df_con["xg_team"].fillna(0).sum())
 
     w_con = (1.0 / sos_vals.replace(0, np.nan)).clip(upper=10.0).fillna(1.0)
@@ -824,6 +832,7 @@ def compute_dimensions(
     return {
         "output_p90": _r(output_p90),
         "output_adj": _r(output_adj),
+        "buildup_adj": _r(buildup_adj),
         "xg_tot": _r(xg_tot),
         "xa_tot": _r(xa_tot),
         "xg_team_tot": _r(xg_team_tot),
@@ -1801,17 +1810,17 @@ def main() -> None:
     # tanto resta vicino al suo valore reale.
     K_out = float(CFG.output_prior_minutes)
     for ctx in CONTESTI:
-        col = f"{ctx}_output_adj"
         mcol = f"{ctx}_min_tot"
-        for ruolo in df_pa["ruolo"].dropna().unique():
-            rmask = df_pa["ruolo"] == ruolo
-            raw = pd.to_numeric(df_pa.loc[rmask, col], errors="coerce")
-            prior = raw.mean()
-            if pd.isna(prior):
-                continue
-            m = pd.to_numeric(df_pa.loc[rmask, mcol], errors="coerce").fillna(0.0)
-            shrunk = (m * raw.fillna(prior) + K_out * prior) / (m + K_out)
-            df_pa.loc[rmask, col] = np.where(raw.notna(), shrunk, np.nan)
+        for col in (f"{ctx}_output_adj", f"{ctx}_buildup_adj"):  # entrambi per-90
+            for ruolo in df_pa["ruolo"].dropna().unique():
+                rmask = df_pa["ruolo"] == ruolo
+                raw = pd.to_numeric(df_pa.loc[rmask, col], errors="coerce")
+                prior = raw.mean()
+                if pd.isna(prior):
+                    continue
+                m = pd.to_numeric(df_pa.loc[rmask, mcol], errors="coerce").fillna(0.0)
+                shrunk = (m * raw.fillna(prior) + K_out * prior) / (m + K_out)
+                df_pa.loc[rmask, col] = np.where(raw.notna(), shrunk, np.nan)
 
     # ── FIX 3: Z-score PER RUOLO (offensivo, role-relative) ──────
     # ogni dimensione è standardizzata dentro il proprio ruolo: un difensore è
@@ -1852,10 +1861,12 @@ def main() -> None:
     # I pesi sono re-normalizzati sui dim presenti (boost/finishing possono
     # mancare) così la scala resta confrontabile tra giocatori.
     W = CFG.tpi_weights
+    # dim per-contesto = tutte le chiavi-peso tranne 'finishing' (gestita a parte)
+    _ctx_dims = [k for k in W if k != "finishing"]
     def _weighted_tpi(ctx: str) -> pd.Series:
         num = pd.Series(0.0, index=df_pa.index)
         den = pd.Series(0.0, index=df_pa.index)
-        for dim in ("output_adj", "centralita", "boost_ratio", "consistenza"):
+        for dim in _ctx_dims:
             z = df_pa[f"z_{ctx}_{dim}"]
             w = W[dim]
             valid = z.notna()
