@@ -92,6 +92,18 @@ class Config:
     # di ruolo. floor=0.35 → anche a confidence 0 si tiene il 35% del segnale.
     confidence_floor: float = 0.35
 
+    # Pesi del TPI: la QUALITÀ (output_adj, xG+xA/90 SOS-adj) domina; uso/contesto
+    # squadra (centralità, boost) pesano meno perché gonfiabili su squadre deboli;
+    # la finalizzazione (gol vs xG) entra con peso piccolo così chi non converte
+    # scende. Somma = 1.0. Re-normalizzati sui dim effettivamente disponibili.
+    tpi_weights: dict[str, float] = field(default_factory=lambda: {
+        "output_adj":  0.42,
+        "centralita":  0.17,
+        "boost_ratio": 0.13,
+        "consistenza": 0.13,
+        "finishing":   0.15,
+    })
+
     # Contesti & soglie
     n_top_difese: int = 6
     n_top6_class: int = 6
@@ -1825,16 +1837,31 @@ def main() -> None:
     df_pa["z_eta_index"]           = _z_by_role("eta_index")
     df_pa["z_affidabilita_fisica"] = _z_by_role("affidabilita_fisica")
 
-    # ── TPI per contesto (classic: 4 dim) ────────────────────
+    # ── TPI per contesto — MEDIA PESATA (qualità > uso) ──────
+    # output_adj domina; centralità/boost (uso, gonfiabili su squadre deboli)
+    # pesano meno; finishing (gol vs xG) penalizza chi non converte.
+    # I pesi sono re-normalizzati sui dim presenti (boost/finishing possono
+    # mancare) così la scala resta confrontabile tra giocatori.
+    W = CFG.tpi_weights
+    def _weighted_tpi(ctx: str) -> pd.Series:
+        num = pd.Series(0.0, index=df_pa.index)
+        den = pd.Series(0.0, index=df_pa.index)
+        for dim in ("output_adj", "centralita", "boost_ratio", "consistenza"):
+            z = df_pa[f"z_{ctx}_{dim}"]
+            w = W[dim]
+            valid = z.notna()
+            num = num + np.where(valid, z.fillna(0.0) * w, 0.0)
+            den = den + np.where(valid, w, 0.0)
+        # finishing: stesso valore su tutti i contesti (skill stagionale)
+        zf = df_pa.get("z_finishing")
+        if zf is not None:
+            validf = zf.notna()
+            num = num + np.where(validf, zf.fillna(0.0) * W["finishing"], 0.0)
+            den = den + np.where(validf, W["finishing"], 0.0)
+        return pd.Series(np.where(den > 0, num / den, np.nan), index=df_pa.index)
+
     for ctx in CONTESTI:
-        z_full = [f"z_{ctx}_{d}" for d in DIMS]
-        z_no_boo = [f"z_{ctx}_{d}" for d in ["output_adj", "centralita", "consistenza"]]
-        has_boost = df_pa[f"z_{ctx}_boost_ratio"].notna()
-        df_pa[f"TPI_{ctx}"] = np.where(
-            has_boost,
-            df_pa[z_full].mean(axis=1),
-            df_pa[z_no_boo].mean(axis=1),
-        )
+        df_pa[f"TPI_{ctx}"] = _weighted_tpi(ctx)
 
     # ── TPI Confidence — misura di affidabilità della stima ──
     # Basata su: quante dimensioni sono disponibili e quanti minuti
@@ -1851,15 +1878,9 @@ def main() -> None:
         np.sqrt(min_confidence * dim_confidence)
     ).round(3)
 
-    # ── TPI_ext per contesto (6 dim quando disponibili) ──────
+    # ── TPI_ext per contesto: base pesata + AII/PRI ──────────
     for ctx in CONTESTI:
-        z_full_e = [f"z_{ctx}_{d}" for d in DIMS]
-        z_no_boo_e = [f"z_{ctx}_{d}" for d in ["output_adj", "centralita", "consistenza"]]
-        has_boost_e = df_pa[f"z_{ctx}_boost_ratio"].notna()
-        z_base = pd.Series(
-            np.where(has_boost_e, df_pa[z_full_e].mean(axis=1), df_pa[z_no_boo_e].mean(axis=1)),
-            index=df_pa.index,
-        )
+        z_base = df_pa[f"TPI_{ctx}"].astype(float)
         ext_cols = []
         if CFG.include_age_in_tpi_ext and df_pa["z_eta_index"].notna().any():
             ext_cols.append(df_pa["z_eta_index"])
