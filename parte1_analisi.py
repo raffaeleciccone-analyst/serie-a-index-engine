@@ -381,48 +381,42 @@ class DatabaseLayer:
         log.info("Schema DB verificato: tutte le tabelle essenziali presenti")
 
     def load_sos_map(self) -> dict[int, float]:
+        # SOS = solidità difensiva dell'avversario = xG REALMENTE concessi a
+        # stagione (media su tutte le gare), normalizzata a media-lega = 1.0.
+        # NB: NON usiamo più t_sos_squadre — conteneva l'xG OFFENSIVO mislabeled
+        # come "subiti" (corr +0.98 con xG fatti), che invertiva l'aggiustamento:
+        # gonfiava l'output contro le difese deboli e marcava come "difese solide"
+        # le PEGGIORI. Qui ricostruiamo il dato corretto dai match.
         try:
-            df = pd.read_sql("SELECT * FROM t_sos_squadre", self.engine)
-        except Exception as e:
-            log.warning(f"t_sos_squadre non disponibile: {e} → SOS = 1.0")
-            return self._fallback_sos()
-
-        key_col, val_col = df.columns[0], df.columns[1]
-        log.info(f"t_sos_squadre: chiave='{key_col}', valore='{val_col}'")
-
-        try:
+            df = pd.read_sql(
+                """
+                SELECT a.squadra_id        AS squadra_id,
+                       AVG(b.xg)           AS xg_concessi
+                FROM   squadra_calendario a
+                JOIN   squadra_calendario b
+                       ON b.calendario_id = a.calendario_id
+                      AND b.squadra_id   <> a.squadra_id
+                GROUP BY a.squadra_id
+                """,
+                self.engine,
+            )
+            if df.empty or df["xg_concessi"].isna().all():
+                return self._fallback_sos()
+            league_avg = float(df["xg_concessi"].mean())
+            if league_avg <= 0:
+                return self._fallback_sos()
             result = {
-                int(k): float(v)
-                for k, v in zip(df[key_col], df[val_col])
-                if v is not None and not pd.isna(float(v))
+                int(r["squadra_id"]): float(r["xg_concessi"]) / league_avg
+                for _, r in df.iterrows()
+                if not pd.isna(r["xg_concessi"])
             }
-            if result and max(result.keys()) < 10_000:
-                log.info(f"SOS map caricata: {len(result)} squadre (chiave int)")
-                return result
-        except (ValueError, TypeError):
-            pass
-
-        for sq_table in ("squadre", "team", "teams", "clubs"):
-            try:
-                df_sq = pd.read_sql(f"SELECT id, nome FROM {sq_table}", self.engine)
-                merged = df.merge(df_sq, left_on=key_col, right_on="nome", how="inner")
-                if len(merged) == 0:
-                    df["_k"] = df[key_col].str.lower().str.strip()
-                    df_sq["_k"] = df_sq["nome"].str.lower().str.strip()
-                    merged = df.merge(df_sq, on="_k", how="inner")
-                if len(merged) > 0:
-                    result = {
-                        int(r["id"]): float(r[val_col])
-                        for _, r in merged.iterrows()
-                        if not pd.isna(r[val_col])
-                    }
-                    log.info(f"SOS map: {len(result)} squadre (JOIN '{sq_table}')")
-                    return result
-            except Exception:
-                continue
-
-        log.warning("SOS map: impossibile caricare → SOS = 1.0 per tutti")
-        return self._fallback_sos()
+            log.info(
+                f"SOS (xG concessi reali, norm. lega=1.0): {len(result)} squadre"
+            )
+            return result
+        except Exception as e:
+            log.warning(f"SOS reale non calcolabile: {e} → SOS = 1.0")
+            return self._fallback_sos()
 
     def _fallback_sos(self) -> dict[int, float]:
         try:
