@@ -712,6 +712,50 @@ os.makedirs(CFG.output_dir, exist_ok=True)
 CONTESTI = ["totale", "casa", "trasferta", "vs_top6", "vs_forti"]
 DIMS = ["output_adj", "centralita", "boost_ratio", "consistenza"]
 
+# Mappa posizione Understat → ruolo (per linea di campo).
+# Wing-back (DML/DMR) → DIF; mediani/mezzali (DMC/M*) → CEN;
+# ali e trequartisti (AM*/FW*) → ATT. Più affidabile dell'override manuale.
+_UNDERSTAT_POS_ROLE = {
+    "GK": "POR",
+    "DC": "DIF", "DL": "DIF", "DR": "DIF", "DML": "DIF", "DMR": "DIF",
+    "DMC": "CEN", "MC": "CEN", "ML": "CEN", "MR": "CEN",
+    "AMC": "ATT", "AML": "ATT", "AMR": "ATT",
+    "FW": "ATT", "FWL": "ATT", "FWR": "ATT",
+}
+
+
+def derive_understat_roles(min_minutes: int = 200) -> dict[str, str]:
+    """Ruolo per giocatore dalla posizione Understat con più minuti (dai JSON
+    grezzi in cache). Chiave = nome normalizzato. Più robusto dell'override
+    manuale perché basato sulla posizione realmente giocata."""
+    import glob as _g, json as _j, html as _h, unicodedata as _u, collections as _c
+
+    def _nm(s):
+        return _u.normalize("NFKD", _h.unescape(str(s or ""))).encode("ascii", "ignore").decode().lower().strip()
+
+    cache_dir = os.path.join(os.path.expanduser("~/soccerdata"), "data", "Understat")
+    posmin: dict[str, _c.Counter] = _c.defaultdict(_c.Counter)
+    for mf in _g.glob(os.path.join(cache_dir, "match_*.json")):
+        try:
+            md = _j.load(open(mf, encoding="utf-8"))
+        except Exception:
+            continue
+        for side in ("h", "a"):
+            for _pid, info in md.get("rosters", {}).get(side, {}).items():
+                pos = info.get("position")
+                t = int(info.get("time", 0) or 0)
+                if pos and pos != "Sub" and t > 0:
+                    posmin[_nm(info.get("player"))][pos] += t
+    roles: dict[str, str] = {}
+    for nm, cnt in posmin.items():
+        if sum(cnt.values()) < min_minutes:
+            continue
+        top_pos = cnt.most_common(1)[0][0]
+        r = _UNDERSTAT_POS_ROLE.get(top_pos)
+        if r:
+            roles[nm] = r
+    return roles
+
 
 # ════════════════════════════════════════════════════════════════
 # 2. UTILITÀ GENERALI
@@ -2123,7 +2167,27 @@ def main() -> None:
                 df_pa.loc[mask, "ruolo"] = ruolo_corretto
                 overridden += mask.sum()
                 break
-    log.info(f"Override ruoli applicato: {overridden} giocatori aggiornati")
+    log.info(f"Override ruoli manuale applicato: {overridden} giocatori")
+
+    # ── Ruolo da posizione Understat — PRECEDENZA FINALE ───────
+    # Sovrascrive sia il DB sia l'override manuale dove c'è dato Understat
+    # affidabile (≥200'): è la posizione realmente giocata, non una stima.
+    import unicodedata as _ud2, html as _h2
+    def _nm2(s):
+        return _ud2.normalize("NFKD", _h2.unescape(str(s or ""))).encode("ascii", "ignore").decode().lower().strip()
+    us_roles = derive_understat_roles()
+    if us_roles:
+        applied = 0
+        for col in ("nome_anagrafico", nome_col):
+            if col not in df_pa.columns:
+                continue
+            keymap = df_pa[col].map(_nm2)
+            for idx, k in keymap.items():
+                if k in us_roles and df_pa.at[idx, "ruolo"] != us_roles[k]:
+                    df_pa.at[idx, "ruolo"] = us_roles[k]
+                    applied += 1
+            break  # basta la prima colonna disponibile
+        log.info(f"Ruolo Understat (posizione reale) applicato: {applied} correzioni")
 
     # ── SOS per partita ────────────────────────────────────────
     df_gp_raw["sos_avv"] = df_gp_raw["avversario_id"].map(sos_map).astype(float)
