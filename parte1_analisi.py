@@ -286,14 +286,17 @@ def derive_understat_roles(min_minutes: int = 200) -> dict[str, str]:
             b = _POS_BUCKET.get(pos)
             if b:
                 bucket[b] += mins
-        # risolvi i minuti da wing-back (WB)
+        # risolvi i minuti da wing-back (WB): vanno a CEN solo se il giocatore ha
+        # almeno tanti minuti centrali/offensivi quanti da fascia (= è davvero un
+        # mediano schierato esterno, es. McKennie). Altrimenti è un terzino/wing-back
+        # puro → DIF (es. Wesley 93% fascia, Dimarco, Cambiaso).
         wb = bucket.pop("WB", 0)
         if wb:
             central = bucket.get("CEN", 0) + bucket.get("ATT", 0)
-            if central > bucket.get("DIF", 0):
-                bucket["CEN"] += wb   # centrocampista schierato esterno → CEN
+            if central >= wb:
+                bucket["CEN"] += wb
             else:
-                bucket["DIF"] += wb   # terzino fluidificante → DIF
+                bucket["DIF"] += wb
         if bucket:
             roles[nm] = bucket.most_common(1)[0][0]
     return roles
