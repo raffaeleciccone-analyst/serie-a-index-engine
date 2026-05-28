@@ -1455,6 +1455,7 @@ window.onerror=function(m,s,l){
     <div class="hero-inf">
       <div class="hero-nm" id="h-nm"></div>
       <div class="hero-sub" id="h-sub"></div>
+      <div class="hero-form" id="h-form" style="font-size:11px;margin-top:3px"></div>
     </div>
     <div class="hero-tags" id="h-tags"></div>
     <div class="hero-tpi">
@@ -2196,6 +2197,19 @@ function updateHero(p){
   const wb=p.is_winter?' <span class="tag tag-snow" title="Acquisto invernale: soglia minuti ridotta ('+p.first_giornata+'ª gg)">❄️ dal gg '+p.first_giornata+'</span>':"";
   document.getElementById("h-nm").innerHTML=esc(p.nome)+wb;
   document.getElementById("h-sub").innerHTML=esc(p.squadra)+" · "+(+p.minuti||0)+"' · SOS "+fv(p.kpi.sos);
+  // ── Forma recente (ultime N gare) ──
+  const hf=document.getElementById("h-form"), r=p.recent||{};
+  if(hf){
+    if(r.n>=3){
+      const col=r.label==="hot"?"var(--green)":r.label==="cold"?"var(--red)":"var(--lt)";
+      const ico=r.label==="hot"?"🔥 ":r.label==="cold"?"🧊 ":"";
+      const lbl=r.label==="hot"?T("dash_form_hot","in forma"):r.label==="cold"?T("dash_form_cold","in calo"):T("dash_form_stable","stabile");
+      hf.innerHTML='<span style="color:'+col+';font-weight:600">'+ico+T("dash_form","Forma")+' '+lbl+'</span>'
+        +'<span style="color:var(--lt)"> · ultime '+r.n+': '+(r.goal||0)+' '+T("dash_goals_short","gol")
+        +' · '+(r.npxg||0)+' npxG · out/90 '+(r.out90!=null?r.out90:"—")
+        +' ('+Math.round((r.ratio||0)*100)+'% '+T("dash_vs_season","vs stagione")+')</span>';
+    } else { hf.innerHTML=''; }
+  }
   const rk=p.rank||{},ft=p.form.trend,tpi=p.tpi.totale;
   const tv=document.getElementById("h-tpi");
   tv.textContent=(tpi!=null)?(tpi>=0?"+":"")+tpi.toFixed(2):"—";
