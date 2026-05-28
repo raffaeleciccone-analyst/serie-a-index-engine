@@ -1516,6 +1516,14 @@ const RL     = __RL_JS__;
 /* nome-ruolo localizzato: usa i18n se disponibile, fallback a RL (italiano) */
 const _ROLE_KEY={POR:"dash_role_full_POR",DIF:"dash_role_full_DIF",CEN:"dash_role_full_CEN",ATT:"dash_role_full_ATT"};
 function roleName(code){ return T(_ROLE_KEY[code], RL[code]||code); }
+/* Badge forma recente (ultime N gare): 🔥 caldo / 🧊 freddo. Tooltip coi numeri. */
+function formBadge(p){
+  const r=p&&p.recent; if(!r||!r.label) return "";
+  if(r.label==="stable") return "";
+  const ico=r.label==="hot"?"🔥":"🧊";
+  const tip=esc("Forma ultime "+(r.n||0)+" gare: "+(r.goal||0)+" gol, npxG "+(r.npxg||0)+", out/90 "+(r.out90||0)+" ("+Math.round((r.ratio||0)*100)+"% della stagione)");
+  return ' <span title="'+tip+'" style="font-size:11px;cursor:help">'+ico+'</span>';
+}
 const CTX_L  = __CTX_L_JS__;
 const SPIEG  = __SPIEG_JS__;
 const TOP6   = __TOP6_JS__;
@@ -1927,7 +1935,7 @@ function buildLeaderboard(){
       +'<span class="lb-rank">'+(i+1)+'</span>'
       +'<div class="lb-dot" style="background:'+rc+'"></div>'
       +'<div class="lb-info">'
-        +'<div class="lb-nm" title="'+esc(p.nome)+'">'+dn+wb+extra+'</div>'
+        +'<div class="lb-nm" title="'+esc(p.nome)+'">'+dn+wb+formBadge(p)+extra+'</div>'
         +'<div class="lb-team">'+esc(p.squadra)+' &middot; '+esc(roleName(p.ruolo))+'</div>'
       +'</div>'
       +'<div class="lb-bar-wrap"><div class="lb-bar-fill" style="width:'+barW+'%;background:'+rc+'80"></div></div>'

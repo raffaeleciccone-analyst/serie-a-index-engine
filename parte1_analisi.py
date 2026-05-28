@@ -126,6 +126,8 @@ class Config:
 
     # EWMA
     ewma_alpha: float = 0.30
+    # Forma recente: numero di ultime apparizioni da considerare
+    recent_window: int = 6
 
     # ── Nuovi indici v2 ──────────────────────────────────────
     # Age Impact Index (AII)
@@ -1101,10 +1103,44 @@ def compute_form_metrics(
             "form_out": [round(v, 4) for v in out_pg],
             "form_ewma_s": ewma_s,
         }
+
+        # ── Forma recente: ultime N apparizioni (gioco aperto, no rigori) ──
+        rec = grp_s.tail(cfg.recent_window)
+        r_min = float(rec["minuti"].sum())
+        r_npg = float(rec["npg_ind"].fillna(0).sum()) if "npg_ind" in rec.columns else float(rec["goal"].fillna(0).sum())
+        r_npxg = float(rec["xg_ind"].fillna(0).sum())
+        r_xa = float(rec["xa_ind"].fillna(0).sum())
+        r_n = int((rec["minuti"] > 0).sum())
+        r_out90 = round((r_npxg + r_xa) / r_min * 90, 3) if r_min > 0 else None
+        # baseline stagione (stesso indicatore)
+        s_min = float(grp_s["minuti"].sum())
+        s_npxg = float(grp_s["xg_ind"].fillna(0).sum())
+        s_xa = float(grp_s["xa_ind"].fillna(0).sum())
+        s_out90 = (s_npxg + s_xa) / s_min * 90 if s_min > 0 else 0.0
+        out_ratio = round(r_out90 / s_out90, 2) if (r_out90 is not None and s_out90 > 0) else None
+        # etichetta forma: combina creazione (out_ratio) e realizzo recente
+        label = None
+        if r_n >= 3:
+            drought = (r_npxg >= 1.0 and r_npg == 0)        # crea ma non segna
+            if drought or (out_ratio is not None and out_ratio < 0.70):
+                label = "cold"
+            elif out_ratio is not None and out_ratio > 1.30 and r_npg >= max(1, 0.7 * r_npxg):
+                label = "hot"
+            else:
+                label = "stable"
+
         form_rows.append({
             "giocatore_id": gid,
             "form_ewma": round(ewma_s[-1], 4) if ewma_s else None,
             "form_trend": trend,
+            "recent_n": r_n,
+            "recent_min": int(r_min),
+            "recent_goal": int(float(rec["goal"].fillna(0).sum())),
+            "recent_npg": int(r_npg),
+            "recent_npxg": round(r_npxg, 2),
+            "recent_out90": r_out90,
+            "recent_ratio": out_ratio,
+            "recent_label": label,
         })
 
     return pd.DataFrame(form_rows), form_detail
@@ -1650,6 +1686,16 @@ def build_payload(
                 "g":      fd["form_g"],
                 "out":    safe_json(fd["form_out"]),
                 "ewma_s": safe_json(fd["form_ewma_s"]),
+            },
+            "recent": {
+                "n":      safe_json(row.get("recent_n")),
+                "min":    safe_json(row.get("recent_min")),
+                "goal":   safe_json(row.get("recent_goal")),
+                "npg":    safe_json(row.get("recent_npg")),
+                "npxg":   safe_json(row.get("recent_npxg")),
+                "out90":  safe_json(row.get("recent_out90")),
+                "ratio":  safe_json(row.get("recent_ratio")),
+                "label":  row.get("recent_label"),
             },
             "trend": tr,
             # ── Nuovi indici v2 ──────────────────────
