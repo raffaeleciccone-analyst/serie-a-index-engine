@@ -385,7 +385,7 @@ class DatabaseLayer:
     def _verify_schema(self) -> None:
         required = [
             "giocatori", "squadre", "calendario",
-            "giocatore_partita", "t_player_analytics",
+            "giocatore_partita",
             "t_squadra_game_log", "squadra_calendario",
         ]
         with self.engine.connect() as conn:
@@ -637,12 +637,15 @@ class DatabaseLayer:
                     END) AS giocatore,
                     g.ruolo,
                     sq.nome       AS squadra,
-                    COALESCE(pa.minuti, 0) AS minuti
+                    COALESCE(agg.minuti, 0) AS minuti
                 FROM   giocatori g
                 JOIN   squadre sq ON sq.id = g.squadra_id
-                LEFT JOIN t_player_analytics pa ON pa.giocatore_id = g.id
+                LEFT JOIN (
+                    SELECT giocatore_id, SUM(minuti) AS minuti
+                    FROM giocatore_partita WHERE minuti > 0 GROUP BY giocatore_id
+                ) agg ON agg.giocatore_id = g.id
                 WHERE  g.ruolo != 'POR'
-                ORDER  BY sq.nome, g.ruolo, ISNULL(pa.minuti), pa.minuti DESC
+                ORDER  BY sq.nome, g.ruolo, ISNULL(agg.minuti), agg.minuti DESC
                 """,
                 self.engine,
             )
@@ -708,7 +711,11 @@ def compute_minute_thresholds(
         min_full = base_full
 
     min_winter = base_winter
-    winter_threshold = int(n_giornate * cfg.winter_debut_fraction)
+    # Soglia "debutto invernale" sulla SCALA DELLE ETICHETTE giornata (può
+    # arrivare a 40 per i turni extra dei rinvii), non su n_giornate (38), perché
+    # first_giornata sotto è su quella scala. Usare n_giornate gonfierebbe i winter.
+    _max_label = int(df_gp[df_gp["minuti"] > 0]["giornata"].max())
+    winter_threshold = int(_max_label * cfg.winter_debut_fraction)
 
     first_giornata = (
         df_gp[df_gp["minuti"] > 0]
@@ -1402,7 +1409,11 @@ def load_age_physical_data(engine, df_pa: pd.DataFrame, df_gp: pd.DataFrame, cfg
     # FIX bias: usiamo n_giornate_tot per titolari e aggiustiamo solo per invernali.
     # NON usiamo first_g perché un giocatore infortunato a inizio stagione avrebbe
     # first_g alta → partite_disp bassa → disponibilità artificialmente alta.
-    n_giornate_tot = int(df_gp["giornata"].nunique()) if len(df_gp) > 0 else 0
+    # lunghezza reale = giornate giocate da una squadra (38), non il max label (40)
+    if len(df_gp) > 0 and "squadra_id" in df_gp.columns:
+        n_giornate_tot = int(df_gp.groupby("squadra_id")["giornata"].nunique().max())
+    else:
+        n_giornate_tot = int(df_gp["giornata"].nunique()) if len(df_gp) > 0 else 0
     max_g = int(df_gp["giornata"].max()) if len(df_gp) > 0 else n_giornate_tot
 
     # Prima giornata *nella rosa* (non prima giocata)
@@ -1747,7 +1758,12 @@ def main() -> None:
     df_gp_raw["peso_sos"] = (1.0 / df_gp_raw["sos_avv"].replace(0, np.nan)).clip(upper=10.0)
 
     # ── Soglie minuti ──────────────────────────────────────────
-    n_giornate = int(df_gp_raw["giornata"].nunique())
+    # n_giornate = lunghezza reale stagione = giornate giocate da una squadra (38),
+    # NON il max label delle giornate (può arrivare a 40 per i turni extra creati
+    # dai rinvii, che però ogni squadra "salta"). Usare il max label gonfierebbe
+    # soglie minuti e finestra invernale.
+    _per_team_rounds = df_gp_raw.groupby("squadra_id")["giornata"].nunique()
+    n_giornate = int(_per_team_rounds.max()) if len(_per_team_rounds) else int(df_gp_raw["giornata"].nunique())
     min_full, min_winter, winter_threshold, winter_ids = compute_minute_thresholds(
         df_gp_raw, n_giornate, CFG
     )
