@@ -936,7 +936,8 @@ class DatabaseLayer:
                 sgl.ruolo             AS ruolo_gp,
                 gp.minuti,
                 gp.goal,
-                gp.xg                 AS xg_ind,
+                COALESCE(gp.npg,  gp.goal) AS npg_ind,
+                COALESCE(gp.npxg, gp.xg)   AS xg_ind,
                 gp.xa                 AS xa_ind,
                 sc.xg                 AS xg_team,
                 sgl.avversario_id,
@@ -1398,8 +1399,8 @@ def compute_conversion_metrics(
 
     for gid, grp in df_gp[df_gp["minuti"] > 0].groupby("giocatore_id"):
         gid = int(gid)
-        xg_tot = float(grp["xg_ind"].fillna(0).sum())
-        goal_tot = float(grp["goal"].fillna(0).sum())
+        xg_tot = float(grp["xg_ind"].fillna(0).sum())          # npxG (no rigori)
+        goal_tot = float(grp["npg_ind"].fillna(0).sum())        # gol no-rigore
         min_tot = float(grp["minuti"].sum())
 
         conv_ratio = round(goal_tot / xg_tot, 3) if xg_tot >= 0.5 else None
@@ -1413,16 +1414,16 @@ def compute_conversion_metrics(
         if len(grp_s) >= 8:
             half = len(grp_s) // 2
             xg_1h = float(grp_s.iloc[:half]["xg_ind"].fillna(0).sum())
-            g_1h = float(grp_s.iloc[:half]["goal"].fillna(0).sum())
+            g_1h = float(grp_s.iloc[:half]["npg_ind"].fillna(0).sum())
             xg_2h = float(grp_s.iloc[half:]["xg_ind"].fillna(0).sum())
-            g_2h = float(grp_s.iloc[half:]["goal"].fillna(0).sum())
+            g_2h = float(grp_s.iloc[half:]["npg_ind"].fillna(0).sum())
             cr_1h = (g_1h / xg_1h) if xg_1h >= 0.5 else None
             cr_2h = (g_2h / xg_2h) if xg_2h >= 0.5 else None
             if cr_1h and cr_2h and cr_1h > 0:
                 conv_trend = round(cr_2h / cr_1h - 1, 3)
 
         grp_s = grp_s.copy()
-        grp_s["_gcum"] = grp_s["goal"].fillna(0).cumsum()
+        grp_s["_gcum"] = grp_s["npg_ind"].fillna(0).cumsum()
         grp_s["_xcum"] = grp_s["xg_ind"].fillna(0).cumsum()
 
         def _ints(s: pd.Series) -> list:
@@ -1433,7 +1434,7 @@ def compute_conversion_metrics(
 
         conv_detail[gid] = {
             "g_giornate": _ints(grp_s["giornata"]),
-            "g_goal_pg": _ints(grp_s["goal"].fillna(0)),
+            "g_goal_pg": _ints(grp_s["npg_ind"].fillna(0)),
             "g_xg_pg": _flts(grp_s["xg_ind"].fillna(0)),
             "g_goal_cum": _ints(grp_s["_gcum"]),
             "g_xg_cum": _flts(grp_s["_xcum"]),
