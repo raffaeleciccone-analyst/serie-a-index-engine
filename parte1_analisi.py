@@ -517,6 +517,7 @@ class DatabaseLayer:
                 g.squadra_id          AS squadra_id,
                 gp.calendario_id,
                 cal.giornata,
+                cal.data              AS data,
                 sgl.ruolo             AS ruolo_gp,
                 gp.minuti,
                 gp.goal,
@@ -711,26 +712,27 @@ def compute_minute_thresholds(
         min_full = base_full
 
     min_winter = base_winter
-    # Soglia "debutto invernale" sulla SCALA DELLE ETICHETTE giornata (può
-    # arrivare a 40 per i turni extra dei rinvii), non su n_giornate (38), perché
-    # first_giornata sotto è su quella scala. Usare n_giornate gonfierebbe i winter.
-    _max_label = int(df_gp[df_gp["minuti"] > 0]["giornata"].max())
-    winter_threshold = int(_max_label * cfg.winter_debut_fraction)
 
-    first_giornata = (
-        df_gp[df_gp["minuti"] > 0]
-        .groupby("giocatore_id")["giornata"]
-        .min()
-    )
-    winter_ids = {
-        int(gid)
-        for gid, fg in first_giornata.items()
-        if fg > winter_threshold
-    }
+    # Acquisto invernale = PRIMA apparizione nella finestra di mercato di gennaio
+    # (1 gen – 5 feb), per DATA reale. Esclude i debutti di fine stagione
+    # (mar/apr/mag: giovani, riserve, rientri) che NON sono acquisti invernali —
+    # il vecchio "first_giornata > soglia" li flaggava tutti come winter.
+    winter_ids: set[int] = set()
+    if "data" in df_gp.columns:
+        first_date = (
+            df_gp[df_gp["minuti"] > 0]
+            .groupby("giocatore_id")["data"]
+            .min()
+        )
+        for gid, d in first_date.items():
+            ts = pd.Timestamp(d)
+            if pd.notna(ts) and (ts.month == 1 or (ts.month == 2 and ts.day <= 5)):
+                winter_ids.add(int(gid))
+    winter_threshold = 0  # non più basato su giornata
 
     log.info(
         f"Giornate: {n_giornate} | Soglia titolari: {min_full}' | "
-        f"Soglia invernale: {min_winter}' | Acquisti invernali: {len(winter_ids)}"
+        f"Soglia invernale: {min_winter}' | Acquisti invernali (finestra gennaio): {len(winter_ids)}"
     )
     return min_full, min_winter, winter_threshold, winter_ids
 
@@ -1767,6 +1769,17 @@ def main() -> None:
     min_full, min_winter, winter_threshold, winter_ids = compute_minute_thresholds(
         df_gp_raw, n_giornate, CFG
     )
+
+    # Stringi i winter: escludi i flaggati con ruolo NULL (giovani/fringe senza
+    # posizione Understat) — non sono "acquisti", sono esordienti di contorno.
+    _defined = set(
+        int(g) for g, r in zip(df_pa["giocatore_id"], df_pa["ruolo"])
+        if pd.notna(r) and str(r).strip() != ""
+    )
+    _before = len(winter_ids)
+    winter_ids = {g for g in winter_ids if g in _defined}
+    if _before != len(winter_ids):
+        log.info(f"Winter ristretti a ruolo definito: {_before} → {len(winter_ids)}")
 
     first_g = (
         df_gp_raw[df_gp_raw["minuti"] > 0]
