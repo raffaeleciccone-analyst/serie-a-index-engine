@@ -271,6 +271,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"
         integrity="sha384-Hl48Kq2HifOWdXEjMsKo6qxqvRLTYqIGbvlENBmkHAxZKIGCXv43H6W1jA671RzC"
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="i18n.js"></script>
 <style>
 /* ═══════════════════════════════════════
    DESIGN SYSTEM — Apple HIG Dark + Liquid Glass
@@ -1311,10 +1312,10 @@ window.onerror=function(m,s,l){
     <div class="tpp-hdr">
       <!-- Pulsante in alto a destra, posizione assoluta -->
       <button class="tpp-collapse-btn" id="tpp-toggle" onclick="toggleTppSection()"
-        style="position:absolute;top:24px;right:20px">&#9660; Mostra TPI Pro</button>
-      <div class="tpp-badge">&#x2728; Novit&agrave; &mdash; TPI Pro</div>
-      <div class="tpp-ttl">TPI Pro: 6 Dimensioni di Analisi</div>
-      <div class="tpp-sub">
+        style="position:absolute;top:24px;right:20px">&#9660; <span data-i18n="dash_show_pro">Mostra TPI Pro</span></button>
+      <div class="tpp-badge" data-i18n="dash_pro_badge">&#x2728; Novit&agrave; &mdash; TPI Pro</div>
+      <div class="tpp-ttl" data-i18n="dash_pro_ttl">TPI Pro: 6 Dimensioni di Analisi</div>
+      <div class="tpp-sub" data-i18n-html="dash_pro_body">
         Il <strong>TPI classico</strong> usa 4 dimensioni offensiva (output, centralità, boost, consistenza).
         Il <strong>TPI Pro</strong> aggiunge <span style="color:var(--teal)">Età Index (AII)</span>
         e <span style="color:var(--purp)">Affidabilità Fisica (PRI)</span> —
@@ -1354,33 +1355,33 @@ window.onerror=function(m,s,l){
 
   <!-- Control bar -->
   <div class="ctrl-bar" id="ctrl-bar">
-    <button class="mpill on" data-m="tpi"  onclick="selMetric(this)"><span>&#x1F3C6;</span> TPI</button>
-    <button class="mpill" data-m="prospect" onclick="selMetric(this)"><span>&#x1F331;</span> Giovani &#x2605;</button>
-    <button class="mpill" data-m="out"  onclick="selMetric(this)"><span>&#x26A1;</span> Output</button>
-    <button class="mpill" data-m="cen"  onclick="selMetric(this)"><span>&#x1F3AF;</span> Centralit&agrave;</button>
-    <button class="mpill" data-m="boo"  onclick="selMetric(this)"><span>&#x1F4C8;</span> Boost</button>
-    <button class="mpill" data-m="con"  onclick="selMetric(this)"><span>&#x1F4CA;</span> Consistenza</button>
-    <button class="mpill" data-m="conv" onclick="selMetric(this)"><span>&#x26BD;</span> G/xG</button>
+    <button class="mpill on" data-m="tpi"  onclick="selMetric(this)"><span>&#x1F3C6;</span> <span data-i18n="dash_chip_tpi">TPI</span></button>
+    <button class="mpill" data-m="prospect" onclick="selMetric(this)"><span>&#x1F331;</span> <span data-i18n="dash_chip_prospect">Giovani &#x2605;</span></button>
+    <button class="mpill" data-m="out"  onclick="selMetric(this)"><span>&#x26A1;</span> <span data-i18n="dash_chip_output">Output</span></button>
+    <button class="mpill" data-m="cen"  onclick="selMetric(this)"><span>&#x1F3AF;</span> <span data-i18n="dash_chip_cen">Centralit&agrave;</span></button>
+    <button class="mpill" data-m="boo"  onclick="selMetric(this)"><span>&#x1F4C8;</span> <span data-i18n="dash_chip_boo">Boost</span></button>
+    <button class="mpill" data-m="con"  onclick="selMetric(this)"><span>&#x1F4CA;</span> <span data-i18n="dash_chip_con">Consistenza</span></button>
+    <button class="mpill" data-m="conv" onclick="selMetric(this)"><span>&#x26BD;</span> <span data-i18n="dash_chip_conv">G/xG</span></button>
     <div class="ctrl-div"></div>
-    <button class="rpill" data-r="ATT" onclick="selRole(this)">ATT</button>
-    <button class="rpill" data-r="CEN" onclick="selRole(this)">CEN</button>
-    <button class="rpill" data-r="DIF" onclick="selRole(this)">DIF</button>
+    <button class="rpill" data-r="ATT" onclick="selRole(this)" data-i18n="dash_role_fwd_s">ATT</button>
+    <button class="rpill" data-r="CEN" onclick="selRole(this)" data-i18n="dash_role_mid_s">CEN</button>
+    <button class="rpill" data-r="DIF" onclick="selRole(this)" data-i18n="dash_role_def_s">DIF</button>
     <div class="ctrl-div"></div>
     <div class="sq-wrap" id="sq-wrap">
       <button class="sq-btn" id="sq-btn" onclick="toggleSqFpk()">
-        &#x1F6E1;&ensp;<span id="sq-lbl">Squadra</span>
+        &#x1F6E1;&ensp;<span id="sq-lbl" data-i18n="dash_filter_team">Squadra</span>
         <span class="sq-chevron">&#9660;</span>
       </button>
     </div>
     <div class="sq-wrap" id="fpk-wrap">
       <button class="sq-btn" id="fpk-btn" onclick="toggleFpk()">
-        &#x2315;&ensp;<span id="fpk-lbl">Giocatore</span>
+        &#x2315;&ensp;<span id="fpk-lbl" data-i18n="term_player">Giocatore</span>
         <span class="sq-chevron">&#9660;</span>
       </button>
     </div>
     <div class="ctrl-div"></div>
     <button class="cpill" onclick="selMetric(document.querySelector('.mpill[data-m=tpi]'));showCompare()">
-      &#x1F504; Confronta
+      &#x1F504; <span data-i18n="dash_btn_compare">Confronta</span>
     </button>
   </div>
 
@@ -1389,14 +1390,14 @@ window.onerror=function(m,s,l){
     <div class="fpk-search">
       <span class="fpk-search-ico">&#x2315;</span>
       <input class="fpk-search-inp" id="pi" type="text"
-             placeholder="Nome, squadra o ruolo&hellip;"
+             placeholder="Nome, squadra o ruolo&hellip;" data-i18n-placeholder="dash_search_np"
              autocomplete="off" spellcheck="false">
     </div>
     <div class="fpk-list" id="pd"></div>
   </div>
 
   <div class="sq-fpk-box" id="sq-fpk-box">
-    <div class="sq-panel-hd" style="position:relative;z-index:3">Filtra per squadra</div>
+    <div class="sq-panel-hd" style="position:relative;z-index:3" data-i18n="dash_filter_by_team">Filtra per squadra</div>
     <div id="sq-items" style="position:relative;z-index:3"></div>
     <div class="sq-panel-sep" style="position:relative;z-index:3"></div>
     <button class="sq-reset" style="position:relative;z-index:3" onclick="resetTeams()">
@@ -1512,6 +1513,9 @@ window.onerror=function(m,s,l){
 const DATA   = __DATA_JS__;
 const RC     = __RC_JS__;
 const RL     = __RL_JS__;
+/* nome-ruolo localizzato: usa i18n se disponibile, fallback a RL (italiano) */
+const _ROLE_KEY={POR:"dash_role_full_POR",DIF:"dash_role_full_DIF",CEN:"dash_role_full_CEN",ATT:"dash_role_full_ATT"};
+function roleName(code){ return T(_ROLE_KEY[code], RL[code]||code); }
 const CTX_L  = __CTX_L_JS__;
 const SPIEG  = __SPIEG_JS__;
 const TOP6   = __TOP6_JS__;
@@ -1544,6 +1548,10 @@ function hb(k){return'<span class="help" onclick="event.stopPropagation();openM(
 /* HTML-escape per dati esterni (V2 XSS hardening) — usa ovunque in innerHTML */
 const _ESC_MAP={"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;","`":"&#96;"};
 function esc(s){return String(s==null?"":s).replace(/[&<>"'`]/g,c=>_ESC_MAP[c]);}
+
+/* i18n: T(key) — usa il dizionario condiviso se caricato, altrimenti torna il
+   fallback italiano passato come 2° argomento (così nessun render mostra la key) */
+function T(k,fb){ return (window.SerieAi18n ? window.SerieAi18n.t(k) : (fb!=null?fb:k)); }
 
 /* Restituisce il nome completo del giocatore (escapato) */
 function dispNm(p){return esc(p&&p.nome?p.nome:"");}
@@ -1706,8 +1714,8 @@ function toggleTppSection(){
   if(coll) coll.style.display = _tppVisible ? "block" : "none";
   if(btn){
     btn.innerHTML = _tppVisible
-      ? "&#9650; Nascondi"
-      : "&#9660; Mostra TPI Pro";
+      ? "&#9650; " + esc(T("dash_hide_pro","Nascondi TPI Pro"))
+      : "&#9660; " + esc(T("dash_show_pro","Mostra TPI Pro"));
     btn.style.background = _tppVisible
       ? "rgba(191,90,242,.15)"
       : "rgba(191,90,242,.08)";
@@ -1835,9 +1843,9 @@ function buildTpiProSection(){
 
 /* ── Leaderboard ── */
 const METRICS_CFG={
-  tpi:      {ttl:"TPI Totale",       help:"TPI",         get:p=>p.tpi.totale,                    fmt:v=>(v>=0?"+":"")+v.toFixed(2)},
+  tpi:      {ttl:"TPI Totale", ttlKey:"dash_m_tpi", help:"TPI",         get:p=>p.tpi.totale,                    fmt:v=>(v>=0?"+":"")+v.toFixed(2)},
   prospect: {
-    ttl:"Giovani \u2605 — Prospect Score",
+    ttl:"Giovani \u2605 — Prospect Score", ttlKey:"dash_m_prospect",
     help:"TPI",
     get:p=>{
       /* Prospect Score = TPI × AII  (solo giocatori ≤ 24 anni)
@@ -1868,11 +1876,11 @@ const METRICS_CFG={
         : '';
     },
   },
-  out:  {ttl:"Output Offensivo Adj / 90'",help:"output_adj", get:p=>p.ctx?.totale?.output_adj,    fmt:v=>v.toFixed(3)},
-  cen:  {ttl:"Centralit\u00e0 Offensiva",   help:"centralita",  get:p=>p.ctx?.totale?.centralita,     fmt:v=>v.toFixed(1)+"%"},
-  boo:  {ttl:"Team Boost Ratio",          help:"boost_ratio", get:p=>p.ctx?.totale?.boost_ratio,    fmt:v=>v.toFixed(2)+"\u00d7"},
-  con:  {ttl:"Consistenza",               help:"consistenza", get:p=>p.ctx?.totale?.consistenza,    fmt:v=>v.toFixed(3)},
-  conv: {ttl:"G / xG \u2014 Conversion",  help:"conv_ratio",  get:p=>p.conv?.conv_ratio,            fmt:v=>v.toFixed(2)},
+  out:  {ttl:"Output Offensivo Adj / 90'", ttlKey:"dash_m_out", help:"output_adj", get:p=>p.ctx?.totale?.output_adj,    fmt:v=>v.toFixed(3)},
+  cen:  {ttl:"Centralit\u00e0 Offensiva", ttlKey:"dash_m_cen",   help:"centralita",  get:p=>p.ctx?.totale?.centralita,     fmt:v=>v.toFixed(1)+"%"},
+  boo:  {ttl:"Team Boost Ratio", ttlKey:"dash_m_boo",          help:"boost_ratio", get:p=>p.ctx?.totale?.boost_ratio,    fmt:v=>v.toFixed(2)+"\u00d7"},
+  con:  {ttl:"Consistenza", ttlKey:"dash_m_con",               help:"consistenza", get:p=>p.ctx?.totale?.consistenza,    fmt:v=>v.toFixed(3)},
+  conv: {ttl:"G / xG \u2014 Conversion", ttlKey:"dash_m_conv",  help:"conv_ratio",  get:p=>p.conv?.conv_ratio,            fmt:v=>v.toFixed(2)},
 };
 function selMetric(el){
   document.querySelectorAll(".mpill").forEach(b=>b.classList.remove("on"));
@@ -1881,7 +1889,7 @@ function selMetric(el){
 function buildLeaderboard(){
   const m=METRICS_CFG[CUR_METRIC];
   const fd=getFiltered().filter(p=>p.ruolo!=="POR"&&(!PR||p.ruolo===PR));
-  document.getElementById("lb-ttl").textContent=m.ttl;
+  document.getElementById("lb-ttl").textContent=T(m.ttlKey, m.ttl);
   document.getElementById("lb-help").onclick=()=>openM(m.help);
   const teamSub=ACTIVE_TEAMS.size>0?" — "+[...ACTIVE_TEAMS].join(", "):"";
   const roleSub=PR?" · "+{"ATT":"Solo ATT","CEN":"Solo CEN","DIF":"Solo DIF"}[PR]:"";
@@ -1903,7 +1911,7 @@ function buildLeaderboard(){
   const el=document.getElementById("lb-chart");
   const elR=document.getElementById("lb-roster");
   if(!sorted.length){
-    el.innerHTML='<div style="color:var(--lt);padding:40px 0;text-align:center;font-size:13px">Nessun dato disponibile per questo filtro</div>';
+    el.innerHTML='<div style="color:var(--lt);padding:40px 0;text-align:center;font-size:13px">'+esc(T("dash_no_filter_data","Nessun dato disponibile per questo filtro"))+'</div>';
     if(elR)elR.innerHTML="";return;
   }
   const maxV=sorted[0].v||1;
@@ -1920,13 +1928,13 @@ function buildLeaderboard(){
       +'<div class="lb-dot" style="background:'+rc+'"></div>'
       +'<div class="lb-info">'
         +'<div class="lb-nm" title="'+esc(p.nome)+'">'+dn+wb+extra+'</div>'
-        +'<div class="lb-team">'+esc(p.squadra)+' &middot; '+esc(RL[p.ruolo]||p.ruolo)+'</div>'
+        +'<div class="lb-team">'+esc(p.squadra)+' &middot; '+esc(roleName(p.ruolo))+'</div>'
       +'</div>'
       +'<div class="lb-bar-wrap"><div class="lb-bar-fill" style="width:'+barW+'%;background:'+rc+'80"></div></div>'
       +'<span class="lb-val" style="color:'+rc+'">'+m.fmt(v)+'</span>'
       +'<div class="lb-actions">'
-        +'<button class="lb-btn lb-btn-prof" onclick="pick('+p.id+')">&#x2192; Profilo</button>'
-        +'<button class="lb-btn lb-btn-cmp" id="cmpbtn-'+p.id+'" onclick="showDiff('+p.id+')">&#x2696; Scarto</button>'
+        +'<button class="lb-btn lb-btn-prof" onclick="pick('+p.id+')">&#x2192; '+esc(T("dash_btn_profile","Profilo"))+'</button>'
+        +'<button class="lb-btn lb-btn-cmp" id="cmpbtn-'+p.id+'" onclick="showDiff('+p.id+')">&#x2696; '+esc(T("dash_btn_diff","Scarto"))+'</button>'
       +'</div></div>';
   }).join("")+'</div>';
 
@@ -1936,14 +1944,14 @@ function buildLeaderboard(){
     const unanalyzed=ROSTER.filter(r=>!analyzedIds.has(r.id)&&r.ruolo!=="POR"&&(!PR||r.ruolo===PR)&&ACTIVE_TEAMS.has(r.squadra));
     if(unanalyzed.length){
       elR.innerHTML='<div class="roster-section">'
-        +'<div class="roster-hdr">&#x1F465; Resto della rosa '
-        +'<span style="font-size:11px;color:var(--lt);font-weight:400">'+unanalyzed.length+' giocatori (minuti insufficienti per TPI)</span></div>'
+        +'<div class="roster-hdr">&#x1F465; '+esc(T("dash_roster","Resto della rosa"))+' '
+        +'<span style="font-size:11px;color:var(--lt);font-weight:400">'+unanalyzed.length+' '+esc(T("dash_roster_note","giocatori (minuti insufficienti per TPI)"))+'</span></div>'
         +'<div class="roster-grid">'+unanalyzed.map(function(r){
           var rc2=RC[r.ruolo]||"#636366";
           var dn2=esc(r.nome);
           return'<div class="roster-card"><div class="lb-dot" style="background:'+rc2+'"></div>'
             +'<div style="flex:1;min-width:0"><div class="roster-nm" title="'+esc(r.nome)+'">'+dn2+'</div>'
-            +'<div style="font-size:10px;color:var(--lt)">'+esc(r.squadra)+' &middot; '+esc(RL[r.ruolo]||r.ruolo)+'</div></div>'
+            +'<div style="font-size:10px;color:var(--lt)">'+esc(r.squadra)+' &middot; '+esc(roleName(r.ruolo))+'</div></div>'
             +'<span class="roster-min">'+(+r.minuti>0?(+r.minuti)+"min":"—")+'</span></div>';
         }).join('')+'</div></div>';
     }else elR.innerHTML="";
@@ -2126,7 +2134,7 @@ function buildDrop(){
       &&(ACTIVE_TEAMS.size===0||ACTIVE_TEAMS.has(r.squadra))
       &&(!PQ||r.nome.toLowerCase().includes(PQ)||r.squadra.toLowerCase().includes(PQ)));
   }
-  if(!analyzed.length&&!rosterExtra.length){pd.innerHTML='<div class="fpk-empty">Nessun risultato</div>';return;}
+  if(!analyzed.length&&!rosterExtra.length){pd.innerHTML='<div class="fpk-empty">'+esc(T("msg_no_results","Nessun risultato"))+'</div>';return;}
   let html=analyzed.map(p=>{
     const rc=RC[p.ruolo]||"#636366",t=p.tpi.totale;
     const ts=(t==null)?"—":(t>=0?"+":"")+t.toFixed(2);
@@ -2140,7 +2148,7 @@ function buildDrop(){
       +'<div class="fpk-dot" style="background:'+rc+'"></div>'
       +'<div class="fpk-bd">'
         +'<div class="fpk-nm" title="'+esc(p.nome)+'">'+dn+wb+'</div>'
-        +'<div class="fpk-sub">'+esc(p.squadra)+' &middot; '+esc(RL[p.ruolo]||p.ruolo)+(cr?' &middot; G/xG '+cr.toFixed(2):'')+'</div>'
+        +'<div class="fpk-sub">'+esc(p.squadra)+' &middot; '+esc(roleName(p.ruolo))+(cr?' &middot; G/xG '+cr.toFixed(2):'')+'</div>'
       +'</div>'
       +'<div class="fpk-rt"><div class="fpk-tpi '+tc+'">'+ts+'</div><span style="color:'+ac+'">'+ar+'</span></div></div>';
   }).join("");
@@ -2187,7 +2195,7 @@ function updateHero(p){
   const fc=ft>.10?"tag-up":ft<-.10?"tag-dn":"tag-flat";
   const fa=ft>.10?"▲":ft<-.10?"▼":"→";
   document.getElementById("h-tags").innerHTML=
-    '<span class="tag tag-role" style="background:'+rc+'88;border-color:'+rc+'55">'+esc(RL[p.ruolo]||p.ruolo)+'</span>'
+    '<span class="tag tag-role" style="background:'+rc+'88;border-color:'+rc+'55">'+esc(roleName(p.ruolo))+'</span>'
     +(rk.TPI?'<span class="tag tag-rank">#'+rk.TPI+' / '+rk.n_total+'</span>':"")
     +'<span class="tag '+fc+'">Form '+fa+' '+(ft!=null?(ft>=0?"+":"")+((ft*100).toFixed(0))+"%":"—")+'</span>';
 }
@@ -2256,11 +2264,11 @@ function showDiff(id){
 
   const mbox=document.getElementById("m-b");
   const mt  =document.getElementById("m-t");
-  mt.textContent="Δ Differenziale — "+(p.nome||p.cognome);
+  mt.textContent=T("dash_diff_modal","Δ Differenziale")+" — "+(p.nome||p.cognome);
 
   mbox.innerHTML=`
     <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:12px;color:var(--lt);font-weight:600">Confronta con:</span>
+      <span style="font-size:12px;color:var(--lt);font-weight:600">${esc(T("dash_compare_with","Confronta con"))}:</span>
       <select id="diff-sel" style="flex:1;min-width:180px;
         background:rgba(30,30,35,1);
         border:1px solid rgba(255,255,255,.18);border-radius:9px;
@@ -2272,8 +2280,8 @@ function showDiff(id){
     </div>
     <div id="diff-rows"></div>
     <div style="font-size:10px;color:var(--lt);margin-top:14px;line-height:1.6">
-      Valori in z-score (σ dalla media lega). <strong style="color:var(--green)">Verde</strong> = vantaggio,
-      <strong style="color:var(--red)">Rosso</strong> = svantaggio.
+      ${esc(T("dash_z_explain","Valori in z-score (σ dalla media lega)."))} <strong style="color:var(--green)">${esc(T("dash_advantage","vantaggio"))}</strong> /
+      <strong style="color:var(--red)">${esc(T("dash_disadvantage","svantaggio"))}</strong>.
     </div>`;
 
   document.getElementById("modal").style.display="flex";
@@ -2665,6 +2673,21 @@ showHome();
 buildLeaderboard();
 buildTpiProSection();
 
+/* ── i18n: re-render del contenuto dinamico al cambio lingua ── */
+document.addEventListener("i18n:changed", () => {
+  try {
+    buildDrop();
+    buildLeaderboard();
+    buildTeamStrip();
+    buildTpiProSection();
+    /* se un profilo è aperto, rigenera i suoi pannelli */
+    if (typeof CUR !== "undefined" && CUR && document.getElementById("view-player")
+        && document.getElementById("view-player").style.display !== "none") {
+      renderAll(CUR);
+    }
+  } catch (e) { /* non bloccare lo switch lingua per un errore di render */ }
+});
+
 /* ── Resize / orientamento: ridisegna grafici Plotly ── */
 let _resizeTimer;
 window.addEventListener("resize", () => {
@@ -2727,7 +2750,6 @@ window.addEventListener("orientationchange", () => {
 }
 </style>
 
-<script src="i18n.js"></script>
 </body>
 </html>"""
 
