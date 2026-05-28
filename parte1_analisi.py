@@ -218,6 +218,7 @@ class Config:
         "Lorran": "ATT",
         "Luca Moro": "ATT",
         "MBala Nzola": "ATT",
+        "Matteo Politano": "ATT",   # ala Napoli schierata wing-back (Understat: DMR)
         "Maxwel Cornet": "ATT",
         "Niclas Fullkrug": "ATT",
         "Nicolae Stanciu": "ATT",
