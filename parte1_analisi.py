@@ -850,19 +850,45 @@ class DatabaseLayer:
             return {}
 
     def load_players_analytics(self) -> pd.DataFrame:
+        # Base costruita direttamente da `giocatori` + aggregati freschi di
+        # `giocatore_partita` (NON da t_player_analytics, che era uno snapshot
+        # stantio: minuti sbagliati e ~15 titolari mancanti dal ranking).
+        # Così ogni giocatore con minuti reali è incluso, con minutaggio corretto.
         df = pd.read_sql(
             """
             SELECT
-                pa.*,
+                g.id                       AS giocatore_id,
                 g.ruolo,
                 g.squadra_id,
+                sq.nome                    AS squadra,
+                COALESCE(agg.minuti, 0)    AS minuti,
+                COALESCE(agg.partite, 0)   AS partite,
+                COALESCE(agg.goal, 0)      AS goal,
+                agg.xg,
+                agg.xa,
                 TRIM(CASE
                     WHEN g.cognome IS NULL OR TRIM(g.cognome) = '' THEN g.nome
                     WHEN LOWER(g.nome) LIKE LOWER(CONCAT('%%', g.cognome, '%%')) THEN g.nome
                     ELSE CONCAT_WS(' ', NULLIF(TRIM(g.nome), ''), NULLIF(TRIM(g.cognome), ''))
-                END) AS nome_anagrafico
-            FROM t_player_analytics pa
-            JOIN giocatori g ON g.id = pa.giocatore_id
+                END) AS nome_anagrafico,
+                TRIM(CASE
+                    WHEN g.cognome IS NULL OR TRIM(g.cognome) = '' THEN g.nome
+                    WHEN LOWER(g.nome) LIKE LOWER(CONCAT('%%', g.cognome, '%%')) THEN g.nome
+                    ELSE CONCAT_WS(' ', NULLIF(TRIM(g.nome), ''), NULLIF(TRIM(g.cognome), ''))
+                END) AS giocatore
+            FROM giocatori g
+            LEFT JOIN squadre sq ON sq.id = g.squadra_id
+            JOIN (
+                SELECT giocatore_id,
+                       SUM(minuti)               AS minuti,
+                       COUNT(DISTINCT calendario_id) AS partite,
+                       SUM(goal)                 AS goal,
+                       SUM(xg)                   AS xg,
+                       SUM(xa)                   AS xa
+                FROM giocatore_partita
+                WHERE minuti > 0
+                GROUP BY giocatore_id
+            ) agg ON agg.giocatore_id = g.id
             """,
             self.engine,
         )
