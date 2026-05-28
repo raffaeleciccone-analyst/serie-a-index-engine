@@ -1367,6 +1367,9 @@ window.onerror=function(m,s,l){
     <button class="rpill" data-r="CEN" onclick="selRole(this)" data-i18n="dash_role_mid_s">CEN</button>
     <button class="rpill" data-r="DIF" onclick="selRole(this)" data-i18n="dash_role_def_s">DIF</button>
     <div class="ctrl-div"></div>
+    <button class="rpill" data-f="hot"  onclick="selForm(this)" title="Solo in forma">🔥 <span data-i18n="dash_filter_hot">Caldi</span></button>
+    <button class="rpill" data-f="cold" onclick="selForm(this)" title="Solo in calo">🧊 <span data-i18n="dash_filter_cold">In calo</span></button>
+    <div class="ctrl-div"></div>
     <div class="sq-wrap" id="sq-wrap">
       <button class="sq-btn" id="sq-btn" onclick="toggleSqFpk()">
         &#x1F6E1;&ensp;<span id="sq-lbl" data-i18n="dash_filter_team">Squadra</span>
@@ -1539,6 +1542,7 @@ const NMIN  = 4;
 /* ── Stato ── */
 let CUR=null, CTX="totale", TAB="ov", PQ="", PR="";
 let ACTIVE_TEAMS=new Set(), CUR_METRIC="tpi", VIEW="home", COMPARE_POOL=[];
+let FORM_FILTER="";  /* "" tutti | "hot" solo caldi | "cold" solo in calo */
 
 /* ── Plotly base ── */
 const PL={responsive:true,displayModeBar:false};
@@ -1897,7 +1901,7 @@ function selMetric(el){
 }
 function buildLeaderboard(){
   const m=METRICS_CFG[CUR_METRIC];
-  const fd=getFiltered().filter(p=>p.ruolo!=="POR"&&(!PR||p.ruolo===PR));
+  const fd=getFiltered().filter(p=>p.ruolo!=="POR"&&(!PR||p.ruolo===PR)&&(!FORM_FILTER||(p.recent&&p.recent.label===FORM_FILTER)));
   document.getElementById("lb-ttl").textContent=T(m.ttlKey, m.ttl);
   document.getElementById("lb-help").onclick=()=>openM(m.help);
   const teamSub=ACTIVE_TEAMS.size>0?" — "+[...ACTIVE_TEAMS].join(", "):"";
@@ -2128,7 +2132,8 @@ window.addEventListener("resize",()=>{
   if(document.getElementById("sq-fpk-box")?.classList.contains("open"))positionSqFpk();
 });
 pi.addEventListener("input",()=>{PQ=pi.value.toLowerCase();buildDrop();});
-function selRole(el){const wasOn=el.classList.contains("on");document.querySelectorAll(".rpill").forEach(b=>b.classList.remove("on"));if(!wasOn){el.classList.add("on");PR=el.dataset.r;}else PR="";buildDrop();buildLeaderboard();}
+function selRole(el){const wasOn=el.classList.contains("on");document.querySelectorAll(".rpill[data-r]").forEach(b=>b.classList.remove("on"));if(!wasOn){el.classList.add("on");PR=el.dataset.r;}else PR="";buildDrop();buildLeaderboard();}
+function selForm(el){const wasOn=el.classList.contains("on");document.querySelectorAll(".rpill[data-f]").forEach(b=>b.classList.remove("on"));if(!wasOn){el.classList.add("on");FORM_FILTER=el.dataset.f;}else FORM_FILTER="";buildDrop();buildLeaderboard();}
 
 function buildDrop(){
   const base=ACTIVE_TEAMS.size>0?DATA.filter(p=>ACTIVE_TEAMS.has(p.squadra)):DATA;
