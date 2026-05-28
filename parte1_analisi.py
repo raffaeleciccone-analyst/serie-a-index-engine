@@ -79,6 +79,19 @@ class Config:
     k_base: float = 12.0
     k_winter_multiplier: float = 1.8
 
+    # Shrinkage minuti su output_adj (empirical Bayes verso media-ruolo)
+    # K in minuti: m=K → 50% shrinkage. ~600' ≈ 7 partite.
+    output_prior_minutes: float = 600.0
+    # Peso della fase offensiva per ruolo: quanto "conta" l'offensiva nel TPI.
+    # ATT pieno, DIF/POR ridotto → un difensore bravo offensivamente emerge tra
+    # i difensori ma non supera gli attaccanti (resta un indice OFFENSIVO).
+    offensive_role_weight: dict[str, float] = field(default_factory=lambda: {
+        "ATT": 1.00, "CEN": 0.85, "DIF": 0.55, "POR": 0.20,
+    })
+    # Quanto la confidence (minuti+completezza) regredisce il TPI verso la media
+    # di ruolo. floor=0.35 → anche a confidence 0 si tiene il 35% del segnale.
+    confidence_floor: float = 0.35
+
     # Contesti & soglie
     n_top_difese: int = 6
     n_top6_class: int = 6
@@ -2185,28 +2198,59 @@ def main() -> None:
                     (all_ctx.get(int(gid)) or {}).get(c) or {}
                 ).get(d)
             )
+        # minuti del contesto (per lo shrinkage dell'output)
+        df_pa[f"{ctx}_min_tot"] = df_pa["giocatore_id"].map(
+            lambda gid, c=ctx: ((all_ctx.get(int(gid)) or {}).get(c) or {}).get("min_tot")
+        )
 
-    # ── Z-score ───────────────────────────────────────────────
-    mask_ref = df_pa["ruolo"].isin(["ATT", "CEN"])
+    # ── FIX 1: Shrinkage minuti su output_adj (empirical Bayes) ──
+    # output regredisce verso la media di ruolo del contesto in base ai minuti:
+    #   out_shrunk = (m·out + K·prior_ruolo) / (m + K)
+    # un per-90 caldo su pochi minuti viene tirato verso la media; chi gioca
+    # tanto resta vicino al suo valore reale.
+    K_out = float(CFG.output_prior_minutes)
+    for ctx in CONTESTI:
+        col = f"{ctx}_output_adj"
+        mcol = f"{ctx}_min_tot"
+        for ruolo in df_pa["ruolo"].dropna().unique():
+            rmask = df_pa["ruolo"] == ruolo
+            raw = pd.to_numeric(df_pa.loc[rmask, col], errors="coerce")
+            prior = raw.mean()
+            if pd.isna(prior):
+                continue
+            m = pd.to_numeric(df_pa.loc[rmask, mcol], errors="coerce").fillna(0.0)
+            shrunk = (m * raw.fillna(prior) + K_out * prior) / (m + K_out)
+            df_pa.loc[rmask, col] = np.where(raw.notna(), shrunk, np.nan)
+
+    # ── FIX 3: Z-score PER RUOLO (offensivo, role-relative) ──────
+    # ogni dimensione è standardizzata dentro il proprio ruolo: un difensore è
+    # confrontato con i difensori, non con gli attaccanti. Resta un indice
+    # offensivo, ma "relativo all'aspettativa di ruolo".
+    def _z_by_role(value_col: str, fb_col: str | None = None) -> pd.Series:
+        out = pd.Series(np.nan, index=df_pa.index)
+        for ruolo in df_pa["ruolo"].dropna().unique():
+            rmask = df_pa["ruolo"] == ruolo
+            fb = df_pa[fb_col] if fb_col else None
+            z = z_series(df_pa[value_col], rmask, fb, min_ref=6)
+            out.loc[rmask] = z.loc[rmask]
+        return out
+
     for ctx in CONTESTI:
         for dim in DIMS:
             fb_col = f"totale_{dim}" if ctx != "totale" else None
-            df_pa[f"z_{ctx}_{dim}"] = z_series(
-                df_pa[f"{ctx}_{dim}"],
-                mask_ref,
-                df_pa[fb_col] if fb_col else None,
-            )
+            df_pa[f"z_{ctx}_{dim}"] = _z_by_role(f"{ctx}_{dim}", fb_col)
 
-    df_pa["z_finishing"] = z_series(df_pa["finishing_quality"], mask_ref)
-    df_pa["z_conv_ratio"] = z_series(df_pa["conv_ratio"], mask_ref)
-    df_pa["z_form"] = z_series(df_pa["form_ewma"], mask_ref)
+    df_pa["z_finishing"] = _z_by_role("finishing_quality")
+    df_pa["z_conv_ratio"] = _z_by_role("conv_ratio")
+    df_pa["z_form"] = _z_by_role("form_ewma")
 
-    # ── Z-score nuovi indici v2 — stessa popolazione di riferimento (ATT+CEN) ──
-    # Usare mask_ref garantisce coerenza con tutti gli altri z-score del sistema
-    _eta_series = df_pa["eta_index"] if "eta_index" in df_pa.columns else pd.Series(dtype=float, index=df_pa.index)
-    _pri_series = df_pa["affidabilita_fisica"] if "affidabilita_fisica" in df_pa.columns else pd.Series(dtype=float, index=df_pa.index)
-    df_pa["z_eta_index"]          = z_series(_eta_series, mask_ref)
-    df_pa["z_affidabilita_fisica"] = z_series(_pri_series, mask_ref)
+    # AII/PRI: indici trasversali → z-score per ruolo anche loro
+    if "eta_index" not in df_pa.columns:
+        df_pa["eta_index"] = np.nan
+    if "affidabilita_fisica" not in df_pa.columns:
+        df_pa["affidabilita_fisica"] = np.nan
+    df_pa["z_eta_index"]           = _z_by_role("eta_index")
+    df_pa["z_affidabilita_fisica"] = _z_by_role("affidabilita_fisica")
 
     # ── TPI per contesto (classic: 4 dim) ────────────────────
     for ctx in CONTESTI:
@@ -2252,6 +2296,21 @@ def main() -> None:
             df_pa[f"TPI_ext_{ctx}"] = pd.concat([z_base.rename("b")] + [s.rename(f"e{i}") for i,s in enumerate(ext_cols)], axis=1).mean(axis=1)
         else:
             df_pa[f"TPI_ext_{ctx}"] = z_base
+
+    # ── FIX 2 + peso-ruolo: confidence nel sort + importanza offensiva ───────
+    # 1) shrink verso la media-ruolo in base alla confidence (minuti+completezza):
+    #    chi ha pochi dati regredisce verso la media del suo ruolo.
+    # 2) scala per il peso offensivo del ruolo: l'offensiva conta di più per un
+    #    ATT che per un DIF → il TPI resta un indice OFFENSIVO role-aware.
+    role_w = df_pa["ruolo"].map(CFG.offensive_role_weight).fillna(0.5).astype(float)
+    shrink_factor = (CFG.confidence_floor
+                     + (1.0 - CFG.confidence_floor) * df_pa["tpi_confidence"].fillna(0.0))
+    for ctx in CONTESTI:
+        for base in (f"TPI_{ctx}", f"TPI_ext_{ctx}"):
+            raw = df_pa[base].astype(float)
+            role_mean = raw.groupby(df_pa["ruolo"]).transform("mean")
+            shrunk = role_mean + shrink_factor * (raw - role_mean)
+            df_pa[base] = (role_w * shrunk).round(4)
 
     df_pa = df_pa.sort_values("TPI_totale", ascending=False).reset_index(drop=True)
 
