@@ -102,12 +102,12 @@ class Config:
     # la finalizzazione (gol vs xG) entra con peso piccolo così chi non converte
     # scende. Somma = 1.0. Re-normalizzati sui dim effettivamente disponibili.
     tpi_weights: dict[str, float] = field(default_factory=lambda: {
-        "output_adj":  0.36,   # qualità: xG+xA/90 SOS-adj (azioni finali)
-        "buildup_adj": 0.12,   # coinvolgimento nella manovra (xGBuildup, no tiro/assist)
-        "centralita":  0.15,   # quota produzione squadra (uso)
-        "boost_ratio": 0.10,   # team con/senza (uso, shrinkato)
-        "consistenza": 0.12,   # regolarità
-        "finishing":   0.15,   # gol vs npxG (conversione)
+        "output_adj":  0.40,   # qualità: xG+xA/90 SOS-adj — segnale dominante (corr 0.87)
+        "buildup_adj": 0.13,   # coinvolgimento nella manovra (xGBuildup, no tiro/assist)
+        "centralita":  0.10,   # quota produzione squadra — ridotta (collineare con output 0.46)
+        "boost_ratio": 0.05,   # team con/senza — ridotto (debole+copertura 59%)
+        "consistenza": 0.12,   # regolarità (riparata: mean/(mean+std))
+        "finishing":   0.20,   # gol vs npxG (conversione) — alzata
     })
 
     # Contesti & soglie
@@ -704,7 +704,10 @@ def compute_minute_thresholds(
 
     if cfg.use_adaptive_threshold and len(all_minutes) > 10:
         p30 = int(np.percentile(all_minutes, 30))
-        min_full = min(base_full, p30)
+        # MAI sotto la barra del 20% stagione: prendi il MAX, non il min.
+        # (il vecchio min() abbassava la soglia al 30° percentile → ammetteva
+        #  più giocatori a basso minutaggio.)
+        min_full = max(base_full, p30)
         log.info(
             f"Soglia adattiva: base={base_full}', p30={p30}' → soglia={min_full}'"
         )
@@ -842,7 +845,7 @@ def compute_dimensions(
         / df_con["minuti"].replace(0, np.nan) * 90
     ).dropna()
     consistenza = None
-    if len(out_pg) >= 5 and out_pg.mean() > 0:
+    if len(out_pg) >= 6 and out_pg.mean() > 0:
         consistenza = consistenza_robusta(out_pg)
 
     sorted_gp = df_con.sort_values("giornata")
@@ -1206,22 +1209,21 @@ def z_series(
 
 def consistenza_robusta(out_pg: pd.Series) -> float | None:
     """
-    Consistenza basata su IQR invece di CV classico (1-σ/μ).
-    Il CV classico è instabile quando μ → 0 e sensibile agli outlier.
-    IQR-based: 1 - (Q75-Q25) / (mediana + ε) — robusto e interpretabile.
-    Fallback al CV classico se IQR=0 (distribuzione puntiforme).
+    Consistenza = mean / (mean + std) dell'output per-90 sulle gare giocate.
+    Bounded [0,1], sempre definita (se mean+std>0), con varianza reale:
+      - alto  → contributo regolare partita dopo partita
+      - basso → produzione "a sprazzi" (1-2 gare grosse, tante a zero)
+    Sostituisce la vecchia 1−IQR/mediana, che su una distribuzione di output
+    per-90 zero-inflated collassava a pochi valori (~tutti 0) → dimensione morta.
     """
-    if len(out_pg) < 5 or out_pg.median() <= 0:
+    g = out_pg.dropna()
+    if len(g) < 6:
         return None
-    q25, q75 = out_pg.quantile(0.25), out_pg.quantile(0.75)
-    iqr = q75 - q25
-    med = out_pg.median()
-    if iqr == 0:
-        # Distribuzione molto consistente → consistenza alta
-        cv = out_pg.std() / (out_pg.mean() + 1e-9)
-        return max(0.0, round(1.0 - cv, 4))
-    robust_cv = iqr / (med + 1e-9)
-    return max(0.0, round(1.0 - robust_cv, 4))
+    mu = float(g.mean())
+    sd = float(g.std())
+    if mu + sd <= 1e-9:
+        return None
+    return round(mu / (mu + sd), 4)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -1901,6 +1903,22 @@ def main() -> None:
         df_pa["affidabilita_fisica"] = np.nan
     df_pa["z_eta_index"]           = _z_by_role("eta_index")
     df_pa["z_affidabilita_fisica"] = _z_by_role("affidabilita_fisica")
+
+    # ── Guardia anti-dimensione-morta ────────────────────────
+    # Se una dimensione con peso >0 ha varianza ~nulla nel contesto 'totale',
+    # non ordina nulla (caso consistenza vecchia: 12% di peso su zeri). Lo segnala
+    # forte così non passa inosservato.
+    for _dim, _w in CFG.tpi_weights.items():
+        if _w <= 0:
+            continue
+        _zc = f"z_finishing" if _dim == "finishing" else f"z_totale_{_dim}"
+        if _zc in df_pa.columns:
+            _sd = pd.to_numeric(df_pa[_zc], errors="coerce").std()
+            if pd.isna(_sd) or _sd < 0.05:
+                log.error(f"DIMENSIONE MORTA: '{_dim}' (peso {_w}) ha std≈0 ({_sd}) "
+                          f"→ non contribuisce al ranking, ripara o rimuovi il peso")
+            else:
+                log.info(f"  dim '{_dim}' (peso {_w}): std={_sd:.2f} ok")
 
     # ── TPI per contesto — MEDIA PESATA (qualità > uso) ──────
     # output_adj domina; centralità/boost (uso, gonfiabili su squadre deboli)
