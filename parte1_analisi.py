@@ -82,6 +82,11 @@ class Config:
     # Shrinkage minuti su output_adj (empirical Bayes verso media-ruolo)
     # K in minuti: m=K → 50% shrinkage. ~600' ≈ 7 partite.
     output_prior_minutes: float = 600.0
+
+    # Boost (team xG con/senza): metrica debole e confondente.
+    # log-ratio shrinkato verso neutro pesato sul campione "senza".
+    boost_min_senza: int = 6      # sotto questa soglia → boost neutro (None)
+    boost_shrink_k: float = 8.0   # n=K → 50% del segnale; più dati = più segnale
     # Peso della fase offensiva per ruolo: quanto "conta" l'offensiva nel TPI.
     # ATT pieno, DIF/POR ridotto → un difensore bravo offensivamente emerge tra
     # i difensori ma non supera gli attaccanti (resta un indice OFFENSIVO).
@@ -783,16 +788,23 @@ def compute_dimensions(
     xg_con_w = _weighted_mean(df_con["xg_team"].fillna(0), w_con)
     boost_ratio = None
 
-    if df_senza is not None and len(df_senza) >= 3 and xg_col in df_senza.columns:
+    # Boost = log-ratio (xG squadra con/senza) shrinkato verso neutro (0),
+    # pesato sul numero di gare "senza": n/(n+K). Simmetrico — si muove solo
+    # con evidenza ben campionata, in qualsiasi direzione. Sotto la soglia
+    # minima resta None (neutro) e il TPI si re-normalizza sulle altre dim.
+    if df_senza is not None and xg_col in df_senza.columns:
         df_s = df_senza.copy()
         if ruolo_gp and "ruolo" in df_s.columns:
             df_s = df_s[df_s["ruolo"] == ruolo_gp]
-        if len(df_s) >= 3:
+        n_senza = len(df_s)
+        if n_senza >= cfg.boost_min_senza:
             df_s["_sos"] = df_s["avversario_id"].map(sos_map).fillna(1.0)
             df_s["_w"] = (1.0 / df_s["_sos"].replace(0, np.nan)).clip(upper=10.0).fillna(1.0)
             xg_s_w = _weighted_mean(df_s[xg_col].fillna(0), df_s["_w"])
-            if xg_con_w and xg_s_w and xg_s_w > 0:
-                boost_ratio = round(xg_con_w / xg_s_w, 4)
+            if xg_con_w and xg_s_w and xg_con_w > 0 and xg_s_w > 0:
+                lr = float(np.log(xg_con_w / xg_s_w))
+                shrink = n_senza / (n_senza + cfg.boost_shrink_k)
+                boost_ratio = round(float(np.exp(lr * shrink)), 4)
 
     out_pg = (
         (df_con["xg_ind"].fillna(0) + df_con["xa_ind"].fillna(0))
@@ -1812,12 +1824,15 @@ def main() -> None:
     # confrontato con i difensori, non con gli attaccanti. Resta un indice
     # offensivo, ma "relativo all'aspettativa di ruolo".
     def _z_by_role(value_col: str, fb_col: str | None = None) -> pd.Series:
-        out = pd.Series(np.nan, index=df_pa.index)
+        # coercizione a float: colonne con molti None (es. boost) sarebbero object
+        # e pandas 3.0 rifiuta l'assegnazione in una serie float.
+        vals = pd.to_numeric(df_pa[value_col], errors="coerce")
+        fb = pd.to_numeric(df_pa[fb_col], errors="coerce") if fb_col else None
+        out = pd.Series(np.nan, index=df_pa.index, dtype="float64")
         for ruolo in df_pa["ruolo"].dropna().unique():
             rmask = df_pa["ruolo"] == ruolo
-            fb = df_pa[fb_col] if fb_col else None
-            z = z_series(df_pa[value_col], rmask, fb, min_ref=6)
-            out.loc[rmask] = z.loc[rmask]
+            z = z_series(vals, rmask, fb, min_ref=6)
+            out.loc[rmask] = pd.to_numeric(z.loc[rmask], errors="coerce")
         return out
 
     for ctx in CONTESTI:
