@@ -1483,6 +1483,11 @@ window.onerror=function(m,s,l){
   <div id="p-radar" class="panel"></div>
 
   <div id="p-cmp" class="panel">
+    <div style="display:flex;gap:8px;padding:0 0 10px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:11px;color:var(--lt)" data-i18n="dash_filter_form">Filtra per forma:</span>
+      <button class="rpill" data-cf="hot"  onclick="selCmpForm(this)">🔥 <span data-i18n="dash_filter_hot">Caldi</span></button>
+      <button class="rpill" data-cf="cold" onclick="selCmpForm(this)">🧊 <span data-i18n="dash_filter_cold">In calo</span></button>
+    </div>
     <div style="display:flex;gap:10px;padding:0 0 16px;flex-wrap:wrap">
       <select class="cmp-sel" id="cs1" onchange="drawCmp()"></select>
       <span style="color:var(--lt);font-size:13px;align-self:center;font-weight:500">vs</span>
@@ -2625,17 +2630,33 @@ function drawCharts(p){
 }
 
 /* ── Compare ── */
-["cs1","cs2"].forEach((id,i)=>{
-  const s=document.getElementById(id);if(!s)return;
-  DATA.forEach(p=>{
-    const o=document.createElement("option"),t=p.tpi.totale;
-    const dn=dispNm(p);
-    o.value=p.id;
-    o.textContent=dn+(p.is_winter?" ❄":"")+" — "+p.squadra+" [TPI "+(t==null?"—":(t>=0?"+":"")+t.toFixed(2))+"]";
-    s.appendChild(o);
+let CMP_FORM="";  /* filtro forma per i dropdown confronto: "" | "hot" | "cold" */
+function fillCmpSelects(){
+  const pool=DATA.filter(p=>!CMP_FORM||(p.recent&&p.recent.label===CMP_FORM));
+  ["cs1","cs2"].forEach((id,i)=>{
+    const s=document.getElementById(id);if(!s)return;
+    const prev=s.value;
+    s.innerHTML="";
+    pool.forEach(p=>{
+      const o=document.createElement("option"),t=p.tpi.totale;
+      const ico=p.recent&&p.recent.label==="hot"?" 🔥":p.recent&&p.recent.label==="cold"?" 🧊":"";
+      o.value=p.id;
+      o.textContent=dispNm(p)+(p.is_winter?" ❄":"")+ico+" — "+p.squadra+" [TPI "+(t==null?"—":(t>=0?"+":"")+t.toFixed(2))+"]";
+      s.appendChild(o);
+    });
+    // mantieni la selezione precedente se ancora presente, altrimenti default
+    if(prev && pool.some(p=>String(p.id)===String(prev))) s.value=prev;
+    else if(pool.length>i) s.value=pool[i].id;
   });
-  if(DATA.length>i)s.value=DATA[i].id;
-});
+}
+function selCmpForm(el){
+  const wasOn=el.classList.contains("on");
+  document.querySelectorAll(".rpill[data-cf]").forEach(b=>b.classList.remove("on"));
+  CMP_FORM = wasOn ? "" : (el.classList.add("on"), el.dataset.cf);
+  fillCmpSelects();
+  drawCmp();
+}
+fillCmpSelects();
 function drawCmp(){
   const p1=DATA.find(x=>x.id==document.getElementById("cs1").value);
   const p2=DATA.find(x=>x.id==document.getElementById("cs2").value);
