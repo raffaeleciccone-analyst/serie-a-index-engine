@@ -1200,7 +1200,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 <div id="err-banner" style="display:none;position:fixed;bottom:20px;left:20px;right:20px;
   background:var(--red);color:#fff;padding:13px 16px;border-radius:12px;font-size:13px;
   z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,.6)">
-  <strong>Errore JS:</strong> <span id="err-msg"></span>
+  <strong data-i18n="dash_js_error">Errore JS:</strong> <span id="err-msg"></span>
   <span style="float:right;cursor:pointer;opacity:.7" onclick="this.parentElement.style.display='none'">&times;</span>
 </div>
 <script>
@@ -1218,7 +1218,7 @@ window.onerror=function(m,s,l){
     <div class="mbox-form" id="m-f"></div>
     <div class="mbox-body" id="m-b"></div>
     <div class="mbox-ex" id="m-e"></div>
-    <button class="mbox-cls" onclick="closeM()">Chiudi</button>
+    <button class="mbox-cls" onclick="closeM()" data-i18n="btn_close">Chiudi</button>
   </div>
 </div>
 
@@ -1258,7 +1258,7 @@ window.onerror=function(m,s,l){
           <span class="help" onclick="openM('TPI')" style="font-size:13px;width:18px;height:18px;margin-left:6px">?</span>
         </div>
         <div style="font-size:11px;color:var(--purp);font-weight:600;letter-spacing:.3px;
-          text-transform:uppercase;margin-top:2px;margin-bottom:6px">
+          text-transform:uppercase;margin-top:2px;margin-bottom:6px" data-i18n="hp_tagline">
           Data-driven Player Ranking Model
         </div>
         <div class="home-sub" id="home-sub">
@@ -1334,16 +1334,16 @@ window.onerror=function(m,s,l){
           <span class="sep">+</span>
           <span style="color:var(--purp)">z(PRI)</span>
           <span class="sep">&mdash;</span>
-          <span>media 6 z-score</span>
+          <span data-i18n="dash_pro_mean6">media 6 z-score</span>
         </div>
       </div>
       <div class="tpp-dims">
         <div class="tpp-dim tpp-dim-aii">&#x2B50; AII &mdash; Age Impact Index
-          <span style="font-size:10px;font-weight:400;margin-left:4px;color:rgba(90,200,250,.6)">Gaussiana picco 27 anni</span></div>
+          <span style="font-size:10px;font-weight:400;margin-left:4px;color:rgba(90,200,250,.6)" data-i18n="dash_pro_gauss">Gaussiana picco 27 anni</span></div>
         <div class="tpp-dim tpp-dim-pri">&#x1F4AA; PRI &mdash; Physical Reliability
-          <span style="font-size:10px;font-weight:400;margin-left:4px;color:rgba(191,90,242,.6)">Disponibilit&agrave; + infortuni + gravit&agrave;</span></div>
+          <span style="font-size:10px;font-weight:400;margin-left:4px;color:rgba(191,90,242,.6)" data-i18n="dash_pro_avail">Disponibilit&agrave; + infortuni + gravit&agrave;</span></div>
         <div class="tpp-dim tpp-dim-tpi">&#x1F3C6; TPI Classic
-          <span style="font-size:10px;font-weight:400;margin-left:4px;color:rgba(255,159,10,.6)">Output &middot; Centralit&agrave; &middot; Boost &middot; Consistenza</span></div>
+          <span style="font-size:10px;font-weight:400;margin-left:4px;color:rgba(255,159,10,.6)" data-i18n="dash_pro_dims">Output &middot; Centralit&agrave; &middot; Boost &middot; Consistenza</span></div>
       </div>
       <div class="tpp-body" id="tpp-body">
         <div id="tpp-content">
@@ -1404,7 +1404,7 @@ window.onerror=function(m,s,l){
     <div id="sq-items" style="position:relative;z-index:3"></div>
     <div class="sq-panel-sep" style="position:relative;z-index:3"></div>
     <button class="sq-reset" style="position:relative;z-index:3" onclick="resetTeams()">
-      <span style="font-size:14px;color:var(--red)">&#x2715;</span> Rimuovi filtro
+      <span style="font-size:14px;color:var(--red)">&#x2715;</span> <span data-i18n="dash_remove_filter">Rimuovi filtro</span>
     </button>
   </div>
 
@@ -1423,7 +1423,7 @@ window.onerror=function(m,s,l){
         <span style="color:var(--green)">&#x25A0;</span>&thinsp;CEN&ensp;
         <span style="color:var(--blue)">&#x25A0;</span>&thinsp;DIF
       </div>
-      <div style="color:var(--lt)">&#x2744; = acquisto invernale (soglia minuti ridotta)</div>
+      <div style="color:var(--lt)" data-i18n="dash_winter_legend">&#x2744; = acquisto invernale (soglia minuti ridotta)</div>
     </div>
   </div>
 </div>
@@ -1433,8 +1433,8 @@ window.onerror=function(m,s,l){
   <div style="padding:14px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer"
        onclick="toggleMeth()">
     <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:15px;font-weight:700;letter-spacing:-.3px">&#x1F4D0; Metodologia e Calcoli</span>
-      <span style="font-size:11px;color:var(--lt)">Come funziona il TPI</span>
+      <span style="font-size:15px;font-weight:700;letter-spacing:-.3px" data-i18n="dash_meth_calc">&#x1F4D0; Metodologia e Calcoli</span>
+      <span style="font-size:11px;color:var(--lt)" data-i18n="dash_meth_sub">Come funziona il TPI</span>
     </div>
     <span id="meth-chevron" style="font-size:12px;color:var(--lt);transition:transform .2s">&#9660;</span>
   </div>
@@ -1445,9 +1445,9 @@ window.onerror=function(m,s,l){
 
 <!-- Compare pool bar -->
 <div class="cmp-pool-bar" id="cmp-pool-bar">
-  <span class="cmp-pool-lbl">&#x2295; Confronta:</span>
+  <span class="cmp-pool-lbl">&#x2295; <span data-i18n="dash_compare">Confronta</span>:</span>
   <div class="cmp-pool-chips" id="cmp-chips"></div>
-  <button class="cmp-pool-go" onclick="goCompare()">&#x21C4; Confronta</button>
+  <button class="cmp-pool-go" onclick="goCompare()">&#x21C4; <span data-i18n="dash_btn_compare">Confronta</span></button>
   <button class="cmp-pool-clr" onclick="clearPool()">&#x2715;</button>
 </div>
 
@@ -1469,12 +1469,12 @@ window.onerror=function(m,s,l){
 
   <div class="ctx-bar" id="ctx-bar"></div>
   <div class="tabs">
-    <button class="tab-btn on" data-tab="ov"    onclick="swTab(this)">Panoramica</button>
-    <button class="tab-btn"    data-tab="conv"  onclick="swTab(this)">Goals vs xG</button>
-    <button class="tab-btn"    data-tab="tr"    onclick="swTab(this)">Trend xG</button>
-    <button class="tab-btn"    data-tab="radar" onclick="swTab(this)">Radar</button>
-    <button class="tab-btn"    data-tab="cmp"   onclick="swTab(this)">Confronta</button>
-    <button class="tab-btn"    data-tab="meth"  onclick="swTab(this)">Metodologia</button>
+    <button class="tab-btn on" data-tab="ov"    onclick="swTab(this)" data-i18n="dash_overview">Panoramica</button>
+    <button class="tab-btn"    data-tab="conv"  onclick="swTab(this)" data-i18n="dash_tab_conv">Goals vs xG</button>
+    <button class="tab-btn"    data-tab="tr"    onclick="swTab(this)" data-i18n="dash_tab_trend">Trend xG</button>
+    <button class="tab-btn"    data-tab="radar" onclick="swTab(this)" data-i18n="dash_tab_radar">Radar</button>
+    <button class="tab-btn"    data-tab="cmp"   onclick="swTab(this)" data-i18n="dash_compare">Confronta</button>
+    <button class="tab-btn"    data-tab="meth"  onclick="swTab(this)" data-i18n="dash_methodology">Metodologia</button>
   </div>
 
   <div id="p-ov"    class="panel on"></div>
@@ -1494,21 +1494,21 @@ window.onerror=function(m,s,l){
       <select class="cmp-sel" id="cs2" onchange="drawCmp()"></select>
     </div>
     <div class="g2">
-      <div class="card"><div class="card-ttl">Radar TPI</div><div id="cmp-radar" style="height:300px"></div></div>
-      <div class="card"><div class="card-ttl">Z-score dimensioni</div><div id="cmp-bars" style="height:300px"></div></div>
+      <div class="card"><div class="card-ttl" data-i18n="dash_radar">Radar TPI</div><div id="cmp-radar" style="height:300px"></div></div>
+      <div class="card"><div class="card-ttl" data-i18n="dash_zdim">Z-score dimensioni</div><div id="cmp-bars" style="height:300px"></div></div>
     </div>
     <div class="card" style="margin-top:12px">
-      <div class="card-ttl">TPI nei 5 contesti</div><div id="cmp-ctx" style="height:220px"></div>
+      <div class="card-ttl" data-i18n="dash_ctx5">TPI nei 5 contesti</div><div id="cmp-ctx" style="height:220px"></div>
     </div>
     <div class="card" style="margin-top:12px">
-      <div class="card-ttl">Goals vs xG a confronto</div><div id="cmp-conv" style="height:200px"></div>
+      <div class="card-ttl" data-i18n="dash_goals_vs_xg_cmp">Goals vs xG a confronto</div><div id="cmp-conv" style="height:200px"></div>
     </div>
   </div>
 
   <div id="p-meth" class="panel">
     <div style="max-width:860px;margin:0 auto">
-      <h2 style="font-size:22px;font-weight:700;letter-spacing:-.5px;margin-bottom:6px">Metodologia e Calcoli</h2>
-      <p style="font-size:14px;color:var(--ls);line-height:1.6;max-width:640px;margin-bottom:20px">
+      <h2 style="font-size:22px;font-weight:700;letter-spacing:-.5px;margin-bottom:6px" data-i18n="dash_meth_title">Metodologia e Calcoli</h2>
+      <p style="font-size:14px;color:var(--ls);line-height:1.6;max-width:640px;margin-bottom:20px" data-i18n="dash_meth_intro">
         Il TPI misura l&rsquo;impatto offensivo reale attraverso 4 dimensioni ortogonali.
         Bayesian shrinkage stabilizza le stime. SOS-weighting normalizza la difficoltà.</p>
       <div id="meth-content"></div>
@@ -1570,6 +1570,8 @@ function esc(s){return String(s==null?"":s).replace(/[&<>"'`]/g,c=>_ESC_MAP[c]);
 /* i18n: T(key) — usa il dizionario condiviso se caricato, altrimenti torna il
    fallback italiano passato come 2° argomento (così nessun render mostra la key) */
 function T(k,fb){ return (window.SerieAi18n ? window.SerieAi18n.t(k) : (fb!=null?fb:k)); }
+const _CTX_KEYS={totale:"term_total",casa:"term_home",trasferta:"term_away",vs_top6:"term_vs_top6",vs_forti:"term_vs_strong"};
+function CTXL(c){ return _CTX_KEYS[c] ? T(_CTX_KEYS[c], (CTX_L&&CTX_L[c])||c) : ((CTX_L&&CTX_L[c])||c); }
 
 /* Restituisce il nome completo del giocatore (escapato) */
 function dispNm(p){return esc(p&&p.nome?p.nome:"");}
@@ -1693,11 +1695,11 @@ function updateHomeSub(){
   const el=document.getElementById("home-sub");if(!el)return;
   const fd=getFiltered();
   if(ACTIVE_TEAMS.size===0)
-    el.innerHTML='<b>'+fd.length+'</b> players ranked &middot; __N_GIOR__ matchdays &middot; 6 independent KPIs'
+    el.innerHTML='<b>'+fd.length+'</b> '+T("dash_players_ranked","players ranked")+' &middot; __N_GIOR__ '+T("dash_matchdays","matchdays")+' &middot; 6 '+T("dash_indep_kpis","independent KPIs")
       +' <span class="help" onclick="toggleMeth()" style="margin-left:4px" title="Methodology">?</span>';
   else
-    el.innerHTML='<b style="color:var(--blue)">'+(ACTIVE_TEAMS.size===1?esc([...ACTIVE_TEAMS][0]):ACTIVE_TEAMS.size+" squadre")
-      +'</b> &mdash; <b>'+fd.length+'</b> giocatori analizzati';
+    el.innerHTML='<b style="color:var(--blue)">'+(ACTIVE_TEAMS.size===1?esc([...ACTIVE_TEAMS][0]):ACTIVE_TEAMS.size+" "+T("dash_teams_word","squadre"))
+      +'</b> &mdash; <b>'+fd.length+'</b> '+T("dash_players_analyzed","giocatori analizzati");
 }
 
 function buildTeamStrip(){
@@ -1756,6 +1758,7 @@ function buildTpiProSection(){
 
   const roles = ["ATT","CEN","DIF"];
   const roleLabel = {"ATT":"Attaccanti","CEN":"Centrocampisti","DIF":"Difensori"};
+  const roleLabelKey = {"ATT":"dash_role_fwd_pl","CEN":"dash_role_mid_pl","DIF":"dash_role_def_pl"};
   const groups = {};
   roles.forEach(r => { groups[r] = TPI_PRO_SHOWCASE.filter(p => p.ruolo === r); });
 
@@ -1773,12 +1776,12 @@ function buildTpiProSection(){
     html += '<div>';
     html += '<div class="tpp-col-hdr">'
       +'<div class="dot" style="background:'+rc+'"></div>'
-      +roleLabel[role]
+      +esc(T(roleLabelKey[role], roleLabel[role]))
       +' <span style="font-size:10px;color:var(--lt);font-weight:400">top 2 TPI Pro</span>'
       +'</div>';
 
     if(!players.length){
-      html += '<div style="font-size:12px;color:var(--lt);padding:12px 0">Nessun dato per questo ruolo.</div>';
+      html += '<div style="font-size:12px;color:var(--lt);padding:12px 0">'+esc(T("dash_no_role_data","Nessun dato per questo ruolo."))+'</div>';
     } else {
       players.forEach(p => {
         /* Delta rank badge */
@@ -1882,7 +1885,7 @@ const METRICS_CFG={
       return p.tpi.totale * ageFactor;
     },
     fmt:v=>(v>=0?"+":"")+v.toFixed(2),
-    note:"Solo giocatori \u226424 anni. Score = TPI \u00d7 AII (Age Impact Index). Premia chi ha alto impatto gi\u00e0 in giovane et\u00e0.",
+    note:() => T("dash_prospect_note","Solo giocatori \u226424 anni. Score = TPI \u00d7 AII (Age Impact Index). Premia chi ha alto impatto gi\u00e0 in giovane et\u00e0."),
     rowExtra: p => {
       const eta = p.physical?.eta ?? null;
       const aii = p.physical?.eta_index ?? null;
@@ -1910,7 +1913,7 @@ function buildLeaderboard(){
   document.getElementById("lb-ttl").textContent=T(m.ttlKey, m.ttl);
   document.getElementById("lb-help").onclick=()=>openM(m.help);
   const teamSub=ACTIVE_TEAMS.size>0?" — "+[...ACTIVE_TEAMS].join(", "):"";
-  const roleSub=PR?" · "+{"ATT":"Solo ATT","CEN":"Solo CEN","DIF":"Solo DIF"}[PR]:"";
+  const roleSub=PR?" · "+T("dash_only","Solo")+" "+T(_ROLE_KEY[PR],PR):"";
   document.getElementById("lb-sub").textContent=teamSub+roleSub;
 
   /* Nota metodologica sotto titolo per prospect */
@@ -1922,7 +1925,8 @@ function buildLeaderboard(){
     const hdr = document.getElementById("lb-ttl")?.parentElement;
     if(hdr) hdr.after(noteEl);
   }
-  if(m.note){ noteEl.textContent = m.note; noteEl.style.display = "block"; }
+  const _noteVal = (typeof m.note === "function") ? m.note() : m.note;
+  if(_noteVal){ noteEl.textContent = _noteVal; noteEl.style.display = "block"; }
   else { noteEl.style.display = "none"; }
 
   const sorted=fd.map(p=>({p,v:m.get(p)})).filter(x=>x.v!=null&&isFinite(x.v)).sort((a,b)=>b.v-a.v);
@@ -1980,7 +1984,7 @@ function buildLeaderboard(){
 function togglePool(id){
   const idx=COMPARE_POOL.indexOf(id);
   if(idx>=0)COMPARE_POOL.splice(idx,1);
-  else{if(COMPARE_POOL.length>=4){alert("Massimo 4 giocatori.");return;}COMPARE_POOL.push(id);}
+  else{if(COMPARE_POOL.length>=4){alert(T("dash_max_compare","Massimo 4 giocatori."));return;}COMPARE_POOL.push(id);}
   updatePoolBar();
   const btn=document.getElementById("cmpbtn-"+id);
   if(btn){const inP=COMPARE_POOL.includes(id);btn.className="lb-btn lb-btn-cmp"+(inP?" in-pool":"");btn.textContent=inP?"\u2714 Confronto":"\u2295 Confronto";}
@@ -2171,7 +2175,7 @@ function buildDrop(){
       +'</div>'
       +'<div class="fpk-rt"><div class="fpk-tpi '+tc+'">'+ts+'</div><span style="color:'+ac+'">'+ar+'</span></div></div>';
   }).join("");
-  if(rosterExtra.length)html+='<div class="fpk-sep"></div><div class="fpk-role-grp">Non analizzati (minuti insufficienti)</div>'
+  if(rosterExtra.length)html+='<div class="fpk-sep"></div><div class="fpk-role-grp">'+esc(T("dash_not_analyzed","Non analizzati (minuti insufficienti)"))+'</div>'
     +rosterExtra.map(r=>{
       var dn2=r.nome;
       return'<div class="fpk-item" style="opacity:.5"><div class="fpk-dot" style="background:'+(RC[r.ruolo]||"#636366")+'"></div>'
@@ -2244,19 +2248,19 @@ function updateHero(p){
 function updateCtxBar(p){
   document.querySelectorAll(".ctx-btn").forEach(b=>{
     const ctx=b.dataset.ctx,d=p&&p.ctx[ctx],n=d?(d.n_app||0):0,w=n>0&&n<NMIN;
-    b.innerHTML=CTX_L[ctx]+(n>0?'<span class="ctx-n'+(w?" warn":"")+'">'+n+"g</span>":"");
+    b.innerHTML=CTXL(ctx)+(n>0?'<span class="ctx-n'+(w?" warn":"")+'">'+n+"g</span>":"");
   });
 }
 function swCtx(ctx){
   if(CTX!==ctx&&CUR){
-    navPush({view:"player",label:CTX_L[CTX]||CTX,playerId:CUR.id,ctx:CTX,tab:TAB});
+    navPush({view:"player",label:CTXL(CTX)||CTX,playerId:CUR.id,ctx:CTX,tab:TAB});
   }
   CTX=ctx;document.querySelectorAll(".ctx-btn").forEach(b=>b.classList.toggle("on",b.dataset.ctx===ctx));
   if(CUR)renderAll(CUR);
 }
 function swTab(el){
   const name=el.dataset.tab;
-  const TAB_LABELS={"ov":"Panoramica","conv":"Goals vs xG","tr":"Trend xG","radar":"Radar","cmp":"Confronta","meth":"Metodologia"};
+  const TAB_LABELS={"ov":T("dash_overview","Panoramica"),"conv":T("dash_tab_conv","Goals vs xG"),"tr":T("dash_tab_trend","Trend xG"),"radar":T("dash_tab_radar","Radar"),"cmp":T("dash_compare","Confronta"),"meth":T("dash_methodology","Metodologia")};
   if(TAB!==name&&CUR){
     navPush({view:"player",label:TAB_LABELS[TAB]||TAB,playerId:CUR.id,ctx:CTX,tab:TAB});
   }
@@ -2284,12 +2288,12 @@ function showDiff(id){
   /* Apre modal con scarto dimensionale vs un secondo giocatore scelto */
   const dims=[
     {k:"z_output",     lbl:"Output Adj/90", col:"var(--blue)"},
-    {k:"z_centralita", lbl:"Centralità",     col:"var(--green)"},
+    {k:"z_centralita", lbl:T("dash_chip_cen","Centralità"),     col:"var(--green)"},
     {k:"z_boost",      lbl:"Team Boost",     col:"var(--orng)"},
-    {k:"z_consistenza",lbl:"Consistenza",    col:"var(--purp)"},
+    {k:"z_consistenza",lbl:T("dash_chip_con","Consistenza"),    col:"var(--purp)"},
   ];
-  if(p.z_aii!=null)     dims.push({k:"z_aii", lbl:"AII — Età",  col:"var(--teal)"});
-  if(p.z_pri!=null)     dims.push({k:"z_pri", lbl:"PRI — Fisico",col:"#ff6b9d"});
+  if(p.z_aii!=null)     dims.push({k:"z_aii", lbl:T("dash_aii_age","AII — Età"),  col:"var(--teal)"});
+  if(p.z_pri!=null)     dims.push({k:"z_pri", lbl:T("dash_pri_phys","PRI — Fisico"),col:"#ff6b9d"});
 
   /* Opzioni per il secondo giocatore */
   const opts=DATA.filter(x=>x.id!==id).map(x=>`<option value="${+x.id}">${esc(x.nome||x.cognome)} (${esc(x.squadra)})</option>`).join("");
@@ -2338,24 +2342,24 @@ function renderDiff(id1,id2){
   };
 
   const dims=[
-    {lbl:"TPI Totale",    v1:sf(p1.tpi?.totale),      v2:sf(p2.tpi?.totale),      col:"var(--orng)"},
+    {lbl:T("dash_m_tpi","TPI Totale"),    v1:sf(p1.tpi?.totale),      v2:sf(p2.tpi?.totale),      col:"var(--orng)"},
     {lbl:"Output Adj/90", v1:sf(p1.z_output),          v2:sf(p2.z_output),         col:"var(--blue)"},
-    {lbl:"Centralità",    v1:sf(p1.z_centralita),      v2:sf(p2.z_centralita),     col:"var(--green)"},
+    {lbl:T("dash_chip_cen","Centralità"),    v1:sf(p1.z_centralita),      v2:sf(p2.z_centralita),     col:"var(--green)"},
     {lbl:"Team Boost",    v1:sf(p1.z_boost),            v2:sf(p2.z_boost),          col:"var(--teal)"},
-    {lbl:"Consistenza",   v1:sf(p1.z_consistenza),     v2:sf(p2.z_consistenza),    col:"var(--purp)"},
+    {lbl:T("dash_chip_con","Consistenza"),   v1:sf(p1.z_consistenza),     v2:sf(p2.z_consistenza),    col:"var(--purp)"},
   ];
   if(p1.tpi_ext?.totale!=null) dims.push({lbl:"TPI Pro", v1:sf(p1.tpi_ext?.totale), v2:sf(p2.tpi_ext?.totale), col:"var(--purp)"});
-  if(p1.z_aii!=null) dims.push({lbl:"AII — Età",    v1:sf(p1.z_aii), v2:sf(p2.z_aii), col:"var(--teal)"});
-  if(p1.z_pri!=null) dims.push({lbl:"PRI — Fisico",  v1:sf(p1.z_pri), v2:sf(p2.z_pri), col:"#ff6b9d"});
+  if(p1.z_aii!=null) dims.push({lbl:T("dash_aii_age","AII — Età"),    v1:sf(p1.z_aii), v2:sf(p2.z_aii), col:"var(--teal)"});
+  if(p1.z_pri!=null) dims.push({lbl:T("dash_pri_phys","PRI — Fisico"),  v1:sf(p1.z_pri), v2:sf(p2.z_pri), col:"#ff6b9d"});
 
   const n1=p1.nome||p1.cognome, n2=p2.nome||p2.cognome;
 
   let html=`<div style="display:grid;grid-template-columns:1fr auto auto auto;gap:0;
     border:1px solid rgba(255,255,255,.1);border-radius:12px;overflow:hidden;font-size:12px">
-    <div style="padding:8px 12px;font-weight:700;color:var(--lt);background:rgba(255,255,255,.05);font-size:10px;text-transform:uppercase;letter-spacing:.5px">Dimensione</div>
+    <div style="padding:8px 12px;font-weight:700;color:var(--lt);background:rgba(255,255,255,.05);font-size:10px;text-transform:uppercase;letter-spacing:.5px">${esc(T("dash_dimension","Dimensione"))}</div>
     <div style="padding:8px 10px;font-weight:700;color:var(--lp);background:rgba(255,255,255,.05);font-size:10px;text-align:right;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis">${n1}</div>
     <div style="padding:8px 10px;font-weight:700;color:var(--ls);background:rgba(255,255,255,.05);font-size:10px;text-align:right;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis">${n2}</div>
-    <div style="padding:8px 10px;font-weight:700;color:var(--lt);background:rgba(255,255,255,.05);font-size:10px;text-align:right">Scarto</div>`;
+    <div style="padding:8px 10px;font-weight:700;color:var(--lt);background:rgba(255,255,255,.05);font-size:10px;text-align:right">${esc(T("dash_btn_diff","Scarto"))}</div>`;
 
   dims.forEach((d,i)=>{
     const delta=(d.v1!=null&&d.v2!=null)?(d.v1-d.v2):null;
@@ -2404,7 +2408,7 @@ function buildOvHTML(p,ctx){
   else if(n<NMIN)cm='<span class="warn">⚠ Campione piccolo ('+n+'p — soglia '+NMIN+')</span>';
   else cm='<span class="ok">'+n+' partite</span>';
   const ctxInf='<div class="ctx-inf">'
-    +'<span>Contesto: <strong style="color:var(--lp)">'+CTX_L[ctx]+'</strong></span>'
+    +'<span>Contesto: <strong style="color:var(--lp)">'+CTXL(ctx)+'</strong></span>'
     +(ctx==="vs_forti"?'<span>&middot;</span><span style="color:var(--lt)">Difese top '+NTOP+' per xG concessi: '+FORTI.join(", ")+'</span>':'')
     +(ctx==="vs_top6"&&TOP6.length?'<span>&middot;</span><span style="color:var(--lt)">Top 6: '+TOP6.join(", ")+'</span>':"")
     +'<span>&middot;</span>'+cm
@@ -2430,7 +2434,7 @@ function buildOvHTML(p,ctx){
   }).join("");
   const cv=p.conv||{},crv=cv.conv_ratio,gmx=cv.goal_minus_xg;
   const crCls=(crv==null)?"flat":crv>=1.15?"over":crv<=0.85?"under":"flat";
-  let verd;if(crv==null)verd="Dati insufficienti (xG < 0.5)";else if(crv>=1.15)verd="Finalizzatore sopra media — +"+((crv-1)*100).toFixed(0)+"% vs xG";else if(crv<=0.85)verd="Spreca le occasioni — −"+((1-crv)*100).toFixed(0)+"% vs xG";else verd="In linea con le aspettative xG";
+  let verd;if(crv==null)verd=T("dash_conv_insuf","Dati insufficienti (xG < 0.5)");else if(crv>=1.15)verd=T("dash_conv_over","Finalizzatore sopra media")+" — +"+((crv-1)*100).toFixed(0)+"% vs xG";else if(crv<=0.85)verd=T("dash_conv_under","Spreca le occasioni")+" — −"+((1-crv)*100).toFixed(0)+"% vs xG";else verd=T("dash_conv_inline","In linea con le aspettative xG");
   const convSnip='<div class="cv-hero">'
     +'<div class="cv-big '+crCls+'">'+(crv!=null?crv.toFixed(2):"—")+'</div>'
     +'<div class="cv-det"><div class="cv-verd">'+verd+'</div>'
@@ -2474,39 +2478,39 @@ function buildOvHTML(p,ctx){
       +'<div style="font-size:10px;color:var(--lt);margin-top:3px">TPI + Età + Fisica</div>'
     +'</div>'
     +'</div>'
-    +'<div style="font-size:11px;color:var(--lt);margin-top:8px">⚠ Richiede data_nascita in DB (Età) e t_infortuni compilata (Affidabilità)</div>'
+    +'<div style="font-size:11px;color:var(--lt);margin-top:8px">'+esc(T("dash_v2_req","⚠ Richiede data_nascita in DB (Età) e t_infortuni compilata (Affidabilità)"))+'</div>'
     +'</div>'
     :"";
   return ctxInf+'<div class="g4">'+tiles+'</div>'
     +'<div class="g2">'
-      +'<div class="card"><div class="card-ttl">Z-score offensivo '+hb("TPI")
+      +'<div class="card"><div class="card-ttl">'+esc(T("dash_zscore_off","Z-score offensivo"))+' '+hb("TPI")
         +'<span style="font-family:var(--mono);font-size:14px;color:var(--orng);font-weight:700">TPI '
         +(tpi!=null?(tpi>=0?"+":"")+tpi.toFixed(2):"—")+'</span></div>'
         +'<div class="zlist" style="margin-bottom:10px">'
-        +zrow("Output adj/90",d.z_output_adj,"output_adj")
-        +zrow("Centralità",d.z_centralita,"centralita")
-        +zrow("Team boost",d.z_boost_ratio,"boost_ratio")
-        +zrow("Consistenza",d.z_consistenza,"consistenza")
+        +zrow(T("dash_zr_output","Output adj/90"),d.z_output_adj,"output_adj")
+        +zrow(T("dash_chip_cen","Centralità"),d.z_centralita,"centralita")
+        +zrow(T("dash_zr_boost","Team boost"),d.z_boost_ratio,"boost_ratio")
+        +zrow(T("dash_chip_con","Consistenza"),d.z_consistenza,"consistenza")
         +zrow("Finishing Q",p.kpi.z_finishing)
-        +'</div><div style="font-size:11px;color:var(--lt)">0σ = media ATT+CEN Serie A | clamped ±3σ</div></div>'
+        +'</div><div style="font-size:11px;color:var(--lt)">'+esc(T("dash_ov_zcap","0σ = media ATT+CEN Serie A | clamped ±3σ"))+'</div></div>'
       +'<div style="display:flex;flex-direction:column;gap:12px">'+convSnip+aiCard+'</div>'
     +'</div>'
-    +'<div class="card"><div class="card-ttl">TPI nei 5 contesti</div>'
+    +'<div class="card"><div class="card-ttl">'+esc(T("dash_ctx5","TPI nei 5 contesti"))+'</div>'
       +'<div id="c-ctx" style="height:160px"></div>'
-      +'<div style="font-size:11px;color:var(--lt);margin-top:5px">Grigio = meno di '+NMIN+' partite (dati insufficienti)</div></div>'
+      +'<div style="font-size:11px;color:var(--lt);margin-top:5px">'+esc(T("dash_ctx_graycap","Grigio = meno partite del minimo (dati insufficienti)"))+'</div></div>'
     +v2block
     +'<div class="card" style="margin-top:12px">'
-      +'<div class="card-ttl">Form — xG+xA/90 per partita (EWMA α=0.3)'
+      +'<div class="card-ttl">'+esc(T("dash_form_match","Form — xG+xA/90 per partita (EWMA α=0.3)"))
         +'<span style="font-size:12px;color:var(--ls);font-family:var(--mono)">Trend: <span style="color:'+(p.form.trend>.10?"var(--green)":p.form.trend<-.10?"var(--red)":"var(--lt)")+';font-weight:700">'+(p.form.trend!=null?(p.form.trend>=0?"+":"")+((p.form.trend*100).toFixed(0))+"%":"—")+'</span></span></div>'
       +'<div id="c-form" style="height:180px"></div>'
-      +(p.form.g&&p.form.g.length<5?'<div style="font-size:11px;color:var(--orng);margin-top:4px">⚠ Meno di 5 partite: trend non calcolato</div>':"")
+      +(p.form.g&&p.form.g.length<5?'<div style="font-size:11px;color:var(--orng);margin-top:4px">'+esc(T("dash_form_few","⚠ Meno di 5 partite: trend non calcolato"))+'</div>':"")
     +'</div>';
 }
 
 function buildConvHTML(p){
   const cv=p.conv||{},crv=cv.conv_ratio,gmx=cv.goal_minus_xg;
   const crCls=(crv==null)?"flat":crv>=1.15?"over":crv<=0.85?"under":"flat";
-  let verd;if(crv==null)verd="Dati insufficienti (xG < 0.5)";else if(crv>=1.15)verd="Finalizzatore sopra media — +"+((crv-1)*100).toFixed(0)+"% vs xG";else if(crv<=0.85)verd="Spreca le occasioni — −"+((1-crv)*100).toFixed(0)+"% vs xG";else verd="In linea con le aspettative xG";
+  let verd;if(crv==null)verd=T("dash_conv_insuf","Dati insufficienti (xG < 0.5)");else if(crv>=1.15)verd=T("dash_conv_over","Finalizzatore sopra media")+" — +"+((crv-1)*100).toFixed(0)+"% vs xG";else if(crv<=0.85)verd=T("dash_conv_under","Spreca le occasioni")+" — −"+((1-crv)*100).toFixed(0)+"% vs xG";else verd=T("dash_conv_inline","In linea con le aspettative xG");
   return'<div class="g2"><div><div class="card"><div class="card-ttl">Conversion Ratio G/xG '+hb("conv_ratio")+'</div>'
     +'<div style="display:flex;align-items:flex-start;gap:16px;margin-bottom:14px">'
       +'<div class="cv-big '+crCls+'" style="font-size:56px">'+(crv!=null?crv.toFixed(2):"—")+'</div>'
@@ -2521,24 +2525,24 @@ function buildConvHTML(p){
       +'<div class="spill '+(cv.conv_trend>.1?"pos":cv.conv_trend<-.1?"neg":"")+'"><div class="spill-lbl">Trend</div><div class="spill-val">'+(cv.conv_trend!=null?(cv.conv_trend>=0?"+":"")+((cv.conv_trend*100).toFixed(0))+"%":"—")+'</div></div>'
       +'<div class="spill '+(gmx>=0?"pos":"neg")+'"><div class="spill-lbl">G−xG</div><div class="spill-val">'+(gmx!=null?(gmx>=0?"+":"")+gmx.toFixed(2):"—")+'</div></div>'
     +'</div></div></div>'
-    +'<div><div class="card"><div class="card-ttl">Goal vs xG per partita</div><div id="c-cpg" style="height:230px"></div></div>'
-    +'<div class="card" style="margin-top:12px"><div class="card-ttl">Cumulativo stagionale</div><div id="c-ccum" style="height:190px"></div>'
-    +'<div style="font-size:11px;color:var(--lt);margin-top:5px">Sopra la tratteggiata = sovra-performance vs xG</div></div></div></div>';
+    +'<div><div class="card"><div class="card-ttl">'+esc(T("dash_goals_vs_xg_match","Goal vs xG per partita"))+'</div><div id="c-cpg" style="height:230px"></div></div>'
+    +'<div class="card" style="margin-top:12px"><div class="card-ttl">'+esc(T("dash_season_cumul","Cumulativo stagionale"))+'</div><div id="c-ccum" style="height:190px"></div>'
+    +'<div style="font-size:11px;color:var(--lt);margin-top:5px">'+esc(T("dash_overperf_cap","Sopra la tratteggiata = sovra-performance vs xG"))+'</div></div></div></div>';
 }
 function buildTrHTML(p){
-  const ns=p.trend&&p.trend.n_senza>0?' &middot; <strong style="color:var(--lp)">'+p.trend.n_senza+'</strong> partite senza':"";
+  const ns=p.trend&&p.trend.n_senza>0?' &middot; <strong style="color:var(--lp)">'+p.trend.n_senza+'</strong> '+esc(T("dash_matches_without","partite senza")):"";
   return'<div class="card">'
-    +'<div class="card-ttl">xG squadra per giornata (con / senza / difese solide)</div>'
-    +'<div style="font-size:12px;color:var(--lt);margin-bottom:12px;line-height:1.8">🔵 Con il giocatore &nbsp;·&nbsp; 🔴 vs Difese Solide ('+FORTI.join(", ")+') &nbsp;·&nbsp; 🟢 vs Difese Deboli'+ns+'</div>'
+    +'<div class="card-ttl">'+esc(T("dash_team_xg_gw","xG squadra per giornata (con / senza / difese solide)"))+'</div>'
+    +'<div style="font-size:12px;color:var(--lt);margin-bottom:12px;line-height:1.8">🔵 '+esc(T("dash_with_player","Con il giocatore"))+' &nbsp;·&nbsp; 🔴 '+esc(T("dash_vs_strong_def","vs Difese Solide"))+' ('+FORTI.join(", ")+') &nbsp;·&nbsp; 🟢 '+esc(T("dash_vs_weak_def","vs Difese Deboli"))+ns+'</div>'
     +'<div id="c-tr" style="height:360px"></div>'
-    +'<div style="font-size:11px;color:var(--lt);margin-top:9px">Linea tratteggiata = xG medio nelle partite senza il giocatore.</div></div>';
+    +'<div style="font-size:11px;color:var(--lt);margin-top:9px">'+esc(T("dash_trend_caption","Linea tratteggiata = xG medio nelle partite senza il giocatore."))+'</div></div>';
 }
 function buildRadarHTML(p){
   const dn=dispNm(p);
   return'<div class="card">'
-    +'<div class="card-ttl">Profilo offensivo — '+dn+' ('+CTX_L[CTX]+')</div>'
+    +'<div class="card-ttl">'+esc(T("dash_off_profile","Profilo offensivo"))+' — '+dn+' ('+CTXL(CTX)+')</div>'
     +'<div id="c-radar" style="height:400px"></div>'
-    +'<div style="font-size:11px;color:var(--lt);margin-top:5px">Ogni asse = z-score vs media ATT+CEN &middot; range ±3σ (clampato) &middot; 0 = media lega</div></div>';
+    +'<div style="font-size:11px;color:var(--lt);margin-top:5px">'+esc(T("dash_radar_caption","Ogni asse = z-score vs media ATT+CEN &middot; range ±3σ (clampato) &middot; 0 = media lega"))+'</div></div>';
 }
 
 function renderPanelContent(p){
@@ -2561,7 +2565,7 @@ function drawCharts(p){
   const fe=document.getElementById("c-form");
   if(fe&&p.form.g&&p.form.g.length>0){
     Plotly.newPlot(fe,[
-      {x:p.form.g,y:p.form.out,name:"Output/partita",mode:"lines+markers",
+      {x:p.form.g,y:p.form.out,name:T("dash_ch_output_match","Output/partita"),mode:"lines+markers",
         line:{color:"rgba(255,255,255,.09)",width:1},marker:{size:3,color:"rgba(255,255,255,.18)"}},
       {x:p.form.g,y:p.form.ewma_s,name:"EWMA",mode:"lines",
         line:{color:rc,width:2.5},fill:"tozeroy",fillcolor:"rgba("+rb+",.07)"},
@@ -2573,7 +2577,7 @@ function drawCharts(p){
   if(ce){
     const cn=Object.keys(CTX_L),vv=cn.map(c=>p.tpi[c]);
     const nd=cn.map(c=>!p.ctx[c]||(p.ctx[c].n_app||0)<NMIN);
-    Plotly.newPlot(ce,[{type:"bar",x:cn.map(c=>CTX_L[c]),y:vv,
+    Plotly.newPlot(ce,[{type:"bar",x:cn.map(c=>CTXL(c)),y:vv,
       marker:{color:vv.map((v,i)=>nd[i]?"rgba(255,255,255,.06)":v>=0?"rgba(48,209,88,.78)":"rgba(255,69,58,.72)"),line:{width:0}},
       text:vv.map((v,i)=>nd[i]?"n/d":(v!=null?(v>=0?"+":"")+v.toFixed(2):"—")),
       textposition:"outside",textfont:{size:11,color:"rgba(235,235,245,.65)"},
@@ -2584,19 +2588,19 @@ function drawCharts(p){
   const te=document.getElementById("c-tr");
   if(te&&p.trend&&p.trend.g&&p.trend.g.length>0){
     const tr=p.trend,trs=[];
-    if(tr.con&&tr.con.some(v=>v!=null))trs.push({x:tr.g,y:tr.con,name:"Con "+dn,mode:"lines+markers",line:{color:"#0a84ff",width:2.5},marker:{size:5},connectgaps:true});
-    if(tr.forti&&tr.forti.some(v=>v!=null))trs.push({x:tr.g,y:tr.forti,name:"vs Difese Solide",mode:"lines+markers",line:{color:"#ff453a",width:2},marker:{size:6,symbol:"diamond"},connectgaps:true});
-    if(tr.deboli&&tr.deboli.some(v=>v!=null))trs.push({x:tr.g,y:tr.deboli,name:"vs Difese Deboli",mode:"lines+markers",line:{color:"#30d158",width:2},marker:{size:5},connectgaps:true});
-    if(tr.senza&&tr.senza.some(v=>v!=null))trs.push({x:tr.g,y:tr.senza,name:"Senza"+(tr.media_senza?" (avg "+tr.media_senza.toFixed(2)+")":""),mode:"lines+markers",line:{color:"rgba(255,255,255,.3)",width:1.5,dash:"dot"},marker:{size:4,color:"rgba(255,255,255,.18)"},connectgaps:true});
-    if(tr.media_con)trs.push({x:tr.g,y:Array(tr.g.length).fill(tr.media_con),name:"Media con ("+tr.media_con.toFixed(2)+")",mode:"lines",hoverinfo:"skip",line:{color:"rgba(10,132,255,.28)",width:1,dash:"dash"}});
+    if(tr.con&&tr.con.some(v=>v!=null))trs.push({x:tr.g,y:tr.con,name:T("dash_ch_with","Con")+" "+dn,mode:"lines+markers",line:{color:"#0a84ff",width:2.5},marker:{size:5},connectgaps:true});
+    if(tr.forti&&tr.forti.some(v=>v!=null))trs.push({x:tr.g,y:tr.forti,name:T("dash_vs_strong_def","vs Difese Solide"),mode:"lines+markers",line:{color:"#ff453a",width:2},marker:{size:6,symbol:"diamond"},connectgaps:true});
+    if(tr.deboli&&tr.deboli.some(v=>v!=null))trs.push({x:tr.g,y:tr.deboli,name:T("dash_vs_weak_def","vs Difese Deboli"),mode:"lines+markers",line:{color:"#30d158",width:2},marker:{size:5},connectgaps:true});
+    if(tr.senza&&tr.senza.some(v=>v!=null))trs.push({x:tr.g,y:tr.senza,name:T("dash_ch_without","Senza")+(tr.media_senza?" (avg "+tr.media_senza.toFixed(2)+")":""),mode:"lines+markers",line:{color:"rgba(255,255,255,.3)",width:1.5,dash:"dot"},marker:{size:4,color:"rgba(255,255,255,.18)"},connectgaps:true});
+    if(tr.media_con)trs.push({x:tr.g,y:Array(tr.g.length).fill(tr.media_con),name:T("dash_ch_avg_with","Media con")+" ("+tr.media_con.toFixed(2)+")",mode:"lines",hoverinfo:"skip",line:{color:"rgba(10,132,255,.28)",width:1,dash:"dash"}});
     Plotly.newPlot(te,trs,{...BL,margin:{t:8,b:46,l:42,r:8},height:360,
-      xaxis:{...BL.xaxis,title:"Giornata",dtick:1},yaxis:{...BL.yaxis,title:"xG squadra"},
+      xaxis:{...BL.xaxis,title:T("dash_ch_matchday","Giornata"),dtick:1},yaxis:{...BL.yaxis,title:T("dash_ch_team_xg","xG squadra")},
       legend:{orientation:"h",y:-.2,font:{size:10},bgcolor:"transparent"}},PL);
   }
   // Radar
   const re=document.getElementById("c-radar");
   if(re){
-    const d=p.ctx[CTX]||{},dims=["Output adj","Centralità","Team Boost","Consistenza"];
+    const d=p.ctx[CTX]||{},dims=[T("dash_ch_output_adj","Output adj"),T("dash_chip_cen","Centralità"),T("dash_ch_team_boost","Team Boost"),T("dash_chip_con","Consistenza")];
     const zv=[d.z_output_adj,d.z_centralita,d.z_boost_ratio,d.z_consistenza].map(v=>v==null?0:Math.max(-3,Math.min(3,v)));
     Plotly.newPlot(re,[{type:"scatterpolar",r:[...zv,zv[0]],theta:[...dims,dims[0]],fill:"toself",
       fillcolor:"rgba("+rb+",.14)",line:{color:rc,width:2.5},name:dn}],
@@ -2613,7 +2617,7 @@ function drawCharts(p){
     const cv=p.conv;
     Plotly.newPlot(cvp,[
       {type:"bar",name:"xG",x:cv.giornate,y:cv.xg_pg,marker:{color:"rgba(255,255,255,.11)"},hovertemplate:"%{x}gg: %{y:.2f} xG<extra></extra>"},
-      {type:"bar",name:"Goal",x:cv.giornate,y:cv.goal_pg,marker:{color:"rgba("+rb+",.73)"},hovertemplate:"%{x}gg: %{y} goal<extra></extra>"},
+      {type:"bar",name:T("dash_ch_goals","Goal"),x:cv.giornate,y:cv.goal_pg,marker:{color:"rgba("+rb+",.73)"},hovertemplate:"%{x}gg: %{y} "+T("dash_ch_goals_low","goal")+"<extra></extra>"},
     ],{...BL,barmode:"overlay",margin:{t:4,b:32,l:32,r:4},height:230,
       xaxis:{...BL.xaxis,dtick:1},legend:{orientation:"h",y:-.28,font:{size:10},bgcolor:"transparent"}},PL);
   }
@@ -2622,8 +2626,8 @@ function drawCharts(p){
   if(cvc&&p.conv&&p.conv.giornate&&p.conv.giornate.length>0){
     const cv=p.conv;
     Plotly.newPlot(cvc,[
-      {type:"scatter",name:"xG cumulativo",x:cv.giornate,y:cv.xg_cum,mode:"lines",line:{color:"rgba(255,255,255,.22)",width:2,dash:"dot"}},
-      {type:"scatter",name:"Goal cumulativi",x:cv.giornate,y:cv.goal_cum,mode:"lines+markers",line:{color:rc,width:2.5},marker:{size:4},fill:"tonexty",fillcolor:"rgba("+rb+",.07)"},
+      {type:"scatter",name:T("dash_ch_xg_cum","xG cumulativo"),x:cv.giornate,y:cv.xg_cum,mode:"lines",line:{color:"rgba(255,255,255,.22)",width:2,dash:"dot"}},
+      {type:"scatter",name:T("dash_ch_goal_cum","Goal cumulativi"),x:cv.giornate,y:cv.goal_cum,mode:"lines+markers",line:{color:rc,width:2.5},marker:{size:4},fill:"tonexty",fillcolor:"rgba("+rb+",.07)"},
     ],{...BL,margin:{t:4,b:32,l:32,r:4},height:190,
       xaxis:{...BL.xaxis,dtick:1},legend:{orientation:"h",y:-.3,font:{size:10},bgcolor:"transparent"}},PL);
   }
@@ -2667,7 +2671,7 @@ function drawCmp(){
   /* cognomi per legende nei grafici */
   const n1=dispNm(p1),n2=dispNm(p2);
   const mt=v=>(v!=null?(v>=0?"+":"")+v.toFixed(2):"—");
-  const dims=["Output adj","Centralità","Team Boost","Consistenza"];
+  const dims=[T("dash_ch_output_adj","Output adj"),T("dash_chip_cen","Centralità"),T("dash_ch_team_boost","Team Boost"),T("dash_chip_con","Consistenza")];
   const zv=d=>[d.z_output_adj,d.z_centralita,d.z_boost_ratio,d.z_consistenza].map(v=>v==null?0:Math.max(-3,Math.min(3,v)));
   Plotly.newPlot("cmp-radar",[
     {type:"scatterpolar",r:[...zv(d1),zv(d1)[0]],theta:[...dims,dims[0]],fill:"toself",fillcolor:"rgba("+r1+",.13)",line:{color:rc1,width:2},name:n1},
@@ -2680,8 +2684,8 @@ function drawCmp(){
   ],{...BL,barmode:"group",margin:{t:8,b:52,l:32,r:8},height:300,yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)"},legend:{orientation:"h",y:-.22,font:{size:10},bgcolor:"transparent"}},PL);
   const cn=Object.keys(CTX_L);
   Plotly.newPlot("cmp-ctx",[
-    {type:"bar",name:n1,x:cn.map(c=>CTX_L[c]),y:cn.map(c=>p1.tpi[c]),marker:{color:rc1,opacity:.8},text:cn.map(c=>{const v=p1.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
-    {type:"bar",name:n2,x:cn.map(c=>CTX_L[c]),y:cn.map(c=>p2.tpi[c]),marker:{color:rc2,opacity:.8},text:cn.map(c=>{const v=p2.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
+    {type:"bar",name:n1,x:cn.map(c=>CTXL(c)),y:cn.map(c=>p1.tpi[c]),marker:{color:rc1,opacity:.8},text:cn.map(c=>{const v=p1.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
+    {type:"bar",name:n2,x:cn.map(c=>CTXL(c)),y:cn.map(c=>p2.tpi[c]),marker:{color:rc2,opacity:.8},text:cn.map(c=>{const v=p2.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
   ],{...BL,barmode:"group",margin:{t:8,b:34,l:32,r:8},height:220,yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)"},legend:{orientation:"h",y:-.2,font:{size:10},bgcolor:"transparent"}},PL);
   const cr=[{l:"G/xG",v1:p1.conv?.conv_ratio,v2:p2.conv?.conv_ratio},{l:"Goal/90",v1:p1.conv?.goal_p90,v2:p2.conv?.goal_p90},{l:"xG/90",v1:p1.conv?.xg_p90_conv,v2:p2.conv?.xg_p90_conv},{l:"Finish Q",v1:p1.conv?.finishing_q,v2:p2.conv?.finishing_q}];
   Plotly.newPlot("cmp-conv",[
@@ -2699,10 +2703,10 @@ function buildMeth(){
     const s=SPIEG[k];if(!s)return;
     h+='<div class="meth-card"><div class="meth-hd"><div class="meth-icon" style="background:'+(ibg[k]||"rgba(255,255,255,.07)")+'">'+(icons[k]||"?")+'</div><div class="meth-nm">'+s.titolo+'</div></div><div class="meth-formula">'+s.formula+'</div><div class="meth-logic">'+s.logica+'</div><div class="meth-ex">'+s.esempio+'</div></div>';
   });
-  h+='</div><div class="card" style="margin-top:16px;max-width:860px"><div class="card-ttl">Z-score dimensioni per il giocatore selezionato (Totale)</div><div id="c-meth-bar" style="height:220px"></div></div>';
+  h+='</div><div class="card" style="margin-top:16px;max-width:860px"><div class="card-ttl">'+esc(T("dash_zdim_player","Z-score dimensioni per il giocatore selezionato (Totale)"))+'</div><div id="c-meth-bar" style="height:220px"></div></div>';
   document.getElementById("meth-content").innerHTML=h;
   if(CUR){
-    const d=CUR.ctx["totale"]||{},dims=["Output adj","Centralità","Team Boost","Consistenza"],cols=["var(--blue)","var(--green)","var(--orng)","var(--purp)"];
+    const d=CUR.ctx["totale"]||{},dims=[T("dash_ch_output_adj","Output adj"),T("dash_chip_cen","Centralità"),T("dash_ch_team_boost","Team Boost"),T("dash_chip_con","Consistenza")],cols=["var(--blue)","var(--green)","var(--orng)","var(--purp)"];
     const zv=[d.z_output_adj,d.z_centralita,d.z_boost_ratio,d.z_consistenza].map(v=>v==null?null:Math.max(-3,Math.min(3,v)));
     Plotly.newPlot("c-meth-bar",[{type:"bar",orientation:"h",x:zv,y:dims,
       marker:{color:zv.map((v,i)=>v==null?"rgba(255,255,255,.07)":cols[i])},
@@ -2725,6 +2729,7 @@ buildTpiProSection();
 document.addEventListener("i18n:changed", () => {
   try {
     buildDrop();
+    updateHomeSub();
     buildLeaderboard();
     buildTeamStrip();
     buildTpiProSection();
@@ -2889,6 +2894,17 @@ def main() -> None:
             log.info(f"✓ Copia demo: {demo_copy}")
         except OSError as e:
             log.warning(f"Copia demo fallita: {e}")
+
+    # i18n.js deve stare ACCANTO all'HTML (lo <script src="i18n.js"> è relativo):
+    # lo copio dal repo demo (fonte canonica) in dashboard_output, così la pagina
+    # aperta da lì non perde le traduzioni (404 su i18n.js = mix di lingue).
+    _i18n_src = DEMO_DIR / "i18n.js"
+    if _i18n_src.is_file() and html_out.name == HTML_OUT.name:
+        try:
+            (OUTPUT_DIR / "i18n.js").write_bytes(_i18n_src.read_bytes())
+            log.info(f"✓ i18n.js → {OUTPUT_DIR / 'i18n.js'}")
+        except OSError as e:
+            log.warning(f"Copia i18n.js fallita: {e}")
 
     log.info("=" * 60)
 

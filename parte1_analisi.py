@@ -1714,6 +1714,7 @@ def build_payload(
             "ai": "",
             # ── Z-score dimensioni (per Differenziale) ──────
             "z_output":      safe_json(row.get("z_totale_output_adj")),
+            "z_buildup":     safe_json(row.get("z_totale_buildup_adj")),
             "z_centralita":  safe_json(row.get("z_totale_centralita")),
             "z_boost":       safe_json(row.get("z_totale_boost_ratio")),
             "z_consistenza": safe_json(row.get("z_totale_consistenza")),
