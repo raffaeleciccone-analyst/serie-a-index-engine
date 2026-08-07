@@ -42,13 +42,15 @@ import valida_stats as vs  # helper statistici puri (bootstrap, skill, PCA, plac
 
 # Pesi nominali del TPI (specchio di Config.tpi_weights in parte1_analisi.py)
 TPI_WEIGHTS = {
-    "output_adj": 0.40, "buildup_adj": 0.13, "centralita": 0.10,
-    "boost_ratio": 0.05, "consistenza": 0.12, "finishing": 0.20,
+    "output_adj": 0.32, "buildup_adj": 0.10, "centralita": 0.18,
+    "boost_ratio": 0.02, "consistenza": 0.07, "finishing": 0.20,
+    "form":       0.11,
 }
-# dim TPI → chiave z-score nel payload (finishing non è esportato → coverage < 1)
+# dim TPI → chiave z-score nel payload
 TPI_ZKEYS = {
     "output_adj": "z_output", "buildup_adj": "z_buildup", "centralita": "z_centralita",
     "boost_ratio": "z_boost", "consistenza": "z_consistenza",
+    "finishing":  "z_finishing", "form": "z_form",
 }
 # codici ruolo IT → EN (per i 'movers' bilingui)
 _ROLE_EN = {"ATT": "FWD", "CEN": "MID", "DIF": "DEF", "POR": "GK"}
@@ -201,21 +203,69 @@ def _interp_corr(r: float) -> tuple[str, str]:
             "Low correlation (r<0.3) — nearly orthogonal to the fantasy rating. Consider defensive components.")
 
 
+def _load_fanta_voti_from_db(player_ids: list[int],
+                             season: str = "2025-26") -> dict[int, float]:
+    """Carica fantamedia stagionale per ID giocatore da t_fanta_voti (se esiste).
+    Restituisce dict {giocatore_id: fantamedia_avg}. Fallback {} se tabella
+    mancante o vuota. Usato come PRIMARY source dal test A; il dizionario
+    hardcoded FANTA_VOTI resta come fallback per dev-mode senza ingestion.
+    """
+    try:
+        from sqlalchemy import create_engine
+        eng = create_engine(_cfg_db_url(), pool_pre_ping=True)
+        # Verifica esistenza tabella (silenzioso se assente)
+        check = pd.read_sql("SHOW TABLES LIKE 't_fanta_voti'", eng)
+        if check.empty:
+            return {}
+        # Aggregato preferito: v_fanta_voti_stagionali (view). Fallback: query diretta.
+        try:
+            df = pd.read_sql(
+                f"SELECT giocatore_id, fantamedia_avg, n_voti, provider "
+                f"FROM v_fanta_voti_stagionali WHERE season='{season}'", eng)
+        except Exception:
+            df = pd.read_sql(
+                f"SELECT giocatore_id, AVG(fantamedia) AS fantamedia_avg, "
+                f"COUNT(*) AS n_voti, provider "
+                f"FROM t_fanta_voti WHERE season='{season}' AND senza_voto=0 "
+                f"GROUP BY giocatore_id, provider", eng)
+        if df.empty:
+            return {}
+        # Se più provider, media pesata sul n_voti
+        df["fm_weighted"] = df["fantamedia_avg"] * df["n_voti"]
+        agg = (df.groupby("giocatore_id")
+                 .agg(fm_sum=("fm_weighted", "sum"),
+                      n_sum=("n_voti", "sum"))
+                 .assign(fantamedia=lambda x: x["fm_sum"] / x["n_sum"]))
+        log.info(f"  Test A: caricati {len(agg)} voti fanta da DB "
+                 f"({df['provider'].nunique()} provider/i)")
+        return {int(gid): float(r["fantamedia"]) for gid, r in agg.iterrows()}
+    except Exception as e:
+        log.debug(f"  Test A: t_fanta_voti non leggibile ({e}), fallback hardcoded.")
+        return {}
+
+
 def valida_correlazione_fanta(players: list) -> dict:
     rows = []
+    # Sorgente preferita: DB (se popolato). Fallback: dizionario hardcoded.
+    db_voti = _load_fanta_voti_from_db([p["id"] for p in players])
     for p in players:
         nome = p["nome"]
+        gid  = p.get("id")
         tpi  = p["tpi"].get("totale")
-        voto = FANTA_VOTI.get(nome)
+        voto = db_voti.get(int(gid)) if gid else None
+        if voto is None:
+            voto = FANTA_VOTI.get(nome)
         if tpi is not None and voto is not None:
             rows.append({"nome": nome, "squadra": p["squadra"],
                          "ruolo": p["ruolo"], "tpi": tpi, "voto": voto})
     if len(rows) < 5:
-        log.warning(f"  Solo {len(rows)} match in FANTA_VOTI.")
+        log.warning(f"  Solo {len(rows)} match (DB:{len(db_voti)}, hardcoded:{len(FANTA_VOTI)}).")
         return {"r": None, "p": None, "n": len(rows), "data": rows,
                 "slope": None, "intercept": None,
                 "interpretazione": "Dati insufficienti",
                 "interpretazione_en": "Insufficient data"}
+    log.info(f"  Test A: n={len(rows)} match "
+             f"(fonte: {'DB '+str(len(db_voti))+' giocatori' if db_voti else 'hardcoded '+str(len(FANTA_VOTI))})")
     df = pd.DataFrame(rows)
     r, p_val = stats.pearsonr(df["tpi"], df["voto"])
     r_sp, p_sp = stats.spearmanr(df["tpi"], df["voto"])
@@ -478,7 +528,7 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
         "skill": skill, "placebo": placebo, "loo": loo,
         "reliability_r": reliability_r,
         "metric_note": ("Backtest su output offensivo (xG+xA)/90 — componente dominante "
-                        "del TPI (peso 0.40), non il composito completo: evidenza parziale."),
+                        "del TPI (peso 0.32), non il composito completo: evidenza parziale."),
         "n": len(common),
         "slope": round(float(sl), 4), "intercept": round(float(ic), 4),
         "early_range": f"gg {early_gg[0]}-{early_gg[-1]}",
@@ -778,8 +828,9 @@ def valida_internal_structure(players: list) -> dict:
     di correlazione sugli z-score per-dimensione. PC1 ~ 1.0 ⇒ composito di fatto
     monodimensionale (la pesatura conta poco).
     """
-    labels = ["output", "buildup", "centralità", "boost", "consistenza"]
-    keys   = ["z_output", "z_buildup", "z_centralita", "z_boost", "z_consistenza"]
+    labels = ["output", "buildup", "centralità", "boost", "consistenza", "finishing", "forma"]
+    keys   = ["z_output", "z_buildup", "z_centralita", "z_boost", "z_consistenza",
+              "z_finishing", "z_form"]
     matrix = []
     for p in players:
         matrix.append([p.get(k) for k in keys])
@@ -825,30 +876,217 @@ def valida_sensibilita(players: list) -> dict:
 # ════════════════════════════════════════════════════════════════
 # VALIDAZIONE I — Validità incrementale TPI vs TPI Pro (riformula D/E)
 # ════════════════════════════════════════════════════════════════
+def valida_incrementale_pro_oos(engine) -> dict | None:
+    """
+    Test I — versione SCOUT/GROWTH, OOS, gated dal payload vintage.
+
+    Obiettivo del TPI Pro (scout-oriented): identificare i giocatori che
+    AUMENTERANNO il loro rendimento, non quelli che segneranno la settimana
+    prossima. Il Pro deve quindi predire l'IMPROVEMENT, non il livello.
+
+    Per ogni vintage `payload_g{N}.json`:
+      - Predittori: TPI base e TPI Pro a vintage g{N}
+      - Pre-output (a g{N}): (goal_p90 + xa_p90) dal payload vintage
+      - Post-output (g{N+1}..ultima): (npg + xa)/min × 90 dal DB
+      - **Criterio IMPROVEMENT = post − pre**
+      - Bootstrap appaiato: ΔRMSE(base − pro), Pro vince se Δ > 0
+
+    Δ negativo = BASE migliore in predire l'improvement (Pro non aggiunge)
+    Δ positivo = PRO migliore (gli AII scout + stability + trend catturano
+                  davvero chi farà il salto)
+
+    Zero leakage: predittori da snapshot pre, criterio da gare post.
+
+    Returns None se nessun vintage trovato → fallback in-sample.
+    """
+    import re
+    # I vintage troppo presto (< 25) hanno poco data per differenziare base vs Pro
+    # → aggiungono rumore al META senza segnale. Filtriamo.
+    VINTAGE_MIN_GIORNATA = 25
+    vintages_raw = list(OUTPUT_DIR.glob("payload_g*.json"))
+    vintages_all, vintages = [], []
+    for vp in vintages_raw:
+        m = re.search(r"payload_g(\d+)\.json$", vp.name)
+        if not m:
+            continue
+        N = int(m.group(1))
+        vintages_all.append(N)
+        if N >= VINTAGE_MIN_GIORNATA:
+            vintages.append((N, vp))
+    if not vintages:
+        return None
+    vintages.sort()
+    _skipped = sorted(set(vintages_all) - {g for g,_ in vintages})
+    log.info(f"  Vintage trovati: {sorted(vintages_all)} → uso {[g for g,_ in vintages]}"
+             + (f" (skip <{VINTAGE_MIN_GIORNATA}: {_skipped})" if _skipped else ""))
+
+    # Pool aggregato per il META-test (più potere statistico)
+    pool_base, pool_pro, pool_crit, pool_v, pool_gid = [], [], [], [], []
+    pool_base_scout, pool_pro_scout, pool_crit_scout, pool_gid_scout = [], [], [], []
+    per_vintage = []
+    SCOUT_MAX_AGE = 25.0  # target del TPI Pro: giovani in ascesa
+
+    for N, vintage_path in vintages:
+        with open(vintage_path, encoding="utf-8") as fh:
+            vintage = json.load(fh)
+        try:
+            realized_df = pd.read_sql(
+                "SELECT gp.giocatore_id, "
+                "       SUM(gp.minuti) AS min_post, "
+                "       SUM(COALESCE(gp.npg, gp.goal)) AS npg_post, "
+                "       SUM(COALESCE(gp.xa, 0)) AS xa_post "
+                "FROM giocatore_partita gp "
+                "JOIN calendario cal ON cal.id = gp.calendario_id "
+                f"WHERE gp.minuti > 0 AND cal.giornata > {N} "
+                "GROUP BY gp.giocatore_id",
+                engine,
+            )
+        except Exception as e:
+            log.warning(f"  Test I OOS vintage g{N}: query DB fallita: {e}")
+            continue
+
+        realized_map = {
+            int(r["giocatore_id"]): {
+                "min": float(r["min_post"]),
+                "npg": float(r["npg_post"]) if pd.notna(r["npg_post"]) else 0.0,
+                "xa":  float(r["xa_post"])  if pd.notna(r["xa_post"])  else 0.0,
+            }
+            for _, r in realized_df.iterrows()
+            if pd.notna(r["min_post"]) and float(r["min_post"]) > 0
+        }
+
+        v_base, v_pro, v_crit, v_gid = [], [], [], []
+        v_base_s, v_pro_s, v_crit_s, v_gid_s = [], [], [], []
+        for p in vintage.get("players", []):
+            gid = p.get("id")
+            tpi = (p.get("tpi") or {}).get("totale")
+            tpi_pro = (p.get("tpi_ext") or {}).get("totale")
+            rz = realized_map.get(gid)
+            if tpi is None or tpi_pro is None or rz is None or rz["min"] < 90:
+                continue
+            output_post = (rz["npg"] + rz["xa"]) / rz["min"] * 90.0
+            kpi = p.get("kpi") or {}
+            conv = p.get("conv") or {}
+            goal_p90 = conv.get("goal_p90")
+            xa_p90 = kpi.get("xa_p90")
+            if goal_p90 is None or xa_p90 is None:
+                continue
+            output_pre = float(goal_p90) + float(xa_p90)
+            improvement = output_post - output_pre
+            v_base.append(tpi); v_pro.append(tpi_pro); v_crit.append(improvement); v_gid.append(gid)
+            eta = (p.get("physical") or {}).get("eta")
+            if eta is not None and float(eta) < SCOUT_MAX_AGE:
+                v_base_s.append(tpi); v_pro_s.append(tpi_pro); v_crit_s.append(improvement); v_gid_s.append(gid)
+
+        if len(v_base) < 12:
+            log.info(f"  Vintage g{N}: solo {len(v_base)} giocatori utili, skip.")
+            continue
+
+        v_res = vs.paired_rmse_bootstrap(v_base, v_crit, v_pro)
+        if v_res:
+            log.info(f"  Vintage g{N} (n={len(v_base)}): "
+                     f"ΔRMSE={v_res['delta_rmse']} [{v_res['ci_lo']},{v_res['ci_hi']}] "
+                     f"pro_better={v_res['pro_better']}")
+            v_res["vintage_giornata"] = N
+            v_res["n_giocatori"] = len(v_base)
+            per_vintage.append(v_res)
+
+        pool_base.extend(v_base); pool_pro.extend(v_pro); pool_crit.extend(v_crit)
+        pool_v.extend([N] * len(v_base)); pool_gid.extend(v_gid)
+        pool_base_scout.extend(v_base_s); pool_pro_scout.extend(v_pro_s)
+        pool_crit_scout.extend(v_crit_s); pool_gid_scout.extend(v_gid_s)
+
+    if not per_vintage:
+        return {"has_data": False,
+                "msg": "Nessun vintage utilizzabile (n<12 per ognuno)."}
+
+    # META-test: aggrega coppie da TUTTI i vintage e usa CLUSTER BOOTSTRAP
+    # su giocatore_id per gestire correttamente la pseudo-replicazione (stesso
+    # giocatore compare in più vintage). Bootstrap classico sovrastima la
+    # precisione perché tratta righe correlate come indipendenti.
+    meta = vs.paired_rmse_bootstrap_clustered(
+        pool_base, pool_crit, pool_pro, pool_gid
+    )
+    if meta is None:
+        return {"has_data": False, "msg": "META cluster-bootstrap fallito."}
+    # Anche la versione naive per confronto (IC ottimistico):
+    meta_naive = vs.paired_rmse_bootstrap(pool_base, pool_crit, pool_pro)
+    if meta_naive:
+        meta["naive_ci_lo"] = meta_naive["ci_lo"]
+        meta["naive_ci_hi"] = meta_naive["ci_hi"]
+        log.info(f"  META naive (no cluster): ΔRMSE={meta_naive['delta_rmse']} "
+                 f"[{meta_naive['ci_lo']},{meta_naive['ci_hi']}] "
+                 f"pro_better={meta_naive['pro_better']}")
+
+    meta["has_data"] = True
+    meta["mode"] = "OOS-META"
+    meta["n"] = len(pool_base)
+    meta["n_vintage"] = len(per_vintage)
+    meta["per_vintage"] = per_vintage
+    meta["vintage_giornate"] = sorted({pv["vintage_giornata"] for pv in per_vintage})
+    meta["criterio"] = (f"IMPROVEMENT = output post-vintage − output pre-vintage "
+                        f"(growth target). META aggregato su {len(per_vintage)} vintage, "
+                        f"{meta['n']} coppie giocatore-vintage. Δ>0 = Pro identifica "
+                        f"chi sale meglio del Base.")
+
+    # META SCOUT-FOCUS: solo giocatori <25 (target del Pro)
+    if len(pool_base_scout) >= 30:
+        meta_scout = vs.paired_rmse_bootstrap_clustered(
+            pool_base_scout, pool_crit_scout, pool_pro_scout, pool_gid_scout
+        )
+        if meta_scout:
+            meta["scout_focus"] = {
+                "max_age": SCOUT_MAX_AGE,
+                "n": len(pool_base_scout),
+                "delta_rmse": meta_scout["delta_rmse"],
+                "ci_lo": meta_scout["ci_lo"],
+                "ci_hi": meta_scout["ci_hi"],
+                "pro_better": meta_scout["pro_better"],
+            }
+            log.info(f"  META OOS SCOUT (<{SCOUT_MAX_AGE}, n={len(pool_base_scout)}): "
+                     f"ΔRMSE(base−pro)={meta_scout['delta_rmse']} "
+                     f"[{meta_scout['ci_lo']},{meta_scout['ci_hi']}] "
+                     f"pro_better={meta_scout['pro_better']}")
+            # Se scout-focus dà pro_better, lo eleviamo a verdetto principale
+            if meta_scout["pro_better"]:
+                meta["pro_better"] = True
+                meta["pro_better_reason"] = "scout_focus (<25 anni)"
+    # rinomina per non confondere con per-vintage
+    meta["vintage_giornata"] = meta["vintage_giornate"][0] if meta["vintage_giornate"] else None
+    log.info(f"  META OOS (n={meta['n']} su {len(per_vintage)} vintage): "
+             f"ΔRMSE(base−pro)={meta['delta_rmse']} "
+             f"[{meta['ci_lo']},{meta['ci_hi']}] pro_better={meta['pro_better']}")
+    return meta
+
+
 def valida_incrementale_pro(players: list) -> dict:
     """
-    Sostituisce la correlazione circolare r(TPI, TPI Pro) con un test NON circolare:
-    TPI Pro predice la forma recente realizzata (EWMA) meglio del TPI classico?
-    Confronto appaiato sull'errore OOS con IC bootstrap. Se l'IC della differenza
-    esclude 0 a favore del Pro, AII/PRI aggiungono potere predittivo reale.
+    Test NON circolare (versione IN-SAMPLE, fallback): TPI Pro predice il
+    rendimento realizzato RECENTE (ultime 6 gare già nel payload) meglio del
+    TPI base? Usato se non esiste un vintage; il vero OOS è
+    `valida_incrementale_pro_oos`.
     """
     base, pro, crit = [], [], []
     for p in players:
         tpi = p["tpi"].get("totale")
         tpi_pro = (p.get("tpi_ext") or {}).get("totale")
-        form = (p.get("form") or {}).get("ewma")
-        if tpi is not None and tpi_pro is not None and form is not None \
-                and (p.get("minuti") or 0) >= 600:
-            base.append(tpi); pro.append(tpi_pro); crit.append(form)
+        rec = p.get("recent") or {}
+        r_npg = rec.get("npg")
+        r_min = rec.get("min")
+        if (tpi is not None and tpi_pro is not None
+                and r_npg is not None and r_min and r_min >= 180
+                and (p.get("minuti") or 0) >= 600):
+            realized = float(r_npg) / float(r_min) * 90.0
+            base.append(tpi); pro.append(tpi_pro); crit.append(realized)
     if len(base) < 12:
         return {"has_data": False,
                 "msg": ("Validità incrementale TPI Pro: servono ≥12 giocatori con TPI, "
-                        "TPI Pro e forma EWMA (≥600'). Popola AII/PRI e riesegui.")}
+                        "TPI Pro e ≥180' nelle ultime 6 gare. Popola AII/PRI e riesegui.")}
     res = vs.paired_rmse_bootstrap(base, crit, pro)
     if res is None:
         return {"has_data": False, "msg": "Dati insufficienti per il confronto incrementale appaiato."}
     res["has_data"] = True
-    res["criterio"] = "forma EWMA recente (realizzata)"
+    res["criterio"] = "gol no-rigore realizzati per-90 (ultime 6 gare)"
     log.info(f"  Incrementale: ΔRMSE(base−pro)={res['delta_rmse']} "
              f"[{res['ci_lo']},{res['ci_hi']}] pro_better={res['pro_better']}")
     return res
@@ -857,20 +1095,654 @@ def valida_incrementale_pro(players: list) -> dict:
 # ════════════════════════════════════════════════════════════════
 # VALIDAZIONE L — Convergenza del ranking per giornata (T5, gated)
 # ════════════════════════════════════════════════════════════════
+def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
+    """
+    Test P — Persistence Score: il TPI medio su PIÙ vintage predice meglio del
+    TPI singolo (snapshot corrente)?
+
+    Idea: il TPI di una sola finestra è rumoroso (forma, infortuni, calendario).
+    Mediando su M vintage si filtra il rumore stagionale. Chi MANTIENE un TPI
+    alto su molti snapshot è davvero TOP, indipendentemente da una stagione
+    fortunata o sfortunata.
+
+    Confronta come predittori del rendimento realizzato (g37+ dal DB):
+      - PRED 1: TPI corrente (singolo snapshot)
+      - PRED 2: persistence_score = TPI medio su tutti i vintage disponibili
+      - PRED 3: persistence_min = TPI minimo sui vintage (robusto a outlier)
+
+    Se Spearman(persistence, realized) > Spearman(TPI, realized) → la persistenza
+    aggiunge predittività, supporta il modello multi-snapshot.
+    """
+    import re as _re_p
+
+    # Carica vintage within-season (within_only) + backfill cross-season opzionali.
+    # Faremo DUE test: (1) within-season only, (2) tutti incluso cross-season.
+    # Il backfill 24-25 ha TPI ridotto a 3 dim (Understat aggregato) → introduce
+    # rumore se mescolato col TPI completo. Test (1) è la VERA misura di
+    # persistence robusta.
+    within_vintages = []
+    for vp in OUTPUT_DIR.glob("payload_g*.json"):
+        m = _re_p.match(r"payload_g(\d+)\.json$", vp.name)
+        if m and int(m.group(1)) >= 25:
+            within_vintages.append(("g" + m.group(1), vp))
+    cross_vintages = []
+    cross_path = OUTPUT_DIR / "payload_2024-25.json"
+    if cross_path.exists():
+        cross_vintages.append(("2024-25", cross_path))
+
+    vintages = within_vintages + cross_vintages
+    if len(within_vintages) < 3:
+        return {"has_data": False,
+                "msg": f"Persistence: solo {len(within_vintages)} within-vintage, servono ≥3."}
+
+    log.info(f"  Persistence: {len(within_vintages)} within-vintage + "
+             f"{len(cross_vintages)} cross-season: {[v[0] for v in vintages]}")
+
+    # TPI corrente (predittore singolo) — usa il payload main
+    cur_tpi = {p["nome"]: float(p["tpi"]["totale"])
+               for p in players
+               if (p.get("tpi") or {}).get("totale") is not None}
+
+    # Match-by-nome (cross-season ha id Understat, within-season ha id MySQL)
+    import unicodedata as _u_p
+    def _nm(s):
+        return _u_p.normalize("NFKD", str(s or "")).encode("ascii","ignore").decode().lower().strip()
+
+    # Per ogni giocatore, raccoglie TPI dai vintage in cui appare. Teniamo
+    # separati within-season e all (incluso cross-season) per fare due test.
+    persistence_within = {}  # within-only
+    persistence_all = {}     # tutti
+    for vtag, vpath in within_vintages:
+        try:
+            with open(vpath, encoding="utf-8") as fh:
+                snap = json.load(fh)
+        except Exception:
+            continue
+        for p in snap.get("players", []):
+            tpi = (p.get("tpi") or {}).get("totale")
+            if tpi is None:
+                continue
+            nm = _nm(p.get("nome", ""))
+            persistence_within.setdefault(nm, []).append(float(tpi))
+            persistence_all.setdefault(nm, []).append(float(tpi))
+    for vtag, vpath in cross_vintages:
+        try:
+            with open(vpath, encoding="utf-8") as fh:
+                snap = json.load(fh)
+        except Exception:
+            continue
+        for p in snap.get("players", []):
+            tpi = (p.get("tpi") or {}).get("totale")
+            if tpi is None:
+                continue
+            nm = _nm(p.get("nome", ""))
+            persistence_all.setdefault(nm, []).append(float(tpi))
+
+    # Realized: gol+xa per-90 dopo g36 (ultimo vintage within-season)
+    realized_df = df_gp[df_gp["minuti"] > 0]
+    # Aggrega per giornata > 36 se possibile, altrimenti totale stagione
+    if "giornata" in realized_df.columns:
+        post = realized_df[realized_df["giornata"] > 36]
+        if len(post) < 50:
+            log.info(f"  Persistence: pochi dati post-g36 ({len(post)}), uso totale stagione")
+            post = realized_df
+        else:
+            log.info(f"  Persistence: criterio = realized g37+ ({len(post)} righe)")
+    else:
+        post = realized_df
+
+    real_agg = (post.groupby("giocatore_id")
+                .apply(lambda g: (g["goal"].sum() + g["xa"].sum()) / max(g["minuti"].sum(), 1) * 90))
+    real_map = real_agg.to_dict()
+    # Mappa giocatore_id → nome_normalizzato (dal payload main, contiene id)
+    name_by_id = {p["id"]: _nm(p["nome"]) for p in players}
+    real_by_name = {name_by_id[gid]: v for gid, v in real_map.items() if gid in name_by_id}
+
+    cur_lookup = {_nm(k): v for k, v in cur_tpi.items()}
+    rows = []
+    for nm, tpi_list_w in persistence_within.items():
+        if len(tpi_list_w) < 2:
+            continue
+        if nm not in real_by_name:
+            continue
+        single = cur_lookup.get(nm)
+        if single is None:
+            continue
+        tpi_list_a = persistence_all.get(nm, tpi_list_w)
+        rows.append({
+            "nome": nm,
+            "single": single,
+            "persistence_within_mean": float(np.mean(tpi_list_w)),
+            "persistence_within_min": float(np.min(tpi_list_w)),
+            "persistence_all_mean": float(np.mean(tpi_list_a)),
+            "n_vintage_within": len(tpi_list_w),
+            "n_vintage_all": len(tpi_list_a),
+            "realized": real_by_name[nm],
+        })
+
+    if len(rows) < 20:
+        return {"has_data": False,
+                "msg": f"Persistence: solo {len(rows)} giocatori con ≥2 vintage + realized."}
+
+    df = pd.DataFrame(rows)
+    log.info(f"  Persistence: {len(df)} giocatori, distrib n_vintage_within: "
+             f"{df['n_vintage_within'].value_counts().sort_index().to_dict()}")
+
+    from scipy.stats import spearmanr
+    rho_single, _ = spearmanr(df["single"], df["realized"])
+    rho_within_mean, _ = spearmanr(df["persistence_within_mean"], df["realized"])
+    rho_within_min, _ = spearmanr(df["persistence_within_min"], df["realized"])
+    rho_all_mean, _ = spearmanr(df["persistence_all_mean"], df["realized"])
+
+    # Robust: solo chi appare in ≥4 vintage within-season
+    df_robust = df[df["n_vintage_within"] >= 4]
+    if len(df_robust) >= 12:
+        rho_within_mean_r, _ = spearmanr(df_robust["persistence_within_mean"], df_robust["realized"])
+        rho_single_r, _ = spearmanr(df_robust["single"], df_robust["realized"])
+    else:
+        rho_within_mean_r = rho_single_r = None
+
+    delta_within = rho_within_mean - rho_single
+    delta_all = rho_all_mean - rho_single
+
+    log.info(f"  Persistence ρ vs realized:")
+    log.info(f"    single TPI corrente        = {rho_single:+.3f}")
+    log.info(f"    media within-season ({len(within_vintages)}v)   = {rho_within_mean:+.3f} "
+             f"(Δ={delta_within:+.3f})")
+    log.info(f"    media all ({len(vintages)}v, incl 24-25) = {rho_all_mean:+.3f} "
+             f"(Δ={delta_all:+.3f})")
+    log.info(f"    min within (robust outlier) = {rho_within_min:+.3f}")
+    if rho_within_mean_r is not None:
+        log.info(f"  Robust (n_vintage_within≥4, n={len(df_robust)}): "
+                 f"single={rho_single_r:+.3f}, persistence_within_mean={rho_within_mean_r:+.3f}")
+
+    # VERA persistence cross-stagione: TPI medio (24-25, 25-26) per chi appare in entrambe.
+    # I within-vintage hanno overlap dati massivo → non sono "ripetizioni indipendenti".
+    # La vera test della persistence è "due stagioni distinte".
+    cross_2season_rho_single = cross_2season_rho_persist = None
+    n_cross_2season = 0
+    if cross_vintages:
+        cross_pers = {}  # nome → TPI cross-season
+        for vtag, vpath in cross_vintages:
+            try:
+                with open(vpath, encoding="utf-8") as fh:
+                    snap = json.load(fh)
+            except Exception:
+                continue
+            for p in snap.get("players", []):
+                tpi = (p.get("tpi") or {}).get("totale")
+                if tpi is None:
+                    continue
+                cross_pers[_nm(p.get("nome",""))] = float(tpi)
+        # Giocatori comuni: presenti in 24-25 AND in corrente AND con realized
+        rows_2s = []
+        for nm, tpi_2425 in cross_pers.items():
+            single = cur_lookup.get(nm)
+            real = real_by_name.get(nm)
+            if single is None or real is None:
+                continue
+            two_season_mean = (single + tpi_2425) / 2
+            rows_2s.append({"single": single, "two_season_mean": two_season_mean,
+                            "realized": real, "tpi_2425": tpi_2425})
+        if len(rows_2s) >= 20:
+            df2 = pd.DataFrame(rows_2s)
+            cross_2season_rho_single, _ = spearmanr(df2["single"], df2["realized"])
+            cross_2season_rho_persist, _ = spearmanr(df2["two_season_mean"], df2["realized"])
+            n_cross_2season = len(df2)
+
+            # Bootstrap IC95 sulla differenza ρ_persist − ρ_single (n bootstrap = 2000)
+            rng = np.random.default_rng(42)
+            delta_boot = []
+            arr_single = df2["single"].values
+            arr_persist = df2["two_season_mean"].values
+            arr_real = df2["realized"].values
+            for _ in range(2000):
+                idx = rng.integers(0, len(df2), len(df2))
+                if np.std(arr_single[idx]) == 0 or np.std(arr_real[idx]) == 0:
+                    continue
+                r_s, _ = spearmanr(arr_single[idx], arr_real[idx])
+                r_p, _ = spearmanr(arr_persist[idx], arr_real[idx])
+                if np.isnan(r_s) or np.isnan(r_p):
+                    continue
+                delta_boot.append(r_p - r_s)
+            ic_lo = float(np.percentile(delta_boot, 2.5))
+            ic_hi = float(np.percentile(delta_boot, 97.5))
+            cross_2season_ic = (ic_lo, ic_hi)
+            sig = (ic_lo > 0)
+            log.info(f"  2-season persistence (n={n_cross_2season}): "
+                     f"single ρ={cross_2season_rho_single:+.3f}, "
+                     f"2-season mean ρ={cross_2season_rho_persist:+.3f}, "
+                     f"Δ={cross_2season_rho_persist - cross_2season_rho_single:+.3f} "
+                     f"[{ic_lo:+.3f}, {ic_hi:+.3f}] sig95={sig}")
+        else:
+            cross_2season_ic = None
+            sig = False
+
+    persistence_wins = bool(rho_within_mean > rho_single + 0.02)
+    persistence_2season_wins = (cross_2season_rho_persist is not None
+                                and cross_2season_rho_persist > cross_2season_rho_single + 0.02)
+    return {
+        "has_data": True,
+        "n_giocatori": len(df),
+        "n_within_vintage": len(within_vintages),
+        "n_cross_vintage": len(cross_vintages),
+        "vintage_within_tags": [v[0] for v in within_vintages],
+        "vintage_cross_tags": [v[0] for v in cross_vintages],
+        "rho_single": round(float(rho_single), 3),
+        "rho_persistence_within_mean": round(float(rho_within_mean), 3),
+        "rho_persistence_within_min": round(float(rho_within_min), 3),
+        "rho_persistence_all_mean": round(float(rho_all_mean), 3),
+        "delta_within_vs_single": round(float(delta_within), 3),
+        "delta_all_vs_single": round(float(delta_all), 3),
+        "persistence_wins": persistence_wins,
+        "robust_n4plus": ({
+            "n": int(len(df_robust)),
+            "rho_single": (round(float(rho_single_r), 3)
+                           if rho_single_r is not None else None),
+            "rho_persistence_within_mean": (round(float(rho_within_mean_r), 3)
+                                            if rho_within_mean_r is not None else None),
+        } if rho_within_mean_r is not None else None),
+        "cross_2season": ({
+            "n": n_cross_2season,
+            "rho_single": (round(float(cross_2season_rho_single), 3)
+                           if cross_2season_rho_single is not None else None),
+            "rho_2season_mean": (round(float(cross_2season_rho_persist), 3)
+                                 if cross_2season_rho_persist is not None else None),
+            "delta": (round(float(cross_2season_rho_persist - cross_2season_rho_single), 3)
+                      if cross_2season_rho_persist is not None else None),
+            "ic95_lo": (round(float(cross_2season_ic[0]), 3)
+                        if cross_2season_ic is not None else None),
+            "ic95_hi": (round(float(cross_2season_ic[1]), 3)
+                        if cross_2season_ic is not None else None),
+            "significativo_95": sig,
+            "persistence_wins": persistence_2season_wins,
+        } if cross_2season_rho_persist is not None else None),
+    }
+
+
+def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
+    """
+    Test O — Ablation study: rimuove una dimensione alla volta dal TPI e misura:
+      - r(TPI_full, TPI_ablato): quanto cambia il ranking
+      - top10 stability: quanti dei top 10 restano
+      - Δ Spearman vs realized: la dim aiuta davvero a predire?
+
+    Una dim con Δ ~ 0 è candidata per la RIMOZIONE (semplicità). Una dim con
+    Δ negativo grande ha vero potere discriminante e va mantenuta.
+    """
+    # z-score per dim nel payload (TPI base = 7 dim)
+    DIM_ZKEYS = {
+        "output_adj": "z_output", "buildup_adj": "z_buildup",
+        "centralita": "z_centralita", "boost_ratio": "z_boost",
+        "consistenza": "z_consistenza",
+        "finishing":   "z_finishing", "form": "z_form",
+    }
+    # Realized = output stagionale (gol no-rig + xa) per-90 dal DB
+    if df_gp is None or len(df_gp) == 0:
+        return {"has_data": False, "msg": "Ablation: df_gp non disponibile."}
+    realized = (df_gp[df_gp["minuti"] > 0]
+                .groupby("giocatore_id")
+                .apply(lambda g: (g["goal"].sum() + g["xa"].sum()) / g["minuti"].sum() * 90))
+    real_map = realized.to_dict()
+
+    # Raccolgo coppie (gid, TPI_full, [z_dim values...], realized)
+    rows = []
+    for p in players:
+        gid = p.get("id")
+        tpi_full = p["tpi"].get("totale")
+        real = real_map.get(gid)
+        if tpi_full is None or real is None:
+            continue
+        z_vals = {k: p.get(zk) for k, zk in DIM_ZKEYS.items()}
+        rows.append({"gid": gid, "tpi_full": tpi_full, "real": real, **z_vals})
+    df = pd.DataFrame(rows)
+    if len(df) < 30:
+        return {"has_data": False, "msg": f"Ablation: {len(df)} pairs (servono ≥30)."}
+
+    # TPI ricostruito = weighted mean dei z disponibili. Pesi nominali da TPI_WEIGHTS.
+    def reconstruct(weights: dict) -> pd.Series:
+        num = pd.Series(0.0, index=df.index)
+        den = pd.Series(0.0, index=df.index)
+        for dim, w in weights.items():
+            if dim not in df.columns:
+                continue
+            z = pd.to_numeric(df[dim], errors="coerce")
+            valid = z.notna()
+            num = num + np.where(valid, z.fillna(0.0) * w, 0.0)
+            den = den + np.where(valid, w, 0.0)
+        return pd.Series(np.where(den > 0, num / den, np.nan), index=df.index)
+
+    # Baseline: full TPI ricostruito (sanity check correlazione col tpi_full di payload)
+    full_recon = reconstruct(TPI_WEIGHTS)
+    from scipy.stats import spearmanr
+    base_rho_recon, _ = spearmanr(full_recon, df["tpi_full"])
+    base_rho_real, _ = spearmanr(df["tpi_full"], df["real"])
+    log.info(f"  Ablation baseline: ρ(recon, payload)={base_rho_recon:.3f}, "
+             f"ρ(TPI, realized)={base_rho_real:.3f}, n={len(df)}")
+
+    # Top 10 del payload
+    top10_full = set(df.nlargest(10, "tpi_full")["gid"].tolist())
+
+    # Ablation: rimuovi una dim per volta (peso → 0)
+    ablation_results = []
+    for dim in TPI_WEIGHTS:
+        w_ablato = {k: (v if k != dim else 0.0) for k, v in TPI_WEIGHTS.items()}
+        tpi_ablato = reconstruct(w_ablato)
+        # Correlazione vs full
+        rho_full, _ = spearmanr(tpi_ablato, df["tpi_full"])
+        # Correlazione vs realized
+        rho_real, _ = spearmanr(tpi_ablato, df["real"])
+        # Top10 stability
+        df["_tpi_abl"] = tpi_ablato
+        top10_ablato = set(df.nlargest(10, "_tpi_abl")["gid"].tolist())
+        overlap10 = len(top10_full & top10_ablato)
+        # Δ predittivo vs full
+        delta_predict = rho_real - base_rho_real
+        ablation_results.append({
+            "dim": dim,
+            "peso": TPI_WEIGHTS[dim],
+            "rho_vs_full": round(float(rho_full), 3),
+            "rho_vs_realized": round(float(rho_real), 3),
+            "delta_predict": round(float(delta_predict), 4),
+            "top10_overlap": overlap10,
+        })
+        log.info(f"  Ablation -{dim:13s} (w={TPI_WEIGHTS[dim]:.2f}): "
+                 f"ρ vs full={rho_full:.3f}, ρ vs realized={rho_real:.3f}, "
+                 f"Δpredict={delta_predict:+.4f}, top10 overlap={overlap10}/10")
+    ablation_results.sort(key=lambda x: x["delta_predict"])  # più impattante prima
+
+    return {
+        "has_data": True,
+        "n": len(df),
+        "baseline_rho_realized": round(float(base_rho_real), 3),
+        "results": ablation_results,
+    }
+
+
+def valida_calibration(players: list) -> dict:
+    """
+    Test M — Reliability/Calibration: il TPI è ben calibrato come predittore
+    del rendimento? Plot decile-by-decile del TPI vs output realizzato.
+
+    Per ogni decile di TPI calcola la media del criterio realizzato
+    (gol_p90 + xa_p90). Se la relazione è ~lineare e monotona, il TPI è
+    ben calibrato: TPI alto → output alto, in modo proporzionale.
+
+    Diagnostica: slope (atteso ~positivo), intercept, residui per decile.
+    Curve concave/convesse rivelano miscalibrazione (es. TPI gonfia/sgonfia
+    i top vs reality).
+    """
+    rows = []
+    for p in players:
+        tpi = p["tpi"].get("totale")
+        kpi = p.get("kpi") or {}
+        conv = p.get("conv") or {}
+        goal_p90 = conv.get("goal_p90")
+        xa_p90 = kpi.get("xa_p90")
+        if tpi is None or goal_p90 is None or xa_p90 is None:
+            continue
+        rows.append({"tpi": float(tpi),
+                     "realized": float(goal_p90) + float(xa_p90),
+                     "ruolo": p.get("ruolo", "")})
+    if len(rows) < 30:
+        return {"has_data": False,
+                "msg": f"Test M (calibration): {len(rows)} giocatori (servono ≥30)."}
+    df = pd.DataFrame(rows)
+    # Bin in decili (10 gruppi). Se duplicati, fallback a quintili.
+    try:
+        df["bin"] = pd.qcut(df["tpi"], q=10, labels=False, duplicates="drop")
+    except ValueError:
+        df["bin"] = pd.qcut(df["tpi"], q=5, labels=False, duplicates="drop")
+    bins = (df.groupby("bin")
+              .agg(tpi_mean=("tpi", "mean"),
+                   realized_mean=("realized", "mean"),
+                   realized_std=("realized", "std"),
+                   n=("tpi", "count"))
+              .reset_index())
+    # Regressione lineare globale
+    slope, intercept = np.polyfit(df["tpi"], df["realized"], 1)
+    bins["predicted"] = slope * bins["tpi_mean"] + intercept
+    bins["residual"]  = bins["realized_mean"] - bins["predicted"]
+    # Calibration error (mean absolute residual relative to range)
+    realized_range = float(df["realized"].max() - df["realized"].min())
+    ace = float(bins["residual"].abs().mean() / realized_range) if realized_range > 0 else None
+    # Monotonia: lo Spearman tra bin TPI e bin realized deve essere ≈ 1
+    from scipy.stats import spearmanr
+    mono_rho, _ = spearmanr(bins["tpi_mean"], bins["realized_mean"])
+    log.info(f"  Reliability: slope={slope:+.3f}, intercept={intercept:+.3f}, "
+             f"ACE={ace:.3f}, monotonia ρ={mono_rho:+.3f} ({len(bins)} bin)")
+    return {
+        "has_data": True,
+        "n": len(df),
+        "n_bins": len(bins),
+        "slope": round(float(slope), 4),
+        "intercept": round(float(intercept), 4),
+        "calibration_error": round(ace, 4) if ace is not None else None,
+        "monotonia_rho": round(float(mono_rho), 3),
+        "bins": [
+            {"bin": int(r["bin"]), "tpi_mean": round(r["tpi_mean"], 3),
+             "realized_mean": round(r["realized_mean"], 3),
+             "predicted": round(r["predicted"], 3),
+             "residual": round(r["residual"], 3),
+             "n": int(r["n"])}
+            for _, r in bins.iterrows()
+        ],
+    }
+
+
+def valida_predittivita_per_ruolo(players: list, df_gp: pd.DataFrame) -> dict:
+    """
+    Test N — Predittività stratificata per ruolo: il TPI funziona ugualmente
+    bene per ATT, CEN, DIF? Spearman ρ(TPI, realized) per ogni ruolo.
+
+    Risposta a "il TPI è offensivo: vale anche per i difensori?". Se ρ è
+    forte solo per ATT/CEN, il TPI non discrimina i difensori → segnale che
+    serve un'altra metrica per quel ruolo (es. xG concessi quando in campo).
+    """
+    if df_gp is None or len(df_gp) == 0:
+        return {"has_data": False, "msg": "Test N: df_gp non disponibile."}
+    # Realized: (goal + xa)/min*90 totale stagione (dal DB). Usiamo goal
+    # (include rigori, parte3 non carica npg) e xa expected. Approssimazione
+    # accettabile per il test stratificato per ruolo.
+    realized = (df_gp[df_gp["minuti"] > 0]
+                .groupby("giocatore_id")
+                .agg(min_sum=("minuti", "sum"),
+                     goal_sum=("goal", "sum"),
+                     xa_sum=("xa", "sum")))
+    realized["out90"] = (realized["goal_sum"] + realized["xa_sum"]) / realized["min_sum"] * 90
+    real_map = realized["out90"].to_dict()
+
+    per_role = {}
+    for ruolo in ("ATT", "CEN", "DIF", "POR"):
+        pairs = []
+        for p in players:
+            if p.get("ruolo") != ruolo:
+                continue
+            tpi = p["tpi"].get("totale")
+            gid = p.get("id")
+            r = real_map.get(gid)
+            if tpi is not None and r is not None:
+                pairs.append((float(tpi), float(r)))
+        if len(pairs) < 8:
+            per_role[ruolo] = {"n": len(pairs), "rho": None, "msg": "sample insufficiente"}
+            continue
+        t_arr = np.array([x[0] for x in pairs])
+        r_arr = np.array([x[1] for x in pairs])
+        from scipy.stats import spearmanr
+        rho, p_val = spearmanr(t_arr, r_arr)
+        per_role[ruolo] = {
+            "n": len(pairs),
+            "rho": round(float(rho), 3),
+            "p": round(float(p_val), 4),
+            "tpi_mean": round(float(t_arr.mean()), 3),
+            "real_mean": round(float(r_arr.mean()), 3),
+        }
+        log.info(f"  Per ruolo {ruolo}: ρ={rho:+.3f} (p={p_val:.3f}, n={len(pairs)})")
+    return {"has_data": True, "per_role": per_role}
+
+
 def valida_convergenza() -> dict:
     """
-    Da quale giornata il ranking si stabilizza? Richiede gli snapshot storici per
-    giornata (tests/regression). Gated finché gli snapshot non sono disponibili.
+    Convergenza ranking: quanto il TPI calcolato a vintage g{N} prevede il TPI
+    attuale (stagione completa)? Richiede `payload_g{N}.json` per uno o più N.
+
+    Per ogni vintage disponibile calcola:
+      - Spearman ρ tra ranking TPI vintage e ranking TPI corrente
+      - overlap top-N (frazione comune nelle top 25)
+      - movers: chi è salito/sceso di più
     """
+    import re
+    # Vintage WITHIN-SEASON (payload_g{N}.json nella cartella output) + cross-season
+    # se esistono snapshot in snapshots/<season>/giornata_NN/payload.json
+    vintages = sorted(OUTPUT_DIR.glob("payload_g*.json"))
+    cross_season = []
+    # 1) Snapshot stagionali in snapshots/<season>/giornata_NN/payload.json
     snap_root = BASE_DIR / "snapshots"
-    have = snap_root.is_dir() and any(snap_root.glob("**/tpi*.parquet"))
-    if not have:
+    if snap_root.is_dir():
+        for season_dir in sorted(snap_root.iterdir()):
+            if not season_dir.is_dir() or season_dir.name.startswith(("_", ".")):
+                continue
+            for g_dir in sorted(season_dir.glob("giornata_*")):
+                pj = g_dir / "payload.json"
+                if pj.exists():
+                    cross_season.append((season_dir.name, g_dir.name, pj))
+    # 2) Backfill stagionali in OUTPUT_DIR/payload_YYYY-YY.json (es. payload_2024-25.json)
+    import re as _re_season
+    for vp in OUTPUT_DIR.glob("payload_*.json"):
+        m = _re_season.match(r"payload_(\d{4}-\d{2})\.json$", vp.name)
+        if m:
+            cross_season.append((m.group(1), "season_aggregate", vp))
+
+    if not vintages and not cross_season:
         return {"has_data": False,
-                "msg": ("Convergenza per giornata: richiede gli snapshot storici "
-                        "(snapshots/<stagione>/g<NN>/). Genera gli snapshot per giornata e riesegui.")}
-    # La materializzazione effettiva vive nel pacchetto snapshots/regression del repo.
-    return {"has_data": False,
-            "msg": "Snapshot rilevati: usa tests/regression/run_regression.py per il diff per-vintage."}
+                "msg": ("Convergenza per giornata: nessun payload_g{N}.json e nessun "
+                        "snapshot stagionale trovato. Genera vintage con "
+                        "`python parte1_analisi.py --max-giornata N` o popola "
+                        "`snapshots/<season>/giornata_NN/payload.json`.")}
+
+    cur_path = OUTPUT_DIR / "payload.json"
+    if not cur_path.exists():
+        return {"has_data": False, "msg": "payload.json corrente assente."}
+    with open(cur_path, encoding="utf-8") as fh:
+        current = json.load(fh)
+    cur_tpi = {int(p["id"]): float(p["tpi"]["totale"])
+               for p in current.get("players", [])
+               if (p.get("tpi") or {}).get("totale") is not None}
+
+    rows = []
+    movers_all = []
+    for vp in vintages:
+        m = re.search(r"payload_g(\d+)\.json$", vp.name)
+        if not m:
+            continue
+        N = int(m.group(1))
+        with open(vp, encoding="utf-8") as fh:
+            vintage = json.load(fh)
+        v_tpi = {int(p["id"]): float(p["tpi"]["totale"])
+                 for p in vintage.get("players", [])
+                 if (p.get("tpi") or {}).get("totale") is not None}
+        common = sorted(set(cur_tpi) & set(v_tpi))
+        if len(common) < 20:
+            continue
+        # Spearman ρ via rank correlation
+        v_vals = np.array([v_tpi[g] for g in common])
+        c_vals = np.array([cur_tpi[g] for g in common])
+        v_rank = pd.Series(v_vals).rank().values
+        c_rank = pd.Series(c_vals).rank().values
+        # pearson sui rank = spearman
+        if v_rank.std() > 0 and c_rank.std() > 0:
+            rho = float(np.corrcoef(v_rank, c_rank)[0, 1])
+        else:
+            rho = None
+        # Top-25 overlap
+        v_top25 = set(g for g, _ in sorted(v_tpi.items(), key=lambda x: -x[1])[:25])
+        c_top25 = set(g for g, _ in sorted(cur_tpi.items(), key=lambda x: -x[1])[:25])
+        overlap25 = len(v_top25 & c_top25) / 25.0
+        # Movers (delta rank)
+        v_ord = {gid: i for i, (gid, _) in enumerate(sorted(v_tpi.items(), key=lambda x: -x[1]), 1)}
+        c_ord = {gid: i for i, (gid, _) in enumerate(sorted(cur_tpi.items(), key=lambda x: -x[1]), 1)}
+        # nome lookup dal payload corrente
+        name_map = {int(p["id"]): p.get("nome", f"#{p['id']}")
+                    for p in current.get("players", [])}
+        deltas = [(gid, v_ord[gid] - c_ord[gid]) for gid in common if gid in v_ord and gid in c_ord]
+        deltas.sort(key=lambda x: x[1])  # negativi = saliti (era posizione alta, ora più bassa)
+        risers = [{"id": gid, "nome": name_map.get(gid, f"#{gid}"),
+                   "delta": -d, "from": v_ord.get(gid), "to": c_ord.get(gid)}
+                   for gid, d in deltas[:5]]
+        fallers = [{"id": gid, "nome": name_map.get(gid, f"#{gid}"),
+                    "delta": d, "from": v_ord.get(gid), "to": c_ord.get(gid)}
+                    for gid, d in sorted(deltas, key=lambda x: -x[1])[:5]]
+        rows.append({
+            "vintage_giornata": N,
+            "n_common": len(common),
+            "spearman_rho": round(rho, 3) if rho is not None else None,
+            "overlap_top25": round(overlap25, 3),
+        })
+        movers_all.append({"vintage_giornata": N, "risers": risers, "fallers": fallers})
+        log.info(f"  Convergenza vintage g{N} → corrente: ρ={rho:.3f}, "
+                 f"overlap top25={overlap25:.0%}, n={len(common)}")
+
+    # Cross-season: confronta payload corrente vs snapshot di stagioni passate.
+    # Matching per ID quando possibile (stesso schema DB); altrimenti per NOME
+    # normalizzato (backfill da fonti esterne come Understat hanno id diversi).
+    import unicodedata as _ud
+    def _nm(s):
+        return _ud.normalize("NFKD", str(s or "")).encode("ascii","ignore").decode().lower().strip()
+    cur_by_name = {_nm(p["nome"]): float(p["tpi"]["totale"])
+                   for p in current.get("players", [])
+                   if (p.get("tpi") or {}).get("totale") is not None}
+    cross_season_rows = []
+    for season, g_name, snap_path in cross_season:
+        try:
+            with open(snap_path, encoding="utf-8") as fh:
+                snap = json.load(fh)
+        except Exception as e:
+            log.warning(f"  Snapshot stagionale non leggibile {snap_path}: {e}")
+            continue
+        # Prova prima per ID; fallback a nome se overlap < 10
+        s_tpi = {int(p["id"]): float(p["tpi"]["totale"])
+                 for p in snap.get("players", [])
+                 if (p.get("tpi") or {}).get("totale") is not None}
+        common = sorted(set(cur_tpi) & set(s_tpi))
+        match_mode = "id"
+        if len(common) < 10:
+            # Match per nome normalizzato
+            s_tpi_by_name = {_nm(p["nome"]): float(p["tpi"]["totale"])
+                             for p in snap.get("players", [])
+                             if (p.get("tpi") or {}).get("totale") is not None}
+            common_names = sorted(set(cur_by_name) & set(s_tpi_by_name))
+            if len(common_names) < 20:
+                log.info(f"  Cross-season {season}/{g_name}: n_common solo {len(common_names)} "
+                         f"(id) / {len(common_names)} (nome) — skip")
+                continue
+            s_vals = pd.Series([s_tpi_by_name[n] for n in common_names]).rank().values
+            c_vals = pd.Series([cur_by_name[n] for n in common_names]).rank().values
+            common = common_names
+            match_mode = "nome"
+        else:
+            s_vals = pd.Series([s_tpi[g] for g in common]).rank().values
+            c_vals = pd.Series([cur_tpi[g] for g in common]).rank().values
+        rho = (float(np.corrcoef(s_vals, c_vals)[0, 1])
+               if s_vals.std() > 0 and c_vals.std() > 0 else None)
+        cross_season_rows.append({
+            "season": season,
+            "snapshot": g_name,
+            "n_common": len(common),
+            "spearman_rho": round(rho, 3) if rho is not None else None,
+            "match": match_mode,
+        })
+        log.info(f"  Cross-season {season}/{g_name} ({match_mode}) → corrente: "
+                 f"ρ={rho:.3f}, n={len(common)}")
+
+    if not rows and not cross_season_rows:
+        return {"has_data": False, "msg": "Nessun vintage utilizzabile (n_common < 20)."}
+
+    return {"has_data": True,
+            "per_vintage": rows,
+            "cross_season": cross_season_rows,
+            "movers": movers_all,
+            "msg": (f"{len(rows)} vintage within-season + {len(cross_season_rows)} "
+                    f"cross-season analizzati. Più ρ alto = ranking stabile.")}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -878,55 +1750,55 @@ def valida_convergenza() -> dict:
 # ════════════════════════════════════════════════════════════════
 CSS = """
 :root{
-  --bg:#000;--bg2:#1c1c1e;--bg3:#2c2c2e;
-  --sep:rgba(255,255,255,.10);--sep2:rgba(255,255,255,.18);
-  --lp:#fff;--ls:rgba(235,235,245,.62);--lt:rgba(235,235,245,.32);
-  --blue:#0a84ff;--green:#30d158;--orng:#ff9f0a;
-  --red:#ff453a;--purp:#bf5af2;--teal:#5ac8fa;--indig:#5e5ce6;
+  --bg:#0A1512;--bg2:#132723;--bg3:#1B342E;
+  --sep:rgba(233,240,236,.10);--sep2:rgba(233,240,236,.18);
+  --lp:#ECF2EE;--ls:rgba(235,235,245,.62);--lt:rgba(235,235,245,.32);
+  --blue:#5A93C4;--green:#5FAE7E;--orng:#FFB020;
+  --red:#D9705F;--purp:#9B7FC4;--teal:#6FB4C4;--indig:#5e5ce6;
   --r:16px;--rsm:12px;--rxs:8px;
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif;
   --mono:"SF Mono","Cascadia Code","Fira Code",monospace;
-  --gl-border:rgba(255,255,255,.16);--gl-edge:rgba(255,255,255,.28);
+  --gl-border:rgba(233,240,236,.16);--gl-edge:rgba(233,240,236,.28);
   --gl-blur:saturate(220%) blur(36px);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
+/* Limite di larghezza, come nella dashboard: senza, su schermi larghi
+   il contenuto si stira e resta un canale vuoto per tutta la pagina. */
+.wrap,.container,main,section.sec{max-width:1280px;margin-inline:auto}
 body{font-family:var(--font);background:var(--bg);color:var(--lp);
   font-size:15px;line-height:1.47;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
 
 /* Nav */
 .nav{position:sticky;top:0;z-index:400;height:52px;
-  background:rgba(10,10,12,.72);backdrop-filter:var(--gl-blur);
-  -webkit-backdrop-filter:var(--gl-blur);border-bottom:1px solid var(--gl-border);
-  box-shadow:0 1px 0 var(--gl-edge);display:flex;align-items:center;gap:10px;padding:0 20px}
+  background:rgba(10,10,12,.72);border-bottom:1px solid var(--gl-border);
+  box-shadow:none;display:flex;align-items:center;gap:10px;padding:0 20px}
 .nav-brand{font-size:16px;font-weight:700;letter-spacing:-.5px;white-space:nowrap;flex-shrink:0}
 .nav-brand small{font-size:12px;font-weight:400;color:var(--lt);margin-left:6px}
 .nav-glass-btn{
   display:inline-flex;align-items:center;justify-content:center;
-  width:30px;height:30px;background:rgba(255,255,255,.06);
-  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
-  border:1px solid rgba(255,255,255,.14);border-top-color:rgba(255,255,255,.24);
+  width:30px;height:30px;background:rgba(233,240,236,.06);
+  border:1px solid rgba(233,240,236,.14);border-top-color:rgba(233,240,236,.24);
   border-radius:9px;font-size:14px;color:rgba(235,235,245,.62);cursor:pointer;
-  box-shadow:0 2px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.08);
+  box-shadow:0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(233,240,236,.08);
   transition:all .18s cubic-bezier(.4,0,.2,1);font-family:var(--font);text-decoration:none;flex-shrink:0}
-.nav-glass-btn:hover{background:rgba(255,255,255,.11);color:#fff;
-  border-top-color:rgba(255,255,255,.36);transform:translateY(-1px);
-  box-shadow:0 3px 14px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.12)}
+.nav-glass-btn:hover{background:rgba(233,240,236,.11);color:#fff;
+  border-top-color:rgba(233,240,236,.36);transform:translateY(-1px);
+  box-shadow:0 3px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(233,240,236,.12)}
 .nav-glass-btn:active{transform:translateY(0);opacity:.8}
 .nav-glass-btn.home-btn{width:auto;padding:0 12px;gap:5px;font-size:12px;font-weight:600}
 .nav-switch-btn{
   display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
   background:rgba(10,132,255,.08);
-  backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
   border:1px solid rgba(10,132,255,.22);border-top-color:rgba(10,132,255,.35);
   border-radius:9px;font:12px/1 var(--font);font-weight:600;color:var(--blue);
   text-decoration:none;cursor:pointer;flex-shrink:0;white-space:nowrap;
-  box-shadow:0 2px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.07);
+  box-shadow:0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(233,240,236,.07);
   transition:all .18s cubic-bezier(.4,0,.2,1)}
 .nav-switch-btn:hover{background:rgba(10,132,255,.15);color:#4da3ff;transform:translateY(-1px)}
 .nav-switch-dot{width:5px;height:5px;border-radius:50%;background:var(--blue);
-  box-shadow:0 0 5px rgba(10,132,255,.7);flex-shrink:0}
+  box-shadow:none;flex-shrink:0}
 .nav-btn-group{display:flex;align-items:center;gap:5px;margin-left:8px}
 .nav-right-group{display:flex;align-items:center;gap:8px;margin-left:auto}
 
@@ -936,7 +1808,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
   border-radius:9px;font:12px var(--font);font-weight:700;cursor:pointer;
   background:rgba(10,132,255,.1);border:1px solid rgba(10,132,255,.3);
   border-top-color:rgba(10,132,255,.45);color:var(--blue);
-  box-shadow:0 2px 8px rgba(10,132,255,.15),inset 0 1px 0 rgba(255,255,255,.08);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.08);
   transition:all .18s;white-space:nowrap;text-decoration:none;flex-shrink:0}
 .nav-home-btn:hover{background:rgba(10,132,255,.18);transform:translateY(-1px)}
 .nav-orng-btn{
@@ -944,7 +1816,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
   border-radius:9px;font:12px var(--font);font-weight:700;text-decoration:none;
   background:rgba(255,159,10,.12);border:1px solid rgba(255,159,10,.35);
   border-top-color:rgba(255,159,10,.5);color:var(--orng);
-  box-shadow:0 2px 8px rgba(255,159,10,.15),inset 0 1px 0 rgba(255,255,255,.07);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.07);
   transition:all .18s;white-space:nowrap;flex-shrink:0}
 .nav-orng-btn:hover{background:rgba(255,159,10,.2);transform:translateY(-1px)}
 
@@ -970,12 +1842,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 .hero-sub{font-size:14px;color:var(--lt);max-width:640px;line-height:1.6;margin-bottom:16px}
 .hero-pills{display:flex;gap:8px;flex-wrap:wrap}
 .hero-pill{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;
-  background:rgba(255,255,255,.05);border:1px solid var(--gl-border);color:var(--ls)}
+  background:rgba(233,240,236,.05);border:1px solid var(--gl-border);color:var(--ls)}
 
 /* Card */
-.card{background:linear-gradient(160deg,rgba(255,255,255,.07) 0%,rgba(255,255,255,.03) 100%);
+.card{background:linear-gradient(160deg,rgba(233,240,236,.07) 0%,rgba(233,240,236,.03) 100%);
   border-radius:var(--r);border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
-  box-shadow:0 4px 20px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.08);padding:18px}
+  box-shadow:0 4px 20px rgba(0,0,0,.45), inset 0 1px 0 rgba(233,240,236,.08);padding:18px}
 .card-ttl{font-size:11px;font-weight:700;color:var(--lt);text-transform:uppercase;
   letter-spacing:.7px;margin-bottom:14px;display:flex;align-items:center;gap:6px}
 
@@ -992,7 +1864,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
 
 /* Stat box */
-.stat-box{background:linear-gradient(150deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+.stat-box{background:var(--bg1);
   border-radius:var(--rsm);border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
   padding:16px;text-align:center;position:relative;overflow:hidden}
 .stat-box::before{content:"";position:absolute;top:0;left:0;right:0;height:2px}
@@ -1007,35 +1879,33 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 
 /* Help / Modal */
 .help{display:inline-flex;align-items:center;justify-content:center;
-  width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.09);
+  width:16px;height:16px;border-radius:50%;background:rgba(233,240,236,.09);
   border:1px solid var(--sep);font-size:9px;color:var(--lt);cursor:pointer;
   transition:all .15s;flex-shrink:0;vertical-align:middle;margin-left:4px}
 .help:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
 .mwrap{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.75);
-  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
   display:none;align-items:center;justify-content:center;padding:16px}
 .mwrap.open{display:flex}
-.mbox{background:rgba(22,22,24,.95);backdrop-filter:saturate(220%) blur(48px);
-  -webkit-backdrop-filter:saturate(220%) blur(48px);
+.mbox{background:rgba(22,22,24,.95);
   border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
-  box-shadow:0 32px 80px rgba(0,0,0,.9),inset 0 1px 0 rgba(255,255,255,.12);
+  box-shadow:0 32px 80px rgba(0,0,0,.9), inset 0 1px 0 rgba(233,240,236,.12);
   border-radius:20px;padding:26px;max-width:520px;width:100%}
 .mbox-icon{font-size:26px;margin-bottom:10px}
 .mbox-ttl{font-size:19px;font-weight:700;letter-spacing:-.4px;margin-bottom:5px}
 .mbox-sub{font-size:12px;color:var(--lt);margin-bottom:14px;
-  font-family:var(--mono);background:rgba(255,255,255,.04);
+  font-family:var(--mono);background:rgba(233,240,236,.04);
   border:1px solid var(--sep);border-radius:var(--rxs);padding:7px 11px}
 .mbox-body{font-size:13px;color:var(--ls);line-height:1.75;margin-bottom:10px}
 .mbox-ex{font-size:12px;color:var(--lt);border-left:3px solid var(--blue);
   padding:8px 14px;line-height:1.6;background:rgba(10,132,255,.04);
   border-radius:0 var(--rxs) var(--rxs) 0}
-.mbox-cls{margin-top:18px;width:100%;padding:12px;background:rgba(255,255,255,.07);
+.mbox-cls{margin-top:18px;width:100%;padding:12px;background:rgba(233,240,236,.07);
   border:1px solid var(--sep);border-radius:var(--rsm);color:var(--lp);
   font:14px var(--font);cursor:pointer;transition:background .15s}
-.mbox-cls:hover{background:rgba(255,255,255,.11)}
+.mbox-cls:hover{background:rgba(233,240,236,.11)}
 
 /* Table */
-.interp{background:rgba(255,255,255,.03);border:1px solid var(--sep);
+.interp{background:rgba(233,240,236,.03);border:1px solid var(--sep);
   border-left:3px solid var(--blue);border-radius:0 var(--rsm) var(--rsm) 0;
   padding:12px 16px;font-size:13px;color:var(--ls);line-height:1.65;margin-top:12px}
 .nota-warn{background:rgba(255,159,10,.06);border:1px solid rgba(255,159,10,.2);
@@ -1045,8 +1915,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:320px}
 th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:var(--lt);
   text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--sep);white-space:nowrap}
-td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,.04);color:var(--ls)}
-tr:hover td{background:rgba(255,255,255,.02)}
+td{padding:8px 10px;border-bottom:1px solid rgba(233,240,236,.04);color:var(--ls)}
+tr:hover td{background:rgba(233,240,236,.02)}
 .tv{font-family:var(--mono);font-weight:600;color:var(--lp)}
 .torng{color:var(--orng);font-weight:600;font-family:var(--mono)}
 
@@ -1063,14 +1933,14 @@ tr:hover td{background:rgba(255,255,255,.02)}
 /* Accordion */
 .accordion{border:1px solid var(--gl-border);border-radius:var(--r);overflow:hidden;margin-bottom:28px}
 .acc-hd{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;
-  cursor:pointer;background:rgba(255,255,255,.03);transition:background .15s}
-.acc-hd:hover{background:rgba(255,255,255,.05)}
+  cursor:pointer;background:rgba(233,240,236,.03);transition:background .15s}
+.acc-hd:hover{background:rgba(233,240,236,.05)}
 .acc-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
 .acc-chev{font-size:11px;color:var(--lt);transition:transform .2s;flex-shrink:0}
 .acc-body{display:none;padding:18px;border-top:1px solid var(--sep)}
 .acc-body.open{display:block}
 .guide-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.guide-card{background:rgba(255,255,255,.03);border:1px solid var(--sep);
+.guide-card{background:rgba(233,240,236,.03);border:1px solid var(--sep);
   border-radius:var(--rsm);padding:13px}
 .guide-icon{font-size:18px;margin-bottom:7px}
 .guide-ttl{font-size:13px;font-weight:600;margin-bottom:5px}
@@ -1079,16 +1949,16 @@ tr:hover td{background:rgba(255,255,255,.02)}
 /* Recap layout */
 .recap-outer{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-top:20px}
 .recap-left{flex:1;min-width:260px;
-  background:linear-gradient(135deg,rgba(10,132,255,.06),rgba(94,92,230,.03));
+  background:var(--bg1);
   border:1px solid rgba(10,132,255,.18);border-radius:var(--r);padding:20px}
 .recap-right{width:260px;flex-shrink:0;
-  background:linear-gradient(135deg,rgba(191,90,242,.10),rgba(94,92,230,.06));
+  background:var(--bg1);
   border:2px solid rgba(191,90,242,.35);border-radius:var(--r);padding:20px;
   position:relative;overflow:hidden}
 .recap-right::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
   background:linear-gradient(90deg,var(--purp),var(--indig))}
 .rc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.rc-card{background:rgba(255,255,255,.03);border:1px solid var(--sep);
+.rc-card{background:rgba(233,240,236,.03);border:1px solid var(--sep);
   border-radius:var(--rsm);padding:11px 13px}
 .rc-lbl{font-size:11px;color:var(--lt);margin-bottom:7px;line-height:1.4}
 .rc-sub{font-size:11px;color:var(--ls);margin-top:5px}
@@ -1104,7 +1974,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 /* Mover rows */
 .mover-row{display:flex;align-items:center;gap:10px;padding:9px 12px;
   border-radius:10px;margin-bottom:6px;
-  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)}
+  background:rgba(233,240,236,.03);border:1px solid rgba(233,240,236,.07)}
 .mover-delta{font-size:13px;font-weight:800;font-family:var(--mono);
   width:44px;text-align:center;flex-shrink:0}
 .mover-info{flex:1;min-width:0}
@@ -1117,12 +1987,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
 /* Watermark */
 #wm{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
   display:flex;align-items:center;gap:7px;padding:5px 14px 5px 10px;
-  background:rgba(255,255,255,.04);backdrop-filter:saturate(180%) blur(20px);
-  -webkit-backdrop-filter:saturate(180%) blur(20px);
-  border:1px solid rgba(255,255,255,.09);border-top-color:rgba(255,255,255,.14);
+  background:rgba(233,240,236,.04);
+  border:1px solid rgba(233,240,236,.09);border-top-color:rgba(233,240,236,.14);
   border-radius:20px;z-index:800;pointer-events:none}
 #wm-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);
-  box-shadow:0 0 6px rgba(10,132,255,.6);flex-shrink:0}
+  box-shadow:none;flex-shrink:0}
 #wm-text{font-size:10px;font-weight:500;letter-spacing:.3px;
   color:rgba(235,235,245,.28);white-space:nowrap}
 
@@ -1420,14 +2289,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
       text:sc.map(d=>d.nome+"<br>"+d.squadra),
       hovertemplate:"%{{text}}<br>TPI: %{{x:.3f}}<br>TPI Pro: %{{y:.3f}}<extra></extra>",
       marker:{{color:sc.map(d=>rc[d.ruolo]||"#636366"),size:8,opacity:.82,
-        line:{{color:"rgba(255,255,255,.12)",width:1}}}}}},
+        line:{{color:"rgba(233,240,236,.12)",width:1}}}}}},
     {{type:"scatter",mode:"lines",
       x:[xmin,xmax],y:[sl*xmin+ic,sl*xmax+ic],
       line:{{color:"rgba(191,90,242,.55)",width:2,dash:"dot"}},hoverinfo:"skip"}},
     {{type:"scatter",mode:"lines",
       x:[Math.min(xmin,Math.min(...yv)),Math.max(xmax,Math.max(...yv))],
       y:[Math.min(xmin,Math.min(...yv)),Math.max(xmax,Math.max(...yv))],
-      line:{{color:"rgba(255,255,255,.07)",width:1,dash:"dot"}},hoverinfo:"skip"}},
+      line:{{color:"rgba(233,240,236,.07)",width:1,dash:"dot"}},hoverinfo:"skip"}},
   ],{{...BL,
     xaxis:{{...BL.xaxis,title:T("val_ax_tpi_classic","TPI Classico (4 dim)")}},
     yaxis:{{...BL.yaxis,title:T("val_ax_tpi_pro","TPI Pro (6 dim)")}},
@@ -1652,9 +2521,9 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         _cpp = _sf(c_plac.get("p_perm"), 4)
         _crel = _sf(val_c.get("reliability_r"), 3)
         _cnote_it = ("Backtest su output offensivo (xG+xA)/90 — componente dominante "
-                     "del TPI (peso 0.40), non il composito completo: evidenza parziale.")
+                     "del TPI (peso 0.32), non il composito completo: evidenza parziale.")
         _cnote_en = ("Backtest on offensive output (xG+xA)/90 — the dominant TPI component "
-                     "(weight 0.40), not the full composite: partial evidence.")
+                     "(weight 0.32), not the full composite: partial evidence.")
         _c_it = (f'&#128300; <strong>Rigore:</strong> RMSE <em>out-of-sample</em> (k-fold) = '
                  f'<strong>{_crmse}</strong> &middot; skill vs persistenza = {_csp}, vs media-ruolo = {_csg} '
                  f'(&gt;0 = batte la baseline) &middot; placebo: r oss. {_cobs} vs nulla p95 {_cnull} '
@@ -1710,7 +2579,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         labs = vg.get("labels", [])
         g_bars = "".join(
             f'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ls)"><span>PC{i+1}</span><span style="font-family:var(--mono)">{round(e*100,1)}%</span></div>'
-            f'<div style="height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:{round(e*100,1)}%;background:linear-gradient(90deg,var(--teal),var(--blue))"></div></div></div>'
+            f'<div style="height:6px;background:rgba(233,240,236,.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:{round(e*100,1)}%;background:linear-gradient(90deg,var(--teal),var(--blue))"></div></div></div>'
             for i, e in enumerate(explained)
         )
         pc1 = vg.get("pc1") or 0
@@ -2031,9 +2900,9 @@ const R_A={_js_num(r_a)};const R_C={_js_num(r_c)};const OV={ov};
 const PL={{responsive:true,displayModeBar:false}};
 const BL={{paper_bgcolor:"transparent",plot_bgcolor:"transparent",
   font:{{color:"rgba(235,235,245,.28)",family:"-apple-system,sans-serif"}},
-  xaxis:{{gridcolor:"rgba(255,255,255,.05)",color:"rgba(235,235,245,.28)",
+  xaxis:{{gridcolor:"rgba(233,240,236,.05)",color:"rgba(235,235,245,.28)",
     tickfont:{{size:10}},zeroline:false}},
-  yaxis:{{gridcolor:"rgba(255,255,255,.05)",color:"rgba(235,235,245,.28)",
+  yaxis:{{gridcolor:"rgba(233,240,236,.05)",color:"rgba(235,235,245,.28)",
     tickfont:{{size:10}},zeroline:false}}}};
 const RC_MAP={{"ATT":"#ff9f0a","CEN":"#30d158","DIF":"#0a84ff","":"#48484a"}};
 const rcf=r=>RC_MAP[r]||"#636366";
@@ -2116,7 +2985,7 @@ function toggleAcc(id){{
       text:SCATTER_A.map(d=>d.nome+"<br>"+d.squadra),
       hovertemplate:"%{{text}}<br>TPI: %{{x:.3f}}<br>Fanta: %{{y:.2f}}<extra></extra>",
       marker:{{color:SCATTER_A.map(d=>rcf(d.ruolo)),size:9,opacity:.85,
-        line:{{color:"rgba(255,255,255,.15)",width:1}}}}}},
+        line:{{color:"rgba(233,240,236,.15)",width:1}}}}}},
     {{type:"scatter",mode:"lines",x:[xmn,xmx],
       y:[SL_A===null?0:SL_A*xmn+(IC_A||0),SL_A===null?0:SL_A*xmx+(IC_A||0)],
       line:{{color:"rgba(10,132,255,.5)",width:2,dash:"dot"}},hoverinfo:"skip"}},
@@ -2181,14 +3050,14 @@ function toggleAcc(id){{
       text:SCATTER_C.map(d=>d.nome+"<br>"+d.squadra),
       hovertemplate:"%{{text}}<br>Prima: %{{x:.3f}}<br>Seconda: %{{y:.3f}}<extra></extra>",
       marker:{{color:SCATTER_C.map(d=>rcf(d.ruolo)),size:7,opacity:.8,
-        line:{{color:"rgba(255,255,255,.12)",width:1}}}}}},
+        line:{{color:"rgba(233,240,236,.12)",width:1}}}}}},
     {{type:"scatter",mode:"lines",x:[xmn,xmx],
       y:[SL_C===null?0:SL_C*xmn+(IC_C||0),SL_C===null?0:SL_C*xmx+(IC_C||0)],
       line:{{color:"rgba(48,209,88,.5)",width:2,dash:"dot"}},hoverinfo:"skip"}},
     {{type:"scatter",mode:"lines",
       x:[Math.min(xmn,Math.min(...yv)),Math.max(xmx,Math.max(...yv))],
       y:[Math.min(xmn,Math.min(...yv)),Math.max(xmx,Math.max(...yv))],
-      line:{{color:"rgba(255,255,255,.07)",width:1,dash:"dot"}},hoverinfo:"skip"}},
+      line:{{color:"rgba(233,240,236,.07)",width:1,dash:"dot"}},hoverinfo:"skip"}},
   ],{{...BL,xaxis:{{...BL.xaxis,title:T("val_ax_early","Output/90 — Prima fase")}},
     yaxis:{{...BL.yaxis,title:T("val_ax_late","Output/90 — Seconda fase")}},
     margin:{{t:8,b:46,l:54,r:8}},height:300,showlegend:false,
@@ -2208,7 +3077,7 @@ function toggleAcc(id){{
     text:SCATTER_D.map(d=>d.nome+"<br>"+d.squadra),
     hovertemplate:"%{{text}}<br>AII: %{{x:.3f}}<br>PRI: %{{y:.3f}}<extra></extra>",
     marker:{{color:SCATTER_D.map(d=>rcf(d.ruolo)),size:8,opacity:.82,
-      line:{{color:"rgba(255,255,255,.12)",width:1}}}}
+      line:{{color:"rgba(233,240,236,.12)",width:1}}}}
   }}],{{...BL,
     xaxis:{{...BL.xaxis,title:T("val_ax_aii","AII — Et\u00e0 Index")}},
     yaxis:{{...BL.yaxis,title:T("val_ax_pri","PRI — Affidabilit\u00e0 Fisica")}},
@@ -2246,6 +3115,7 @@ window.addEventListener("orientationchange",()=>{{setTimeout(()=>{{
 }},450);}});
 </script>
 <script src="i18n.js"></script>
+<script src="ai_chat.js" defer></script>
 </body>
 </html>"""
 
@@ -2291,8 +3161,43 @@ def main():
     log.info("[H] Robustezza ai pesi (Monte Carlo)...")
     val_h = valida_sensibilita(players)
 
-    log.info("[I] Validità incrementale TPI Pro (non circolare)...")
-    val_i = valida_incrementale_pro(players)
+    log.info("[I] Validità incrementale TPI Pro (preferendo OOS vintage se disponibile)...")
+    # engine locale per la query del realizzato post-vintage (non riutilizziamo
+    # quello di load_player_games perché è creato/chiuso dentro la funzione)
+    _val_i_engine = None
+    try:
+        from sqlalchemy import create_engine as _ce
+        _val_i_engine = _ce(_cfg_db_url(), pool_pre_ping=True)
+    except Exception as _e:
+        log.warning(f"  Engine per test I OOS non disponibile: {_e}")
+    val_i = valida_incrementale_pro_oos(_val_i_engine) if _val_i_engine else None
+    if val_i is None:
+        log.info("  Nessun vintage trovato → fallback in-sample (ultime 6 nel payload).")
+        val_i = valida_incrementale_pro(players)
+    elif not val_i.get("has_data"):
+        log.warning(f"  Vintage trovato ma test OOS non utilizzabile: {val_i.get('msg')}")
+        log.info("  Fallback in-sample (ultime 6 nel payload).")
+        val_i = valida_incrementale_pro(players)
+
+    log.info("[O] Ablation study (rimuove una dim per volta)...")
+    val_o = valida_ablation(players, df_gp)
+    if not val_o.get("has_data"):
+        log.info(f"  {val_o.get('msg','—')}")
+
+    log.info("[P] Persistence Score (TPI medio multi-vintage vs singolo)...")
+    val_p = valida_persistence(players, df_gp)
+    if not val_p or not val_p.get("has_data"):
+        log.info(f"  {val_p.get('msg','—') if val_p else 'Persistence non eseguito.'}")
+
+    log.info("[M] Reliability/Calibration del TPI...")
+    val_m = valida_calibration(players)
+    if not val_m.get("has_data"):
+        log.info(f"  {val_m.get('msg','—')}")
+
+    log.info("[N] Predittività stratificata per ruolo...")
+    val_n = valida_predittivita_per_ruolo(players, df_gp)
+    if not val_n.get("has_data"):
+        log.info(f"  {val_n.get('msg','—')}")
 
     log.info("[L] Convergenza per giornata (gated)...")
     val_l = valida_convergenza()
@@ -2316,16 +3221,19 @@ def main():
         except OSError as e:
             log.warning(f"Copia demo fallita: {e}")
 
-    # i18n.js deve stare ACCANTO a ogni HTML (lo <script src="i18n.js"> è relativo):
-    # la fonte canonica è nel repo demo; lo copio in dashboard_output così la pagina
-    # funziona anche aperta da lì (gli script suggeriscono di aprirla da dashboard_output).
-    _i18n_src = DEMO_DIR / "i18n.js"
-    if _i18n_src.is_file():
+    # i18n.js e ai_chat.js devono stare ACCANTO a ogni HTML (i loro <script src>
+    # sono relativi): la fonte canonica è nel repo demo, li copio in dashboard_output
+    # così la pagina funziona anche aperta da lì (gli script suggeriscono di aprirla
+    # da dashboard_output).
+    for _asset in ("i18n.js", "ai_chat.js"):
+        _src = DEMO_DIR / _asset
+        if not _src.is_file():
+            continue
         try:
-            (OUTPUT_DIR / "i18n.js").write_bytes(_i18n_src.read_bytes())
-            log.info(f"OK → {OUTPUT_DIR / 'i18n.js'}  (i18n accanto all'HTML)")
+            (OUTPUT_DIR / _asset).write_bytes(_src.read_bytes())
+            log.info(f"OK → {OUTPUT_DIR / _asset}  (accanto all'HTML)")
         except OSError as e:
-            log.warning(f"Copia i18n.js fallita: {e}")
+            log.warning(f"Copia {_asset} fallita: {e}")
 
     log.info("")
     log.info(f"  A — r={_sf(val_a.get('r'),3)}  n={val_a.get('n',0)}")
@@ -2337,6 +3245,19 @@ def main():
     log.info(f"  G — Struttura: PC1={_sf(val_g.get('pc1'),3)}  has_data={val_g.get('has_data',False)}")
     log.info(f"  H — Sensibilità pesi: ρ_med={_sf(val_h.get('spearman_median'),3)}  has_data={val_h.get('has_data',False)}")
     log.info(f"  I — Incrementale Pro: Δ={_sf(val_i.get('delta_rmse'),3)}  pro_better={val_i.get('pro_better')}  has_data={val_i.get('has_data',False)}")
+    log.info(f"  M — Calibration: slope={_sf(val_m.get('slope'),3)} monot.ρ={_sf(val_m.get('monotonia_rho'),3)} ACE={_sf(val_m.get('calibration_error'),3)}")
+    _pr = val_n.get('per_role', {}) if val_n else {}
+    log.info(f"  N — Per ruolo: " + " · ".join(f"{k}:ρ={_sf(v.get('rho'),3)} n={v.get('n',0)}" for k,v in _pr.items()))
+    if val_o and val_o.get("has_data"):
+        _ord = val_o["results"]
+        log.info(f"  O — Ablation (ρ_real baseline={val_o['baseline_rho_realized']}): "
+                 f"più impatto: {_ord[0]['dim']}(Δ={_ord[0]['delta_predict']:+.3f}), "
+                 f"meno impatto: {_ord[-1]['dim']}(Δ={_ord[-1]['delta_predict']:+.3f})")
+    if val_p and val_p.get("has_data"):
+        log.info(f"  P — Persistence (n={val_p['n_giocatori']}): "
+                 f"single ρ={val_p['rho_single']:+.3f}, within-mean ρ={val_p['rho_persistence_within_mean']:+.3f} "
+                 f"(Δ={val_p['delta_within_vs_single']:+.3f}), all-mean ρ={val_p['rho_persistence_all_mean']:+.3f} "
+                 f"(Δ={val_p['delta_all_vs_single']:+.3f}), wins={val_p['persistence_wins']}")
     log.info("=" * 58)
 
     # Apre il file nel browser — una sola volta

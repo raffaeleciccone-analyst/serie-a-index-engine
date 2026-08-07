@@ -1,0 +1,1113 @@
+/* ═══════════════════════════════════════
+   DESIGN SYSTEM — notte di campo, un solo segnale
+═══════════════════════════════════════ */
+:root {
+  /* Il fondo non e' nero neutro ma ha un'inclinazione verde: basta quella a
+     togliere l'aria da template scuro generico, senza rinunciare allo scuro. */
+  --bg:#0A1512; --bg1:#0F1F1B; --bg2:#132723; --bg3:#1B342E; --bg4:#24443C;
+  --sep:rgba(233,240,236,.10); --sep2:rgba(233,240,236,.18);
+  --lp:#ECF2EE; --ls:rgba(233,240,236,.66); --lt:rgba(233,240,236,.38); --lq:rgba(233,240,236,.20);
+
+  /* UN solo colore dice "attivo, oppure questo e' il valore": l'ambra.
+     Prima --orng valeva sia questo sia il ruolo ATT, quindi non voleva dire
+     niente. Ora i ruoli hanno una triade desaturata a parte (vedi anche
+     RUOLO_COLORS in parte2_dashboard.py, che deve restare allineata) e
+     smettono di competere con il segnale. */
+  --orng:#FFB020;
+  --blue:#5A93C4; --green:#5FAE7E; --clay:#D98E6A;
+  --red:#D9705F; --purp:#9B7FC4; --teal:#6FB4C4; --indig:#7B84C9;
+  --r:16px; --rsm:12px; --rxs:8px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --mono:"SF Mono","Cascadia Mono","Cascadia Code","Fira Code",ui-monospace,monospace;
+  --gl-bg:rgba(233,240,236,.06); --gl-border:rgba(233,240,236,.16);
+  --gl-edge:rgba(233,240,236,.28); --gl-blur:saturate(220%) blur(36px);
+  --gl-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35),inset 0 1px 0 rgba(233,240,236,.12);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px;
+  line-height:1.47;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  /* In una classifica le cifre devono incolonnarsi: senza questo, "1.79" e
+     "1.11" occupano larghezze diverse e la colonna balla. */
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+.row{--bs-gutter-x:12px;--bs-gutter-y:12px}
+
+/* ── Liquid Glass materials ── */
+.nav{position:sticky;top:0;z-index:400;height:56px;
+  background:var(--bg);border-bottom:1px solid var(--sep);
+  box-shadow:none;
+  display:flex;align-items:center;gap:10px;padding:0 20px}
+/* Le schede erano vetro: gradiente, bordo illuminato in alto e un'ombra da
+   20px che le faceva galleggiare. Su una pagina di grafici l'unica cosa che
+   deve staccare sono i dati, quindi restano un fondo appena piu' chiaro e un
+   filetto. */
+.card{background:var(--bg1);
+  border-radius:var(--rsm);border:1px solid var(--sep);
+  box-shadow:none;padding:16px}
+.glass-pop{background:rgba(20,20,22,.88);border:1px solid var(--gl-border);
+  border-top-color:var(--gl-edge);box-shadow:none}
+.mbox{background:rgba(22,22,24,.92);border:1px solid var(--gl-border);
+  border-top-color:var(--gl-edge);
+  box-shadow:0 32px 80px rgba(0,0,0,.9), inset 0 1px 0 rgba(233,240,236,.12);
+  border-radius:20px;padding:26px;max-width:480px;width:92%}
+.mtile{background:linear-gradient(150deg,rgba(233,240,236,.06) 0%,rgba(233,240,236,.02) 100%);
+  border-radius:var(--rsm);border:1px solid var(--gl-border);
+  border-top-color:rgba(233,240,236,.2);
+  box-shadow:0 2px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(233,240,236,.07);
+  padding:14px;position:relative;overflow:hidden}
+.mtile::before{content:"";position:absolute;top:0;left:0;right:0;height:2px}
+.m1::before{background:var(--sep2)}
+.m2::before{background:var(--sep2)}
+.m3::before{background:var(--sep2)}
+.m4::before{background:var(--sep2)}
+.ctx-bar,.tabs{background:rgba(12,12,14,.8);border-bottom:1px solid var(--gl-border);
+  display:flex;overflow-x:auto;scrollbar-width:none;padding:0 20px}
+.ctx-bar::-webkit-scrollbar,.tabs::-webkit-scrollbar{display:none}
+.hero{background:var(--bg1);
+  border-bottom:1px solid var(--sep);padding:16px 20px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hero.hidden{display:none}
+.back-bar{display:none;padding:8px 20px;background:var(--bg);
+  border-bottom:1px solid var(--gl-border);align-items:center;gap:10px}
+.back-bar.on{display:flex}
+
+/* ── Nav buttons (back / fwd / home / switch) ── */
+/* Avanti/indietro: due frecce, non due bottoni. Sono un comando secondario e
+   quasi sempre disabilitato — incorniciarli li faceva pesare quanto la nav. */
+.nav-glass-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;
+  background:none;border:0;border-radius:0;box-shadow:none;
+  font-size:15px;color:var(--lt);
+  cursor:pointer;
+  transition:color .16s;
+  font-family:var(--font);
+  flex-shrink:0;
+  text-decoration:none;
+}
+.nav-glass-btn:hover:not(:disabled){
+  background:none;color:var(--lp);box-shadow:none;transform:none;
+}
+.nav-glass-btn:active:not(:disabled){transform:none;opacity:.6}
+.nav-glass-btn:disabled{opacity:.22;cursor:not-allowed;transform:none}
+.nav-glass-btn.home-btn{width:auto;padding:0 12px;gap:5px;font-size:12px;font-weight:600}
+.nav-switch-btn{
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
+  background:rgba(233,240,236,.08);
+  border:1px solid rgba(233,240,236,.22);
+  border-top-color:rgba(233,240,236,.35);
+  border-radius:9px;
+  font:12px/1 var(--font);font-weight:600;
+  color:var(--ls);
+  text-decoration:none;cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(233,240,236,.07);
+  transition:all .18s cubic-bezier(.4,0,.2,1);
+  flex-shrink:0;
+  white-space:nowrap;
+}
+.nav-switch-btn:hover{
+  background:rgba(233,240,236,.14);
+  border-color:rgba(233,240,236,.4);
+  border-top-color:rgba(233,240,236,.55);
+  color:#d18ef8;
+  box-shadow:0 3px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(233,240,236,.1);
+  transform:translateY(-1px);
+}
+.nav-switch-dot{
+  width:5px;height:5px;border-radius:50%;
+  background:var(--ls);
+  box-shadow:none;
+  flex-shrink:0;
+}
+.nav-btn-group{display:flex;align-items:center;gap:14px;margin-left:22px}
+.nav-right-group{display:flex;align-items:center;gap:20px;margin-left:auto}
+
+/* ── Nav ──
+   Il marchio prende la faccia condensata del titolo: e' la stessa voce
+   dell'eroe, non un grassetto di sistema. "Scout Index" scende a etichetta
+   mono, separata da un filetto invece che da uno spazio. */
+.nav-brand{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.4px;
+  text-transform:uppercase;white-space:nowrap;flex-shrink:0;
+  display:flex;align-items:baseline;gap:10px}
+.nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lt);margin-left:0;
+  padding-left:10px;border-left:1px solid var(--sep)}
+
+/* Lo switcher lingua arriva da i18n.js con la cornice e l'azzurro della vecchia
+   palette: qui e' l'unico elemento rimasto in scatola, quindi la togliamo e
+   restano due sigle, con l'attiva in ambra come gli altri stati correnti. */
+.nav .i18n-switch{border:0;border-radius:0;background:none;height:auto;gap:2px}
+.nav .i18n-switch button{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  padding:3px 5px;border-radius:3px;color:var(--lt)}
+.nav .i18n-switch button + button{border-left:0}
+.nav .i18n-switch button.active{background:none;color:var(--orng)}
+.nav .i18n-switch button:hover{background:none;color:var(--lp)}
+.nav-chip{font-size:11px;color:var(--lt);white-space:nowrap;flex-shrink:0;margin-left:auto}
+
+/* ── Shared button / popover ── */
+.sq-wrap{position:relative;flex-shrink:0}
+.sq-btn{display:flex;align-items:center;gap:6px;height:34px;font:12px var(--font);
+  font-weight:600;color:var(--ls);
+  background:rgba(233,240,236,.06);
+  border:1px solid rgba(233,240,236,.14);border-top-color:rgba(233,240,236,.24);
+  border-radius:10px;padding:0 11px;cursor:pointer;white-space:nowrap;
+  box-shadow:0 2px 10px rgba(0,0,0,.32), inset 0 1px 0 rgba(233,240,236,.09);
+  transition:all .18s cubic-bezier(.4,0,.2,1)}
+.sq-btn:hover{background:rgba(233,240,236,.10);color:var(--lp);
+  border-top-color:rgba(233,240,236,.36);transform:translateY(-1px);
+  box-shadow:0 4px 16px rgba(0,0,0,.42), inset 0 1px 0 rgba(233,240,236,.12)}
+.sq-btn:active{transform:translateY(0);opacity:.85}
+.sq-btn.active{color:var(--lp);background:rgba(233,240,236,.11);
+  border-color:rgba(233,240,236,.28);border-top-color:rgba(233,240,236,.38)}
+.sq-chevron{font-size:9px;opacity:.5;transition:transform .2s}
+.sq-btn.open .sq-chevron{transform:rotate(180deg);opacity:.9}
+@keyframes sqIn{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
+
+/* ── Control bar — Liquid Glass ── */
+/* Va a capo invece di scorrere. Con il contenuto ora limitato a 1280px i
+   quindici controlli non ci stanno piu' su una riga, e lo scorrimento
+   orizzontale con la scrollbar nascosta li rendeva semplicemente invisibili:
+   su desktop nessuno pensa di trascinare una barra di filtri. Lo scorrimento
+   resta sotto i 768px, dove e' un gesto naturale. */
+.ctrl-bar{display:flex;align-items:center;gap:7px;padding:10px 16px 8px;
+  scrollbar-width:none;flex-wrap:wrap;
+  -webkit-overflow-scrolling:touch;border-bottom:1px solid rgba(233,240,236,.07);
+  background:var(--bg);
+  -webkit-backdrop-filter:saturate(200%) blur(32px)}
+.ctrl-bar::-webkit-scrollbar{display:none}
+.ctrl-div{width:1px;height:20px;background:rgba(233,240,236,.1);flex-shrink:0;margin:0 1px}
+
+/* Pill base — liquid glass */
+.mpill{display:flex;align-items:center;gap:5px;padding:0 12px;height:33px;border-radius:12px;
+  background:var(--bg1);
+  border:1px solid rgba(233,240,236,.13);border-top-color:rgba(233,240,236,.26);
+  color:rgba(235,235,245,.55);font:12px var(--font);font-weight:600;cursor:pointer;
+  white-space:nowrap;transition:all .18s cubic-bezier(.4,0,.2,1);flex-shrink:0;
+  box-shadow:0 2px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(233,240,236,.10)}
+.mpill:hover{background:var(--bg1);
+  color:rgba(235,235,245,.85);border-top-color:rgba(233,240,236,.38);transform:translateY(-1px);
+  box-shadow:0 5px 18px rgba(0,0,0,.42), inset 0 1px 0 rgba(233,240,236,.14)}
+.mpill:active{transform:translateY(0);opacity:.85}
+.mpill.on{background:var(--bg1);
+  color:#fff;border-color:rgba(233,240,236,.30);border-top-color:rgba(233,240,236,.50);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.18)}
+
+/* Pill ruolo */
+.rpill{display:flex;align-items:center;height:33px;padding:0 11px;border-radius:12px;
+  background:var(--bg1);
+  border:1px solid rgba(233,240,236,.12);border-top-color:rgba(233,240,236,.24);
+  color:rgba(235,235,245,.5);font:11px var(--font);font-weight:700;cursor:pointer;
+  white-space:nowrap;transition:all .18s cubic-bezier(.4,0,.2,1);flex-shrink:0;
+  box-shadow:0 2px 8px rgba(0,0,0,.32), inset 0 1px 0 rgba(233,240,236,.09)}
+.rpill:hover{background:var(--bg1);
+  color:rgba(235,235,245,.85);transform:translateY(-1px);
+  box-shadow:0 5px 16px rgba(0,0,0,.4), inset 0 1px 0 rgba(233,240,236,.13)}
+.rpill:active{transform:translateY(0);opacity:.85}
+.rpill[data-r="ATT"].on{background:var(--bg1);
+  color:var(--orng);border-color:rgba(255,176,32,.38);border-top-color:rgba(255,176,32,.55);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.1)}
+.rpill[data-r="CEN"].on{background:var(--bg1);
+  color:var(--green);border-color:rgba(48,209,88,.38);border-top-color:rgba(48,209,88,.55);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.1)}
+.rpill[data-r="DIF"].on{background:var(--bg1);
+  color:var(--blue);border-color:rgba(10,132,255,.40);border-top-color:rgba(10,132,255,.58);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.1)}
+
+/* Pill Confronta — speciale */
+.cpill{display:flex;align-items:center;gap:5px;padding:0 12px;height:33px;border-radius:12px;
+  background:var(--bg1);
+  border:1px solid rgba(94,92,230,.32);border-top-color:rgba(94,92,230,.50);
+  color:var(--ls);font:12px var(--font);font-weight:700;cursor:pointer;
+  white-space:nowrap;transition:all .18s cubic-bezier(.4,0,.2,1);flex-shrink:0;
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.10)}
+.cpill:hover{background:var(--bg1);
+  transform:translateY(-1px);box-shadow:none}
+.cpill:active{transform:translateY(0);opacity:.85}
+.lb-wrap{padding:12px 20px 20px}
+.lb-hdr{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+.lb-ttl{font-size:13px;font-weight:700;color:var(--ls)}
+.lb-sub{font-size:11px;color:var(--lt);margin-left:auto}
+
+/* ── Home ── */
+/* Il limite di larghezza che mancava. Senza questo, su uno schermo largo ogni
+   riga si stirava a tutta pagina: il nome a sinistra, il punteggio a destra e
+   mille pixel di niente in mezzo. Non era un problema della riga, era la pagina
+   che non aveva confini. 1280px tiene la riga leggibile senza sprecare i
+   monitor grandi; le barre fisse (nav, back-bar) restano a tutta larghezza ma
+   allineano il loro contenuto sulla stessa colonna. */
+#view-home,#view-player{max-width:1280px;margin-inline:auto}
+#view-home{display:block} #view-player{display:none}
+/* nav e back-bar restano a tutta larghezza (sono barre), ma il loro contenuto
+   si allinea sulla stessa colonna di 1280px. Padding scalabile invece di un
+   wrapper interno: .nav e' gia' un flex container, incapsularne i figli
+   avrebbe rotto la disposizione. */
+.nav,.back-bar{padding-inline:max(20px,calc((100% - 1280px) / 2))}
+.home-hdr{padding:28px 20px 20px;border-bottom:1px solid var(--sep);
+  background:linear-gradient(180deg,rgba(10,132,255,.04) 0%,transparent 100%)}
+.home-ttl{font-size:clamp(22px,3.5vw,30px);font-weight:800;letter-spacing:-1.2px}
+.home-sub{font-size:13px;color:var(--lt);margin-top:4px}
+.home-sub b{color:var(--lp);font-weight:600}
+.team-strip{display:none;padding:12px 20px;gap:10px;flex-wrap:wrap;
+  border-bottom:1px solid var(--sep);
+  background:linear-gradient(180deg,rgba(233,240,236,.025) 0%,transparent 100%)}
+.team-strip.on{display:flex}
+.ts-card{background:linear-gradient(150deg,rgba(233,240,236,.06) 0%,rgba(233,240,236,.02) 100%);
+  border:1px solid var(--gl-border);border-top-color:rgba(233,240,236,.2);
+  border-radius:var(--rsm);box-shadow:0 2px 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(233,240,236,.06);
+  padding:12px 14px;min-width:160px;flex:1;max-width:220px}
+.ts-nm{font-size:13px;font-weight:700;margin-bottom:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ts-kpis{display:flex;gap:14px;margin-bottom:7px}
+.tsk{display:flex;flex-direction:column}
+.tsk-v{font-size:18px;font-weight:800;letter-spacing:-.8px;line-height:1}
+.tsk-l{font-size:9px;color:var(--lt);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.ts-top{font-size:11px;color:var(--lt);line-height:1.8}
+.ts-top b{color:var(--ls);font-weight:500}
+
+/* ── Back / Hero ── */
+/* Stesso trattamento delle frecce in nav: e' il ritorno indietro, non
+   l'azione principale della pagina. */
+.back-btn{
+  display:inline-flex;align-items:center;gap:7px;height:32px;
+  font:12.5px var(--font);font-weight:600;
+  color:var(--lt);
+  background:none;
+  border:0;
+  border-radius:0;padding:0;
+  cursor:pointer;
+  box-shadow:none;
+  transition:color .16s;
+}
+.back-btn:hover{
+  background:none;
+  color:var(--lp);
+  box-shadow:none;
+  transform:none;
+}
+.back-btn:active{transform:none;opacity:.7;}
+.back-cur{font-family:var(--mono);font-size:10.5px;color:var(--lt);letter-spacing:.04em;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding-left:14px;margin-left:4px;border-left:1px solid var(--sep)}
+/* Il cerchio dell'avatar era vuoto: nessuna foto, solo un disco colorato che
+   ripeteva il ruolo gia' scritto due righe sotto. Diventa una barretta di
+   ruolo, che occupa un decimo dello spazio e dice la stessa cosa. */
+.hero-av{width:3px;height:40px;border-radius:2px;flex-shrink:0;
+  font-size:0;box-shadow:none}
+.hero-inf{flex:1;min-width:0}
+.hero-nm{font-family:var(--disp);font-size:26px;font-weight:600;letter-spacing:.2px;
+  text-transform:uppercase;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:9px}
+.hero-sub{font-family:var(--mono);font-size:10.5px;color:var(--lt);margin-top:3px;letter-spacing:.02em}
+.hero-tags{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;align-items:center}
+/* Tre pillole piene di tre colori diversi si contendevano l'attenzione col
+   TPI, che e' il numero per cui la pagina esiste. Ora sono etichette. */
+.tag{padding:0;border:0;background:none;border-radius:0;
+  font-family:var(--mono);font-size:10px;font-weight:400;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--lt);white-space:nowrap}
+.tag + .tag{padding-left:8px;border-left:1px solid var(--sep)}
+.tag-role{color:var(--ls)}
+.tag-rank{color:var(--ls)}
+.tag-up{color:var(--green)}
+.tag-dn{color:var(--clay)}
+.tag-flat{color:var(--lt)}
+.tag-snow{color:var(--teal)}
+.tag-warn{color:var(--orng)}
+.hero-tpi{text-align:right;flex-shrink:0;padding-left:18px;border-left:1px solid var(--sep)}
+.hero-tpi-lbl{font-family:var(--mono);font-size:9px;font-weight:400;color:var(--lt);
+  text-transform:uppercase;letter-spacing:.16em}
+.hero-tpi-val{font-family:var(--mono);font-size:30px;font-weight:500;letter-spacing:-1px;
+  line-height:1;margin-top:3px;font-variant-numeric:tabular-nums}
+
+/* ── Ctx / Tabs ── */
+.ctx-btn,.tab-btn{padding:10px 14px;font-size:13px;font-weight:500;color:var(--lt);
+  white-space:nowrap;cursor:pointer;border:none;background:none;
+  border-bottom:2px solid transparent;font-family:var(--font);transition:color .16s,border-color .16s}
+.ctx-btn:hover,.tab-btn:hover{color:var(--ls)}
+.ctx-btn.on,.tab-btn.on{color:var(--lp);border-bottom-color:var(--orng)}
+.ctx-n{font-size:10px;font-family:var(--mono);background:rgba(233,240,236,.07);
+  border-radius:6px;padding:1px 5px;margin-left:3px}
+.ctx-n.warn{background:rgba(255,176,32,.14);color:var(--orng)}
+.panel{display:none;padding:20px} .panel.on{display:block}
+
+/* ── Layout / Grid ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+@media(max-width:860px){.g4{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:560px){.g2{grid-template-columns:1fr}}
+.card-ttl{font-family:var(--mono);font-size:9.5px;font-weight:400;color:var(--lt);
+  text-transform:uppercase;
+  letter-spacing:.14em;margin-bottom:14px;display:flex;align-items:center;gap:5px}
+.card-ttl span{margin-left:auto}
+
+/* ── Metric tiles ── */
+.mtile-lbl{font-size:10px;font-weight:700;color:var(--lt);text-transform:uppercase;
+  letter-spacing:.6px;margin-bottom:4px;display:flex;align-items:center;gap:3px}
+.mtile-val{font-size:26px;font-weight:700;letter-spacing:-1px;line-height:1;color:var(--lp);margin-bottom:4px}
+.mtile-z{font-size:12px;font-weight:600;font-family:var(--mono);margin-bottom:5px}
+.mbar{height:3px;background:rgba(233,240,236,.07);border-radius:2px;position:relative;overflow:hidden;margin-bottom:6px}
+.mbar-f{position:absolute;height:100%;border-radius:2px;transition:width .5s cubic-bezier(.4,0,.2,1),left .5s cubic-bezier(.4,0,.2,1)}
+.mtile-rk{font-size:10px;color:var(--lt)} .mtile-rk b{color:var(--orng)}
+.nd-badge{font-size:10px;color:var(--lt);background:rgba(233,240,236,.05);
+  border:1px solid var(--sep);border-radius:6px;padding:2px 7px;margin-top:4px;display:inline-block}
+
+/* ── Conversion hero ── */
+.cv-hero{display:flex;align-items:flex-start;gap:14px;padding:14px;
+  border-radius:var(--rsm);background:rgba(233,240,236,.03);border:1px solid var(--sep)}
+.cv-big{font-size:48px;font-weight:800;letter-spacing:-3px;line-height:1;flex-shrink:0}
+.cv-big.over{color:var(--green)} .cv-big.under{color:var(--red)} .cv-big.flat{color:var(--lp)}
+.cv-det{flex:1;min-width:0}
+.cv-verd{font-size:13px;color:var(--ls);line-height:1.55;margin-bottom:9px}
+.cv-pills{display:flex;flex-wrap:wrap;gap:5px}
+.cvp{background:rgba(233,240,236,.04);border:1px solid var(--sep);
+  border-radius:var(--rxs);padding:5px 9px;font-size:12px;color:var(--lt)}
+.cvp b{color:var(--lp);font-family:var(--mono)}
+
+/* ── Z-score bars ── */
+.zlist{display:flex;flex-direction:column;gap:8px}
+.zrow{display:flex;align-items:center;gap:9px}
+.znm{width:130px;font-size:12px;color:var(--ls);flex-shrink:0;display:flex;align-items:center;gap:3px}
+.ztrk{flex:1;height:5px;background:rgba(233,240,236,.06);border-radius:3px;position:relative;overflow:hidden}
+.zsp{position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(233,240,236,.14)}
+.zf{position:absolute;height:100%;border-radius:3px;transition:all .4s cubic-bezier(.4,0,.2,1)}
+.zval{width:38px;text-align:right;font-size:12px;font-weight:600;font-family:var(--mono)}
+
+/* ── Stat pills ── */
+.spills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
+.spill{background:rgba(233,240,236,.04);border:1px solid var(--sep);border-radius:var(--rxs);
+  padding:7px 11px;display:flex;flex-direction:column;align-items:center;min-width:66px}
+.spill-lbl{font-size:9px;font-weight:700;color:var(--lt);text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:3px}
+.spill-val{font-size:14px;font-weight:700;color:var(--lp);font-family:var(--mono)}
+.spill.pos{border-color:rgba(48,209,88,.22)} .spill.pos .spill-val{color:var(--green)}
+.spill.neg{border-color:rgba(255,69,58,.22)} .spill.neg .spill-val{color:var(--red)}
+.spill.over{border-color:rgba(255,176,32,.22)} .spill.over .spill-val{color:var(--orng)}
+
+/* ── Ctx info bar ── */
+.ctx-inf{display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  padding:8px 12px;margin-bottom:14px;background:rgba(233,240,236,.03);
+  border:1px solid var(--sep);border-radius:var(--rsm);font-size:12px;color:var(--lt)}
+.ctx-inf .ok{color:var(--green);font-weight:600}
+.ctx-inf .warn{color:var(--orng);font-weight:600}
+
+/* ── AI / Analisi card ── */
+.ai-card{background:var(--bg1);
+  border:1px solid rgba(94,92,230,.18);border-radius:var(--r);padding:16px}
+.ai-hd{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.ai-badge{font-size:10px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+  color:var(--ls);background:rgba(233,240,236,.1);border:1px solid rgba(233,240,236,.22);
+  padding:3px 8px;border-radius:6px}
+.ai-body{font-size:13px;line-height:1.65;color:var(--ls)}
+
+/* ── Metodologia ── */
+.meth-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(max-width:700px){.meth-grid{grid-template-columns:1fr}}
+.meth-card{background:linear-gradient(150deg,rgba(233,240,236,.06) 0%,rgba(233,240,236,.02) 100%);
+  border-radius:var(--r);border:1px solid var(--gl-border);
+  border-top-color:var(--gl-edge);padding:16px}
+.meth-hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.meth-icon{width:36px;height:36px;border-radius:var(--rsm);display:flex;
+  align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.meth-nm{font-size:15px;font-weight:600}
+.meth-formula{font-family:var(--mono);font-size:12px;background:rgba(233,240,236,.04);
+  border:1px solid var(--sep);border-radius:var(--rxs);padding:8px 12px;
+  margin-bottom:9px;color:var(--teal);line-height:1.5}
+.meth-logic{font-size:13px;color:var(--ls);line-height:1.65;margin-bottom:9px}
+.meth-ex{font-size:12px;color:var(--lt);border-left:2px solid var(--sep2);
+  padding:7px 12px;line-height:1.5}
+
+/* ── Compare ── */
+/* Erano due select di sistema, con la freccia e gli angoli del browser: gli
+   unici controlli della pagina a non somigliare a niente altro. */
+.cmp-sel{flex:1;min-width:180px;font-size:13px;padding:9px 34px 9px 12px;background:var(--bg1);
+  border:1px solid var(--sep);border-radius:var(--rsm);color:var(--lp);font-family:var(--font);
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6'%3E%3Cpath d='M0 0h9L4.5 6z' fill='%236F7A76'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 13px center;
+  transition:border-color .16s}
+.cmp-sel:hover{border-color:var(--sep2)}
+.cmp-sel:focus{outline:none;border-color:rgba(255,176,32,.55)}
+
+/* ── Modal ── */
+.mwrap{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.7);
+  display:none;align-items:center;justify-content:center}
+.mwrap.open{display:flex}
+.mbox-ttl{font-size:19px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+.mbox-form{font-family:var(--mono);font-size:12px;background:rgba(233,240,236,.04);
+  border:1px solid var(--sep);border-radius:var(--rxs);padding:8px 12px;
+  margin:12px 0;color:var(--teal)}
+.mbox-body{font-size:13px;color:var(--ls);line-height:1.7;margin-bottom:8px}
+.mbox-ex{font-size:12px;color:var(--lt);border-left:2px solid var(--sep2);
+  padding:8px 12px;line-height:1.55}
+.mbox-cls{margin-top:18px;width:100%;padding:11px;
+  background:rgba(233,240,236,.07);
+  border:1px solid rgba(233,240,236,.12);border-top-color:rgba(233,240,236,.22);
+  border-radius:var(--rsm);color:var(--lp);font:14px var(--font);cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,.25), inset 0 1px 0 rgba(233,240,236,.08);
+  transition:all .18s cubic-bezier(.4,0,.2,1)}
+.mbox-cls:hover{background:rgba(233,240,236,.12);transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(0,0,0,.35), inset 0 1px 0 rgba(233,240,236,.12)}
+.mbox-cls:active{transform:translateY(0);opacity:.85}
+
+/* ── Floating picker ── */
+.fpk-box{position:fixed;width:300px;max-height:420px;overflow:hidden;
+  border-radius:16px;background:rgba(18,18,20,.85);border:1px solid var(--gl-border);
+  border-top-color:var(--gl-edge);
+  box-shadow:0 24px 64px rgba(0,0,0,.85), 0 4px 16px rgba(0,0,0,.5), inset 0 1px 0 rgba(233,240,236,.1);
+  display:none;z-index:700;animation:sqIn .18s cubic-bezier(.4,0,.2,1)}
+.fpk-box.open{display:flex;flex-direction:column}
+.fpk-box::after{content:"";position:absolute;bottom:0;left:0;right:0;height:48px;
+  background:linear-gradient(transparent,rgba(18,18,20,.95));
+  pointer-events:none;border-radius:0 0 16px 16px;z-index:2}
+.fpk-search{display:flex;align-items:center;gap:7px;flex-shrink:0;
+  margin:8px;padding:0 10px;background:rgba(233,240,236,.08);
+  border:1px solid rgba(233,240,236,.14);border-top-color:rgba(233,240,236,.22);
+  border-radius:10px;box-shadow:inset 0 1px 3px rgba(0,0,0,.3)}
+.fpk-search-ico{color:var(--lt);font-size:14px;flex-shrink:0}
+.fpk-search-inp{flex:1;background:transparent;border:none;outline:none;
+  font:14px var(--font);color:var(--lp);padding:9px 0}
+.fpk-search-inp::placeholder{color:var(--lt)}
+.fpk-list{overflow-y:auto;flex:1;padding:0 6px 40px;scrollbar-width:thin;
+  -webkit-overflow-scrolling:touch}
+.fpk-list::-webkit-scrollbar{width:3px}
+.fpk-list::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+.fpk-item{display:flex;align-items:center;gap:10px;padding:10px;
+  border-radius:10px;cursor:pointer;transition:background .1s;min-height:44px}
+.fpk-item:hover{background:rgba(233,240,236,.06)} .fpk-item.sel{background:rgba(10,132,255,.1)}
+.fpk-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.fpk-bd{flex:1;min-width:0}
+.fpk-nm{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fpk-sub{font-size:11px;color:var(--lt);margin-top:1px}
+.fpk-rt{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.fpk-tpi{font-size:12px;font-weight:700;font-family:var(--mono)}
+.fpk-tpi.pos{color:var(--green)} .fpk-tpi.neg{color:var(--red)}
+.fpk-sep{height:1px;background:var(--sep);margin:4px 8px}
+.fpk-role-grp{font-size:10px;font-weight:700;color:var(--lt);text-transform:uppercase;
+  letter-spacing:.7px;padding:10px 10px 4px}
+.fpk-empty{padding:24px;text-align:center;font-size:13px;color:var(--lt)}
+.sq-fpk-box{position:fixed;z-index:700;width:250px;max-height:380px;overflow-y:auto;
+  border-radius:16px;padding:6px;display:none;background:rgba(18,18,20,.88);
+  border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
+  box-shadow:0 24px 64px rgba(0,0,0,.85), 0 4px 16px rgba(0,0,0,.5), inset 0 1px 0 rgba(233,240,236,.1);
+  animation:sqIn .18s cubic-bezier(.4,0,.2,1);
+  -webkit-overflow-scrolling:touch}
+.sq-fpk-box.open{display:block}
+.sq-fpk-box::after{content:"";position:absolute;bottom:0;left:0;right:0;height:36px;
+  background:linear-gradient(transparent,rgba(18,18,20,.96));
+  pointer-events:none;border-radius:0 0 16px 16px;z-index:2}
+.sq-panel-hd{font:10px/1 var(--font);font-weight:700;color:var(--lt);
+  text-transform:uppercase;letter-spacing:.8px;
+  padding:7px 10px 10px;border-bottom:1px solid var(--sep);margin-bottom:4px}
+.sq-row{display:flex;align-items:center;justify-content:space-between;
+  padding:9px 10px;border-radius:10px;cursor:pointer;min-height:40px;transition:background .1s}
+.sq-row:hover{background:rgba(233,240,236,.05)} .sq-row.on{background:rgba(10,132,255,.08)}
+.sq-row-nm{font-size:13px;color:var(--ls)} .sq-row.on .sq-row-nm{color:var(--lp);font-weight:500}
+.sq-chk{width:20px;height:20px;border-radius:50%;flex-shrink:0;
+  border:1.5px solid rgba(233,240,236,.18);
+  display:flex;align-items:center;justify-content:center;font-size:11px;transition:all .15s}
+.sq-row.on .sq-chk{background:var(--orng);border-color:var(--orng);color:#0F1008}
+.sq-reset{width:100%;padding:9px 10px;background:transparent;border:none;border-radius:10px;
+  color:var(--lt);font:12px var(--font);cursor:pointer;text-align:left;
+  display:flex;align-items:center;gap:7px;min-height:38px;transition:background .1s}
+.sq-reset:hover{background:rgba(233,240,236,.05);color:var(--ls)}
+.sq-panel-sep{height:1px;background:var(--sep);margin:4px 0}
+
+/* ── Leaderboard ── */
+/* Righe separate da un filetto invece che da card sovrapposte: dodici riquadri
+   di vetro in colonna facevano rumore e nascondevano la gerarchia. */
+.lb-list{display:flex;flex-direction:column}
+.lb-row{display:flex;align-items:center;gap:14px;padding:11px 12px;cursor:default;
+  border-bottom:1px solid var(--sep);transition:background .15s}
+.lb-row:hover{background:var(--bg1)}
+.lb-rank{font-size:19px;font-weight:600;color:var(--lt);font-family:var(--mono);
+  width:34px;text-align:right;flex-shrink:0;letter-spacing:-.03em}
+.lb-top .lb-rank{color:var(--orng)}
+.lb-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+/* NON flex:1. Con flex:1 il nome si mangiava tutto lo spazio libero e spingeva
+   la striscia a mille pixel di distanza: l'occhio doveva attraversare lo schermo
+   per collegare "Lautaro Martínez" al suo profilo. Larghezza limitata, cosi'
+   nome e forma restano adiacenti e la fisarmonica si apre dopo (vedi .lb-pct). */
+.lb-info{flex:0 1 300px;min-width:150px}
+.lb-nm{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;display:flex;align-items:center;gap:5px;letter-spacing:-.012em}
+.lb-team{font-size:10.5px;color:var(--lt);margin-top:2px;font-family:var(--mono);
+  letter-spacing:.06em;text-transform:uppercase}
+
+/* Firma: la forma del giocatore in sei z-score. */
+.lb-prof{flex-shrink:0;cursor:help}
+.pf-bars{display:flex;gap:4px;align-items:flex-end;height:36px;width:246px}
+.pf-bars i{flex:1;position:relative;height:100%;display:block}
+.pf-bars i::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;
+  background:var(--sep2)}
+.pf-bars i span{position:absolute;left:0;right:0;display:block;border-radius:1px}
+.pf-up{background:var(--orng)}
+.pf-dn{background:var(--teal)}
+.pf-labs{display:flex;gap:4px;width:246px;margin-top:4px}
+.pf-labs u{flex:1;text-align:center;font-family:var(--mono);font-size:7.5px;
+  color:var(--lq);text-decoration:none;letter-spacing:.04em}
+
+/* Qui si apre lo spazio residuo: separa "chi e come" da "quanto vale".
+   E' l'unico stacco della riga, ed e' voluto. */
+.lb-pct{width:74px;flex-shrink:0;margin-left:auto}
+.pf-pbar{height:3px;background:rgba(233,240,236,.08);border-radius:2px;overflow:hidden}
+.pf-pbar b{display:block;height:100%;background:var(--ls)}
+.pf-pn{display:block;font-family:var(--mono);font-size:10px;color:var(--ls);margin-top:4px}
+.pf-na{font-family:var(--mono);font-size:10px;color:var(--lq)}
+
+/* La barra non e' piu' colorata per ruolo: lunghezza e colore codificavano due
+   cose diverse nello stesso posto, e vincevano entrambe a meta'. */
+.lb-bar-wrap{width:132px;height:4px;background:rgba(233,240,236,.08);
+  border-radius:3px;overflow:hidden;flex-shrink:0}
+.lb-bar-fill{height:100%;border-radius:3px;background:var(--ls);
+  transition:width .4s cubic-bezier(.4,0,.2,1)}
+.lb-val{font-size:18px;font-weight:500;font-family:var(--mono);width:66px;
+  text-align:right;flex-shrink:0;letter-spacing:-.03em;color:var(--lp)}
+.lb-actions{display:flex;gap:5px;flex-shrink:0}
+.lb-btn{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;
+  border-radius:8px;font:11px var(--font);font-weight:600;cursor:pointer;
+  transition:all .15s;white-space:nowrap;border:1px solid transparent}
+.lb-btn-prof{color:var(--ls);
+  background:rgba(10,132,255,.08);
+  border-color:rgba(10,132,255,.22);border-top-color:rgba(10,132,255,.35)}
+.lb-btn-prof:hover{background:rgba(10,132,255,.16);transform:translateY(-1px);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.08)}
+.lb-btn-prof:active{transform:translateY(0)}
+.lb-btn-cmp{color:var(--ls);
+  background:rgba(233,240,236,.05);
+  border-color:rgba(233,240,236,.12);border-top-color:rgba(233,240,236,.20)}
+.lb-btn-cmp:hover{color:var(--lp);background:rgba(233,240,236,.10);transform:translateY(-1px);
+  box-shadow:0 3px 12px rgba(0,0,0,.3), inset 0 1px 0 rgba(233,240,236,.08)}
+.lb-btn-cmp:active{transform:translateY(0)}
+.lb-btn-cmp.in-pool{color:var(--orng);background:rgba(255,176,32,.10);
+  border-color:rgba(48,209,88,.25);border-top-color:rgba(48,209,88,.40)}
+
+/* ── Roster ── */
+.roster-section{margin-top:16px}
+.roster-hdr{font-size:11px;font-weight:700;color:var(--lt);text-transform:uppercase;
+  letter-spacing:.7px;padding:10px 0 8px;display:flex;align-items:center;gap:8px}
+.roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.roster-card{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:10px;
+  background:rgba(233,240,236,.03);border:1px solid var(--sep);opacity:.6}
+.roster-nm{font-size:13px;font-weight:500;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.roster-min{font-size:10px;color:var(--lt);font-family:var(--mono);flex-shrink:0}
+
+/* ── Compare pool bar ── */
+.cmp-pool-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  display:none;align-items:center;gap:10px;padding:9px 14px;border-radius:var(--rsm);z-index:700;
+  background:var(--bg2);border:1px solid var(--sep2);
+  box-shadow:0 10px 30px rgba(0,0,0,.6);
+  max-width:calc(100vw - 32px);animation:sqIn .18s cubic-bezier(.4,0,.2,1)}
+.cmp-pool-bar.on{display:flex}
+.cmp-pool-lbl{font-family:var(--mono);font-size:9.5px;font-weight:400;color:var(--lt);
+  text-transform:uppercase;letter-spacing:.12em;white-space:nowrap}
+.cmp-pool-chips{display:flex;gap:6px;flex-wrap:wrap}
+.cmp-chip{display:flex;align-items:center;gap:6px;padding:4px 9px;
+  border-radius:5px;background:none;border:1px solid var(--sep2);
+  font-size:12px;font-weight:500;cursor:pointer;transition:border-color .15s,color .15s}
+.cmp-chip:hover{background:none;border-color:rgba(217,142,106,.5);color:var(--clay)}
+.cmp-chip-x{font-size:11px;color:var(--lt);margin-left:2px}
+/* Il bordo blu di questo pulsante era l'ultimo pezzo della palette vecchia
+   rimasto in giro: qui l'azione primaria si segnala in ambra, come "Confronta"
+   nella barra filtri. */
+.cmp-pool-go{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;
+  border-radius:5px;font:12.5px var(--font);font-weight:700;cursor:pointer;
+  color:var(--bg);
+  background:var(--orng);
+  border:1px solid var(--orng);
+  box-shadow:none;
+  transition:filter .16s;white-space:nowrap}
+.cmp-pool-go:hover{background:var(--orng);filter:brightness(1.1);transform:none;box-shadow:none}
+.cmp-pool-go:active{transform:none;opacity:.9}
+.cmp-pool-clr{height:32px;padding:0 10px;border-radius:5px;font:12px var(--font);
+  font-weight:600;cursor:pointer;color:var(--lt);
+  background:none;
+  border:1px solid var(--sep2);
+  box-shadow:none;
+  transition:color .16s,border-color .16s}
+.cmp-pool-clr:hover{color:var(--clay);border-color:rgba(217,142,106,.5);
+  background:none;transform:none}
+.cmp-pool-clr:active{transform:none}
+
+/* ── Help ── */
+.help{display:inline-flex;align-items:center;justify-content:center;
+  width:14px;height:14px;border-radius:50%;background:rgba(233,240,236,.09);
+  border:1px solid var(--sep);font-size:9px;color:var(--lt);cursor:pointer;
+  transition:all .15s;flex-shrink:0;margin-left:3px;vertical-align:middle}
+.help:hover{background:var(--orng);color:#0F1008;border-color:var(--orng)}
+
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE — Tablet portrait (≤ 768px) e Phone (≤ 480px)
+════════════════════════════════════════════════════════════ */
+
+/* ── Tablet portrait ≤ 768px ── */
+@media (max-width: 768px) {
+
+  /* Nav: comprimi */
+  .nav{padding:0 12px;gap:6px;height:48px}
+  .nav-brand{font-size:14px}
+  .nav-brand small{display:none}
+  .nav-chip{display:none}
+  .nav-btn-group{margin-left:6px;gap:4px}
+  .nav-right-group{gap:5px;flex-shrink:0}
+  .hp-label{display:none}
+  .val-label{display:none}
+  .nav-switch-btn{padding:0 8px;min-width:30px}
+
+  /* Back bar */
+  .back-bar{padding:6px 12px}
+  .back-cur{font-size:11px;max-width:180px}
+
+  /* Home header */
+  .home-hdr{padding:18px 14px 14px}
+  .home-ttl{font-size:22px}
+
+  /* Team strip: scroll orizzontale invece di wrap */
+  .team-strip{flex-wrap:nowrap;overflow-x:auto;padding:10px 12px;
+    -webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .team-strip::-webkit-scrollbar{display:none}
+  .ts-card{min-width:150px;max-width:170px;flex-shrink:0}
+
+  /* Control bar: touch targets più grandi */
+  .ctrl-bar{padding:10px 12px 8px;gap:6px}
+  .mpill{height:34px;padding:0 10px;font-size:11px}
+  .rpill{height:34px;padding:0 9px}
+
+  /* Leaderboard: comprimi barra e valore */
+  .lb-wrap{padding:10px 12px 16px}
+  /* Sotto i 768px torna a scorrere: trascinare una barra di chip su telefono
+     e' un gesto naturale, e mandarne quindici a capo mangerebbe mezzo schermo. */
+  .ctrl-bar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .lb-row{padding:9px 10px;gap:8px}
+  .lb-bar-wrap{width:70px}
+  .lb-val{width:56px;font-size:15px}
+  .lb-rank{font-size:16px;width:26px}
+  /* Prima cade il percentile: il numero c'e' anche nel profilo giocatore.
+     La striscia si stringe ma resta, perche' e' l'informazione della riga. */
+  .lb-pct{display:none}
+  /* .lb-pct portava il margin-left:auto che assorbe lo spazio: nascondendola
+     va rimesso sull'elemento successivo, o la riga si scompagina. */
+  .lb-bar-wrap{margin-left:auto}
+  .pf-bars,.pf-labs{width:128px}
+  .pf-bars{height:28px}
+  .lb-btn{height:26px;padding:0 8px;font-size:10px}
+
+  /* Hero player */
+  .hero{padding:12px 14px;gap:10px}
+  .hero-av{width:38px;height:38px;font-size:16px}
+  .hero-nm{font-size:16px}
+  .hero-tpi-val{font-size:26px}
+
+  /* Tab bar: testo più piccolo */
+  .tab-btn,.ctx-btn{padding:9px 10px;font-size:12px}
+
+  /* Pannello */
+  .panel{padding:14px}
+
+  /* Griglie */
+  .g2{grid-template-columns:1fr 1fr}
+  .g4{grid-template-columns:1fr 1fr}
+
+  /* Metric tiles */
+  .mtile-val{font-size:22px}
+
+  /* Compare selects */
+  .cmp-sel{min-width:130px}
+
+  /* Metodologia griglia: 1 col */
+  .meth-grid{grid-template-columns:1fr}
+
+  /* TPI Pro section */
+  .tpp-hdr{padding:16px 14px 0}
+  .tpp-dims{padding:10px 14px 0;gap:6px}
+  .tpp-body{padding:12px 14px 16px}
+  .tpp-cols{grid-template-columns:1fr 1fr}
+  .tpp-collapse-btn{font-size:11px;height:28px;padding:0 9px}
+  .tpp-ttl{font-size:18px}
+  .tpp-formula{font-size:11px;overflow-x:auto;white-space:nowrap}
+  .tpp-dim{font-size:11px;padding:4px 8px}
+  /* Fix overflow card */
+  #tpi-pro-section{overflow:hidden;width:100%}
+  .tpp-card{overflow:hidden}
+
+  /* Floating picker: più largo */
+  .fpk-box{width:calc(100vw - 24px);left:12px !important}
+  .sq-fpk-box{width:calc(100vw - 24px);left:12px !important}
+
+  /* Chart Plotly: altezza ridotta */
+  #c-meth-bar{height:180px !important}
+}
+
+/* ── Phone portrait ≤ 480px ── */
+@media (max-width: 480px) {
+
+  /* Nav ancora più compatta */
+  .nav{padding:0 10px;gap:4px;height:46px}
+  .nav-brand{font-size:13px}
+  .nav-glass-btn.home-btn .home-label{display:none}
+  .nav-glass-btn.home-btn{padding:0 8px}
+  /* Su mobile nascondi testo "Homepage" nel pulsante arancione, lascia solo icona */
+  .nav-right-group a:first-child .hp-label{display:none}
+
+  /* Home header: nascondi logo SVG su mobile, lascia solo testo */
+  .home-hdr{padding:14px 12px 12px}
+  .home-hdr svg{display:none}
+  .home-hdr > div{flex-direction:column;gap:6px}
+  .home-hdr > div > div:last-child{text-align:left;margin-top:0}
+
+  /* TPI Pro: fix overflow formula e testo tagliato */
+  #tpi-pro-section{overflow:hidden;width:100%}
+  .tpp-formula{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+  .tpp-sub{font-size:12px;word-break:break-word}
+  .tpp-ttl{font-size:15px;word-break:break-word}
+
+  /* Control bar: scroll orizzontale senza wrap */
+  .ctrl-bar{padding:8px 10px 6px;gap:5px}
+  .mpill{height:32px;padding:0 9px;font-size:11px}
+  .rpill{height:32px;padding:0 8px;font-size:11px}
+  .ctrl-div{display:none} /* nasconde i separatori verticali */
+
+  /* Leaderboard righe: layout compatto */
+  .lb-wrap{padding:8px 10px 14px}
+  .lb-row{padding:8px 10px;gap:8px;border-radius:0}
+  .lb-rank{font-size:14px;width:22px}
+  .lb-dot{width:7px;height:7px}
+  .lb-nm{font-size:13px}
+  .lb-team{font-size:9.5px}
+  .lb-bar-wrap{display:none}        /* nasconde barra grafica — troppo stretta */
+  /* Su telefono resta solo il numero: sei barre in 90px non si leggono, e una
+     striscia illeggibile e' peggio di nessuna striscia. */
+  .lb-prof{display:none}
+  /* Qui cadono sia .lb-pct sia .lb-bar-wrap: l'auto passa al valore. */
+  .lb-val{font-size:14px;width:48px;margin-left:auto}
+  .lb-actions{gap:4px}
+  .lb-btn{height:26px;padding:0 7px;font-size:10px}
+  /* "Confronto" → "+" su phone */
+  .lb-btn-cmp .cmp-full{display:none}
+  .lb-btn-cmp::before{content:"\2295"}
+
+  /* Hero player */
+  .hero{padding:10px 12px;gap:8px}
+  .hero-av{width:34px;height:34px;font-size:14px}
+  .hero-nm{font-size:15px;gap:5px}
+  .hero-sub{font-size:11px}
+  .hero-tags{gap:4px}
+  .tag{font-size:10px;padding:3px 7px}
+  .hero-tpi-lbl{font-size:9px}
+  .hero-tpi-val{font-size:24px}
+
+  /* Tab e ctx bar */
+  .tab-btn,.ctx-btn{padding:8px 9px;font-size:11px}
+
+  /* Pannello padding ridotto */
+  .panel{padding:10px 10px 16px}
+
+  /* Griglie: tutto in colonna singola */
+  .g2{grid-template-columns:1fr}
+  .g4{grid-template-columns:1fr 1fr}
+
+  /* Tile metriche */
+  .mtile{padding:11px}
+  .mtile-val{font-size:20px}
+  .mtile-lbl{font-size:9px}
+
+  /* Card padding */
+  .card{padding:12px}
+  .card-ttl{font-size:10px;margin-bottom:10px}
+
+  /* Compare selects: full width */
+  .cmp-sel{width:100%;min-width:unset}
+  #p-cmp > div:first-child{flex-direction:column}
+
+  /* Modal */
+  .mbox{padding:20px 16px;border-radius:16px}
+
+  /* Z-list labels */
+  .znm{width:100px;font-size:11px}
+  .zval{font-size:11px;width:32px}
+
+  /* Stat pills */
+  .spill{min-width:58px;padding:6px 8px}
+  .spill-lbl{font-size:8px}
+  .spill-val{font-size:13px}
+
+  /* Conversion hero */
+  .cv-big{font-size:38px}
+  .cvp{font-size:11px;padding:4px 7px}
+
+  /* TPI Pro section: 1 colonna */
+  .tpp-hdr{padding:14px 12px 0}
+  .tpp-dims{padding:8px 12px 0;gap:5px}
+  .tpp-body{padding:10px 12px 14px}
+  .tpp-cols{grid-template-columns:1fr}
+  .tpp-ttl{font-size:16px}
+  .tpp-sub{font-size:12px}
+  .tpp-formula{font-size:10px;padding:5px 10px;gap:5px}
+  .tpp-dim{font-size:10px;padding:3px 7px}
+  .tpp-dim span{display:none}
+  /* Nascondi VISIBILE su phone — sezione TPI Pro è ingombrante */
+  .tpp-collapse-btn{display:inline-flex;font-size:10px;height:26px;padding:0 8px}
+  .tpp-card{padding:11px 12px}
+  .tpp-card-nm{font-size:13px;white-space:normal;overflow:visible;text-overflow:unset}
+  .tpp-card-sub{font-size:10px}
+  .tpp-bar-lbl{font-size:9px;width:38px}
+  .tpp-bar-val{font-size:10px;width:32px}
+  .tpp-kpi-val{font-size:14px}
+  .tpp-kpi{padding:5px 7px}
+  .tpp-delta{font-size:10px;padding:2px 5px}
+
+  /* Roster grid */
+  .roster-grid{grid-template-columns:1fr 1fr}
+
+  /* Picker full width */
+  .fpk-box{width:calc(100vw - 20px);left:10px !important;right:10px}
+  .sq-fpk-box{width:calc(100vw - 20px);left:10px !important}
+
+  /* Compare pool bar */
+  .cmp-pool-bar{padding:8px 10px;gap:8px;flex-wrap:wrap}
+  .cmp-pool-go{height:32px;font-size:12px}
+  .cmp-pool-clr{height:32px}
+
+  /* Plotly charts: altezza ridotta per non occupare schermo intero */
+  #c-meth-bar{height:160px !important}
+  #cmp-radar{height:220px !important}
+  #cmp-bars{height:220px !important}
+  #cmp-ctx{height:180px !important}
+  #cmp-conv{height:160px !important}
+}
+
+/* ── Utility: prevent zoom su input iOS ── */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;  /* evita autozoom iOS Safari */
+  }
+  .fpk-search-inp{font-size:16px !important}
+}
+
+
+/* ════════════════════════════════════════
+   TPI PRO SHOWCASE — sezione hero home
+════════════════════════════════════════ */
+#tpi-pro-section{
+  border-bottom:1px solid var(--sep);
+  background:linear-gradient(180deg,rgba(233,240,236,.04) 0%,rgba(94,92,230,.03) 50%,transparent 100%);
+  position:relative;overflow:hidden}
+#tpi-pro-section::before{
+  content:"";position:absolute;inset:0;
+  background:radial-gradient(ellipse 70% 60% at 50% -10%,rgba(233,240,236,.08),transparent 70%);
+  pointer-events:none}
+/* Chiuso, questo blocco e' solo badge + titolo: 28px sopra e 12+8 tra le righe
+   lasciavano il testo a galleggiare in mezzo al rettangolo. Ora sta in alto e
+   il titolo arriva a ridosso della barra filtri. */
+.tpp-hdr{padding:11px 24px 11px;position:relative}
+/* Badge, titolo e toggle sulla stessa riga: il badge e' un'etichetta del
+   titolo, non un annuncio a se' stante, e il pulsante riempie il vuoto a
+   destra invece di galleggiarci sopra in posizione assoluta. */
+.tpp-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tpp-row .tpp-collapse-btn{margin-left:auto;position:static}
+.tpp-badge{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:6px;
+  font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.12em;
+  background:none;border:1px solid var(--sep2);color:var(--lt);margin-bottom:0;flex-shrink:0}
+.tpp-ttl{font-size:21px;font-weight:800;letter-spacing:-.6px;line-height:1.15;margin-bottom:0}
+.tpp-sub{font-size:13px;color:var(--ls);line-height:1.7;max-width:640px}
+.tpp-formula{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:7px 13px;
+  background:rgba(233,240,236,.04);border:1px solid var(--sep);border-radius:var(--rsm);
+  font-size:12px;font-family:var(--mono);color:var(--teal);flex-wrap:wrap}
+.tpp-formula .sep{color:var(--lt)}
+.tpp-collapse-btn{height:30px;padding:0 12px;border-radius:8px;font:11px var(--font);
+  font-weight:700;cursor:pointer;
+  background:rgba(233,240,236,.08);
+  border:1px solid rgba(233,240,236,.28);
+  border-top-color:rgba(233,240,236,.4);
+  color:var(--ls);
+  box-shadow:inset 0 1px 0 rgba(233,240,236,.06);
+  transition:all .18s;white-space:nowrap;letter-spacing:.3px;text-transform:uppercase}
+.tpp-collapse-btn:hover{background:rgba(233,240,236,.15);transform:translateY(-1px)}
+.tpp-hdr-extra{padding:0 20px 0}
+.tpp-dims{display:flex;gap:10px;padding:14px 20px 0;flex-wrap:wrap;position:relative}
+.tpp-dim{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;font-size:12px;font-weight:600}
+.tpp-dim-aii{background:rgba(233,240,236,.06);border:1px solid var(--sep);color:var(--ls)}
+.tpp-dim-pri{background:rgba(233,240,236,.08);border:1px solid rgba(233,240,236,.2);color:var(--ls)}
+.tpp-dim-tpi{background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.2);color:var(--orng)}
+.tpp-body{padding:16px 20px 20px;position:relative}
+/* Griglia 3 colonne ruolo */
+.tpp-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:860px){.tpp-cols{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.tpp-cols{grid-template-columns:1fr}}
+.tpp-col-hdr{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.tpp-col-hdr .dot{width:8px;height:8px;border-radius:50%}
+/* Carte giocatori */
+.tpp-card{background:var(--bg1);
+  border:1px solid var(--gl-border);border-top-color:rgba(233,240,236,.2);
+  border-radius:var(--rsm);padding:13px 14px;margin-bottom:10px;position:relative;overflow:hidden;
+  transition:border-color .18s,box-shadow .18s;cursor:pointer}
+.tpp-card:hover{border-color:var(--sep2);box-shadow:none}
+.tpp-card:last-child{margin-bottom:0}
+.tpp-card-nm{font-size:14px;font-weight:700;letter-spacing:-.3px;margin-bottom:2px;
+  white-space:normal;overflow:visible}
+.tpp-card-sub{font-size:11px;color:var(--lt);margin-bottom:11px}
+/* Barre TPI vs TPI Pro */
+.tpp-bars{display:flex;flex-direction:column;gap:6px;margin-bottom:11px}
+.tpp-bar-row{display:flex;align-items:center;gap:8px}
+.tpp-bar-lbl{font-size:10px;font-weight:700;color:var(--lt);width:48px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px}
+.tpp-bar-lbl.pro{color:var(--ls)}
+.tpp-bar-track{flex:1;height:6px;background:rgba(233,240,236,.06);border-radius:3px;overflow:hidden;position:relative}
+.tpp-bar-zero{position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(233,240,236,.15)}
+.tpp-bar-fill{height:100%;border-radius:3px;position:absolute;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.tpp-bar-val{font-size:11px;font-weight:700;font-family:var(--mono);width:38px;text-align:right;flex-shrink:0}
+/* Badge AII + PRI */
+.tpp-kpis{display:flex;gap:6px;flex-wrap:wrap}
+.tpp-kpi{flex:1;min-width:70px;background:rgba(233,240,236,.03);border:1px solid var(--sep);
+  border-radius:var(--rxs);padding:6px 9px}
+.tpp-kpi-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--lt);margin-bottom:3px}
+.tpp-kpi-val{font-size:16px;font-weight:800;letter-spacing:-.5px;font-family:var(--mono);line-height:1}
+.tpp-kpi-bar{height:2px;background:rgba(233,240,236,.06);border-radius:1px;margin-top:4px;overflow:hidden}
+.tpp-kpi-bar-f{height:100%;border-radius:1px}
+/* Delta rank badge */
+.tpp-delta{position:absolute;top:10px;right:10px;font-size:11px;font-weight:700;
+  padding:2px 7px;border-radius:6px;font-family:var(--mono)}
+.tpp-delta.up{background:rgba(48,209,88,.1);color:var(--green);border:1px solid rgba(48,209,88,.2)}
+.tpp-delta.dn{background:rgba(255,69,58,.08);color:var(--red);border:1px solid rgba(255,69,58,.15)}
+.tpp-delta.eq{background:rgba(233,240,236,.05);color:var(--lt);border:1px solid var(--sep)}
+/* Empty state */
+.tpp-empty{padding:32px 20px;text-align:center;color:var(--lt);font-size:13px;line-height:1.7}
+.tpp-empty strong{color:var(--orng)}
+
+/* ── Nav: link di testo, non pillole ──────────────────────────────────────
+   Prima erano cinque pillole con quattro colori diversi (blu, ambra, chiaro,
+   gradiente oro) e nessuno dei quattro diceva dove sei: tutti gridavano allo
+   stesso volume. Ora sono link piatti, un solo colore, e la pagina corrente si
+   riconosce da una sottolineatura ambra. L'unico accento resta TPI Pro, che e'
+   l'unica destinazione a pagamento. */
+.nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{
+  position:relative;display:inline-flex;align-items:center;gap:6px;
+  height:34px;padding:0 2px;
+  background:none;border:0;border-radius:0;box-shadow:none;
+  font:12px var(--font);font-weight:600;letter-spacing:.02em;
+  color:var(--lt);text-decoration:none;cursor:pointer;
+  white-space:nowrap;flex-shrink:0;transition:color .16s}
+.nav-home-btn:hover,.nav-orng-btn:hover,.nav-purp-btn:hover,.nav-pro-btn:hover{
+  background:none;color:var(--lp);transform:none;box-shadow:none}
+.nav-home-btn::after,.nav-orng-btn::after,.nav-purp-btn::after{
+  content:"";position:absolute;left:0;right:0;bottom:7px;height:1.5px;
+  background:var(--orng);opacity:0;transition:opacity .16s}
+/* La classifica e' la pagina su cui sei quando guardi questa nav. */
+.nav-home-btn{color:var(--lp)}
+.nav-home-btn::after{opacity:1}
+.nav-pro-btn{color:var(--orng);font-weight:700}
+.nav-pro-btn:hover{color:#FFC85A}
+
+/* Mobile: brand nascosto, tutto su una riga */
+@media(max-width:768px){
+  .nav-brand{display:none}
+  .nav{justify-content:flex-start}
+  .nav-btn-group{margin-left:0}
+  .nav-right-group{margin-left:auto}
+  .hp-label,.val-label,.home-label{display:none}
+  .nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{padding:0 9px;gap:4px}
+}
+@media(max-width:480px){
+  .nav{height:46px;padding:0 8px;gap:5px}
+  .nav-glass-btn{width:28px;height:28px}
+  .nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{height:28px;padding:0 8px}
+  .nav-pro-btn .pro-label{display:none}
+}
+
+/* ═══════════════════════════════════════
+   CONTROLLI — tre tipi, tre forme
+   Il difetto non era il numero di controlli ma che quindici pillole identiche
+   nascondevano quattro comportamenti diversi: cliccare "Output" SOSTITUISCE
+   TPI, cliccare "ATT" AGGIUNGE un filtro. Ora la forma lo dice prima del clic.
+═══════════════════════════════════════ */
+
+/* Etichetta di gruppo: prende il posto dei separatori muti. */
+.ctrl-lbl{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lt);align-self:center;
+  padding-left:10px;margin-left:4px;border-left:1px solid var(--sep2)}
+
+/* ESCLUSIVO — segmenti attaccati: se ne sceglie uno solo, e si vede. */
+.mpill{border-radius:0;margin-left:-1px}
+.mpill[data-m="tpi"]{border-radius:9px 0 0 9px;margin-left:0}
+.mpill[data-m="conv"]{border-radius:0 9px 9px 0}
+.mpill.on{background:var(--orng);color:#0F1008;border-color:var(--orng);
+  font-weight:600;position:relative;z-index:1}
+.mpill.on span{color:#0F1008}
+
+/* CUMULATIVI — pillole staccate e tratteggiate da spente, con la spunta da
+   accese: si accumulano, non si escludono. */
+.rpill{border-style:dashed;border-radius:20px}
+.rpill.on{border-style:solid;border-color:var(--orng);color:var(--orng);
+  background:rgba(255,176,32,.09)}
+.rpill.on::before{content:"\2713\00a0";font-size:10px}
+
+/* AZIONE — l'unica cosa piena della barra, perche' e' l'unica che fa qualcosa
+   invece di filtrare. */
+.cpill{background:var(--orng);color:#0F1008;border-color:var(--orng);font-weight:600}
+.cpill:hover{filter:brightness(1.08)}
+
+/* Tutti i quindici controlli su UNA riga. Tolte le emoji (valevano ~250px e
+   erano la cosa piu' "template" della barra), il resto ci sta stringendo
+   padding e passo. nowrap perche' una barra di filtri che va a capo sposta
+   tutto il contenuto sotto ogni volta che cambia larghezza. */
+.ctrl-bar{flex-wrap:nowrap;gap:5px;padding:9px 16px 7px}
+.mpill,.rpill,.cpill,.sq-btn{height:29px;padding:0 9px;font-size:11.5px;white-space:nowrap}
+.mpill{padding:0 10px}
+.ctrl-lbl{padding-left:8px;margin-left:2px;font-size:8px;letter-spacing:.13em}
+.sq-chevron{margin-left:4px;font-size:8px}
+/* Se proprio non ci sta (finestre strette, prima del breakpoint mobile),
+   scorre invece di spezzarsi: meglio un gesto che un salto di layout. */
+.ctrl-bar{overflow-x:auto;scrollbar-width:none}
+
+/* Badge forma: al posto delle emoji un'etichetta leggibile, con l'ambra e il
+   turchese che significano gia' "sopra" e "sotto" in tutta la pagina. */
+.form-tag{font-family:var(--mono);font-size:8px;letter-spacing:.08em;
+  text-transform:uppercase;padding:1px 5px;border-radius:3px;cursor:help;
+  border:1px solid currentColor;margin-left:5px}
+.form-hot{color:var(--orng)} .form-cold{color:var(--teal)}
+
+/* ═══════════════════════════════════════
+   TIPOGRAFIA E TESTATA
+   Le due cose che nel mockup facevano la differenza e che finora mancavano:
+   una faccia display condensata e un eroe che MOSTRA il modello invece di
+   descriverlo. Senza queste la pagina restava la stessa, solo ridipinta.
+═══════════════════════════════════════ */
+:root{
+  --disp:"Oswald","Bahnschrift",Impact,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",ui-monospace,monospace;
+}
+.home-hdr{padding:34px 16px 22px}
+.hero-grid{display:grid;grid-template-columns:minmax(260px,1fr) 1.45fr;gap:52px;align-items:end}
+
+.hero-ttl{font-family:var(--disp);font-size:clamp(32px,3.9vw,50px);font-weight:500;
+  line-height:.95;text-transform:uppercase;letter-spacing:-.005em;margin:0}
+.hero-ttl em{font-style:normal;color:var(--orng)}
+.hero-dek{font-size:13px;color:var(--ls);line-height:1.6;margin-top:14px;max-width:46ch}
+.hero-dek b{color:var(--lp);font-weight:600}
+.hero-facts{display:flex;gap:26px;margin-top:20px}
+.hf-n{font-family:var(--mono);font-size:19px;font-weight:500;letter-spacing:-.02em}
+.hf-l{font-size:9px;color:var(--lt);letter-spacing:.14em;text-transform:uppercase;margin-top:4px}
+
+/* Centrata sulla curva: allineata a sinistra finiva sotto la coda vuota. */
+.hero-cap{font-family:var(--mono);font-size:9px;color:var(--lt);letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:9px;text-align:center;line-height:1.5}
+.hero-axis{display:flex;justify-content:space-between;font-family:var(--mono);
+  font-size:8.5px;color:var(--lt);margin-top:5px;letter-spacing:.06em}
+
+/* La faccia condensata vale anche dove prima c'era il grassetto di sistema. */
+.lb-rank,.sec-ttl,.tpp-ttl{font-family:var(--disp);font-weight:500}
+
+@media (max-width:1080px){ .hero-grid{grid-template-columns:1fr;gap:26px} }
+
+/* Il paragrafo del blocco Pro parte chiuso: e' un approfondimento, non
+   l'intestazione della pagina. Chiuso restituisce mezzo schermo alla classifica. */
+.tpp-sub-collapsible{display:none;margin-top:8px}
+
+/* Percentile e barra TPI su una riga sola: prima il numero stava sotto la sua
+   barra e i centri dei due blocchi cadevano ad altezze diverse. */
+.lb-pct{display:flex;align-items:center;gap:8px;width:104px;margin-left:auto}
+.pf-pn{font-family:var(--mono);font-size:10.5px;color:var(--ls);margin:0;flex-shrink:0}
+.pf-pbar{flex:1;height:3px;background:rgba(233,240,236,.08);border-radius:2px;overflow:hidden}
+
+/* Il titolo di sezione si allinea con il nome nelle righe, non col bordo pagina. */
+.sec-ttl,#lb-title,.lb-sec-ttl{padding-left:12px}
