@@ -48,14 +48,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   box-shadow:none;padding:16px}
 .glass-pop{background:rgba(20,20,22,.88);border:1px solid var(--gl-border);
   border-top-color:var(--gl-edge);box-shadow:none}
-.mbox{background:rgba(22,22,24,.92);border:1px solid var(--gl-border);
-  border-top-color:var(--gl-edge);
-  box-shadow:0 32px 80px rgba(0,0,0,.9), inset 0 1px 0 rgba(233,240,236,.12);
-  border-radius:20px;padding:26px;max-width:480px;width:92%}
-.mtile{background:linear-gradient(150deg,rgba(233,240,236,.06) 0%,rgba(233,240,236,.02) 100%);
-  border-radius:var(--rsm);border:1px solid var(--gl-border);
-  border-top-color:rgba(233,240,236,.2);
-  box-shadow:0 2px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(233,240,236,.07);
+.mbox{background:var(--bg1);border:1px solid var(--sep2);
+  box-shadow:0 24px 60px rgba(0,0,0,.75);
+  border-radius:var(--rsm);padding:24px;max-width:520px;width:92%}
+.mtile{background:var(--bg1);
+  border-radius:var(--rsm);border:1px solid var(--sep);
+  box-shadow:none;
   padding:14px;position:relative;overflow:hidden}
 .mtile::before{content:"";position:absolute;top:0;left:0;right:0;height:2px}
 .m1::before{background:var(--sep2)}
@@ -432,28 +430,31 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 .mwrap{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.7);
   display:none;align-items:center;justify-content:center}
 .mwrap.open{display:flex}
-.mbox-ttl{font-size:19px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+.mbox-ttl{font-family:var(--disp);font-size:24px;font-weight:600;letter-spacing:.2px;
+  text-transform:uppercase;margin-bottom:4px}
 .mbox-form{font-family:var(--mono);font-size:12px;background:rgba(233,240,236,.04);
   border:1px solid var(--sep);border-radius:var(--rxs);padding:8px 12px;
   margin:12px 0;color:var(--teal)}
 .mbox-body{font-size:13px;color:var(--ls);line-height:1.7;margin-bottom:8px}
 .mbox-ex{font-size:12px;color:var(--lt);border-left:2px solid var(--sep2);
   padding:8px 12px;line-height:1.55}
-.mbox-cls{margin-top:18px;width:100%;padding:11px;
-  background:rgba(233,240,236,.07);
-  border:1px solid rgba(233,240,236,.12);border-top-color:rgba(233,240,236,.22);
-  border-radius:var(--rsm);color:var(--lp);font:14px var(--font);cursor:pointer;
-  box-shadow:0 2px 8px rgba(0,0,0,.25), inset 0 1px 0 rgba(233,240,236,.08);
-  transition:all .18s cubic-bezier(.4,0,.2,1)}
-.mbox-cls:hover{background:rgba(233,240,236,.12);transform:translateY(-1px);
-  box-shadow:0 4px 14px rgba(0,0,0,.35), inset 0 1px 0 rgba(233,240,236,.12)}
-.mbox-cls:active{transform:translateY(0);opacity:.85}
+/* Chiudere una scheda di spiegazione non e' l'azione principale della
+   modale: leggerla lo e'. Un pulsante a tutta larghezza diceva il
+   contrario. */
+.mbox-cls{margin-top:20px;width:auto;padding:8px 16px;display:block;margin-left:auto;
+  background:none;
+  border:1px solid var(--sep2);
+  border-radius:5px;color:var(--ls);font:12.5px var(--font);font-weight:600;cursor:pointer;
+  box-shadow:none;
+  transition:color .16s,border-color .16s}
+.mbox-cls:hover{background:none;transform:none;color:var(--lp);border-color:var(--lt);
+  box-shadow:none}
+.mbox-cls:active{transform:none;opacity:.85}
 
 /* ── Floating picker ── */
 .fpk-box{position:fixed;width:300px;max-height:420px;overflow:hidden;
-  border-radius:16px;background:rgba(18,18,20,.85);border:1px solid var(--gl-border);
-  border-top-color:var(--gl-edge);
-  box-shadow:0 24px 64px rgba(0,0,0,.85), 0 4px 16px rgba(0,0,0,.5), inset 0 1px 0 rgba(233,240,236,.1);
+  border-radius:var(--rsm);background:var(--bg2);border:1px solid var(--sep2);
+  box-shadow:0 18px 44px rgba(0,0,0,.7);
   display:none;z-index:700;animation:sqIn .18s cubic-bezier(.4,0,.2,1)}
 .fpk-box.open{display:flex;flex-direction:column}
 .fpk-box::after{content:"";position:absolute;bottom:0;left:0;right:0;height:48px;
@@ -583,14 +584,20 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 
 /* ── Roster ── */
 .roster-section{margin-top:16px}
-.roster-hdr{font-size:11px;font-weight:700;color:var(--lt);text-transform:uppercase;
-  letter-spacing:.7px;padding:10px 0 8px;display:flex;align-items:center;gap:8px}
-.roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
-.roster-card{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:10px;
-  background:rgba(233,240,236,.03);border:1px solid var(--sep);opacity:.6}
-.roster-nm{font-size:13px;font-weight:500;flex:1;min-width:0;
+.roster-hdr{font-family:var(--mono);font-size:9.5px;font-weight:400;color:var(--lt);
+  text-transform:uppercase;
+  letter-spacing:.14em;padding:10px 0 8px;display:flex;align-items:center;gap:8px}
+.roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0 24px}
+/* Erano schede: bordo su quattro lati e sfondo per ciascuna, per una riga di
+   nome + minuti. Sono un elenco, quindi diventano righe divise da un filetto.
+   L'opacita' .6 su tutto rendeva illeggibili anche i nomi: ora e' il valore a
+   essere tenue, non l'etichetta. */
+.roster-card{display:flex;align-items:center;gap:8px;padding:7px 2px;border-radius:0;
+  background:none;border:0;border-bottom:1px solid var(--sep);opacity:1}
+.roster-nm{font-size:12.5px;font-weight:500;flex:1;min-width:0;color:var(--lt);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.roster-min{font-size:10px;color:var(--lt);font-family:var(--mono);flex-shrink:0}
+.roster-min{font-size:10px;color:var(--lt);opacity:.7;font-family:var(--mono);flex-shrink:0;
+  font-variant-numeric:tabular-nums}
 
 /* ── Compare pool bar ── */
 .cmp-pool-bar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
