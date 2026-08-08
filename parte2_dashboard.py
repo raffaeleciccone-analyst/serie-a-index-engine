@@ -1977,30 +1977,28 @@ window.addEventListener("orientationchange", () => {
 </div>
 <style>
 #wm{
- position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
- display:flex;align-items:center;gap:7px;
- padding:5px 14px 5px 10px;
- background:rgba(255,255,255,.04);
- backdrop-filter:saturate(180%) blur(20px);
- -webkit-backdrop-filter:saturate(180%) blur(20px);
- border:1px solid rgba(255,255,255,.09);
- border-top-color:rgba(255,255,255,.14);
- border-radius:20px;
- box-shadow:0 2px 12px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06);
+ position:fixed;bottom:0;left:0;right:0;
+ display:flex;align-items:center;justify-content:center;gap:8px;
+ padding:7px 12px;
+ background:var(--bg);
+ border:0;
+ border-top:1px solid var(--sep);
+ border-radius:0;
+ box-shadow:none;
  z-index:800;pointer-events:none;
  transition:opacity .3s;
 }
 #wm:hover{opacity:.4}
 #wm-dot{
- width:6px;height:6px;border-radius:50%;
- background:var(--blue);
- box-shadow:0 0 6px rgba(10,132,255,.6);
+ width:3px;height:10px;border-radius:1px;
+ background:var(--orng);
+ box-shadow:none;
  flex-shrink:0;
 }
 #wm-text{
- font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif;
- font-size:10px;font-weight:500;letter-spacing:.3px;
- color:rgba(235,235,245,.28);white-space:nowrap;
+ font-family:var(--mono);
+ font-size:9px;font-weight:400;letter-spacing:.14em;text-transform:uppercase;
+ color:var(--lq);white-space:nowrap;
 }
 @media(max-width:768px){
  #wm{display:none}

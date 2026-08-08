@@ -187,8 +187,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 .ctrl-bar{display:flex;align-items:center;gap:7px;padding:10px 16px 8px;
   scrollbar-width:none;flex-wrap:wrap;
   -webkit-overflow-scrolling:touch;border-bottom:1px solid rgba(233,240,236,.07);
-  background:var(--bg);
-  -webkit-backdrop-filter:saturate(200%) blur(32px)}
+  /* Il fondo e' opaco: il blur non aveva piu' niente da sfocare. */
+  background:var(--bg)}
 .ctrl-bar::-webkit-scrollbar{display:none}
 .ctrl-div{width:1px;height:20px;background:rgba(233,240,236,.1);flex-shrink:0;margin:0 1px}
 
@@ -672,8 +672,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   .nav-chip{display:none}
   .nav-btn-group{margin-left:6px;gap:4px}
   .nav-right-group{gap:5px;flex-shrink:0}
-  .hp-label{display:none}
-  .val-label{display:none}
+  /* .hp-label / .val-label restano visibili: erano nascoste perche' accanto
+     c'era un'emoji a fare da icona, e senza quella restavano due link vuoti. */
   .nav-switch-btn{padding:0 8px;min-width:30px}
 
   /* Back bar */
@@ -766,10 +766,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   /* Nav ancora più compatta */
   .nav{padding:0 10px;gap:4px;height:46px}
   .nav-brand{font-size:13px}
-  .nav-glass-btn.home-btn .home-label{display:none}
   .nav-glass-btn.home-btn{padding:0 8px}
-  /* Su mobile nascondi testo "Homepage" nel pulsante arancione, lascia solo icona */
-  .nav-right-group a:first-child .hp-label{display:none}
+  /* Le etichette dei link restano: l'icona che le sostituiva non c'e' piu'. */
 
   /* Home header: nascondi logo SVG su mobile, lascia solo testo */
   .home-hdr{padding:14px 12px 12px}
@@ -1039,14 +1037,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   .nav{justify-content:flex-start}
   .nav-btn-group{margin-left:0}
   .nav-right-group{margin-left:auto}
-  .hp-label,.val-label,.home-label{display:none}
+  /* Le etichette NON si nascondono piu': erano nascoste perche' accanto
+     c'era un'emoji a fare da icona. Tolte le emoji, nasconderle lasciava
+     link vuoti e non cliccabili su telefono. */
   .nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{padding:0 9px;gap:4px}
 }
 @media(max-width:480px){
   .nav{height:46px;padding:0 8px;gap:5px}
-  .nav-glass-btn{width:28px;height:28px}
-  .nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{height:28px;padding:0 8px}
-  .nav-pro-btn .pro-label{display:none}
+  /* A cedere il posto sono le frecce avanti/indietro, che sul telefono
+     ripetono un gesto che il browser ha gia'. */
+  .nav-glass-btn{display:none}
+  .nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{height:28px;padding:0 6px}
 }
 
 /* ═══════════════════════════════════════

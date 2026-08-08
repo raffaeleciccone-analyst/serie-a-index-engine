@@ -1749,251 +1749,326 @@ def valida_convergenza() -> dict:
 # TEMPLATE CSS
 # ════════════════════════════════════════════════════════════════
 CSS = """
+/* Font serviti dal repo, non da Google: gli stessi due file variabili della
+   dashboard e della homepage (fonts/*.woff2 accanto all'HTML). SIL OFL, che
+   consente esplicitamente l'auto-hosting. */
+@font-face{
+  font-family:"Oswald";font-style:normal;font-weight:200 700;font-display:swap;
+  src:url("fonts/oswald-latin-var.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:"JetBrains Mono";font-style:normal;font-weight:100 800;font-display:swap;
+  src:url("fonts/jetbrainsmono-latin-var.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+/* ═══════════════════════════════════════
+   Stessi token di assets/dashboard.css e di index.html. Questa pagina era
+   rimasta l'ultima in palette vecchia: nero puro, azzurro/verde/viola di
+   sistema, vetro e ombre da 32px. Passare dalla classifica alla validazione
+   sembrava cambiare sito.
+═══════════════════════════════════════ */
 :root{
-  --bg:#0A1512;--bg2:#132723;--bg3:#1B342E;
+  /* Il fondo non e' nero neutro ma ha un'inclinazione verde. */
+  --bg:#0A1512;--bg1:#0F1F1B;--bg2:#132723;--bg3:#1B342E;--bg4:#24443C;
   --sep:rgba(233,240,236,.10);--sep2:rgba(233,240,236,.18);
-  --lp:#ECF2EE;--ls:rgba(235,235,245,.62);--lt:rgba(235,235,245,.32);
-  --blue:#5A93C4;--green:#5FAE7E;--orng:#FFB020;
-  --red:#D9705F;--purp:#9B7FC4;--teal:#6FB4C4;--indig:#5e5ce6;
-  --r:16px;--rsm:12px;--rxs:8px;
-  --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Helvetica Neue",sans-serif;
-  --mono:"SF Mono","Cascadia Code","Fira Code",monospace;
-  --gl-border:rgba(233,240,236,.16);--gl-edge:rgba(233,240,236,.28);
-  --gl-blur:saturate(220%) blur(36px);
+  --lp:#ECF2EE;--ls:rgba(233,240,236,.66);--lt:rgba(233,240,236,.38);--lq:rgba(233,240,236,.20);
+
+  /* UN solo accento: l'ambra dice "attivo, oppure questo e' il valore".
+     Le altre tinte restano solo dove sono un giudizio sul dato (la scala
+     verde/ambra/rosso di rcol()) o il colore di ruolo nei grafici. */
+  --orng:#FFB020;
+  --blue:#5A93C4;--green:#5FAE7E;--clay:#D98E6A;
+  --red:#D9705F;--purp:#9B7FC4;--teal:#6FB4C4;--indig:#7B84C9;
+
+  --r:12px;--rsm:10px;--rxs:6px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+  --disp:"Oswald","Bahnschrift",Impact,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",ui-monospace,monospace;
+  --maxw:1180px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-/* Limite di larghezza, come nella dashboard: senza, su schermi larghi
-   il contenuto si stira e resta un canale vuoto per tutta la pagina. */
-.wrap,.container,main,section.sec{max-width:1280px;margin-inline:auto}
 body{font-family:var(--font);background:var(--bg);color:var(--lp);
-  font-size:15px;line-height:1.47;-webkit-font-smoothing:antialiased;overflow-x:hidden}
-::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
+  font-size:15px;line-height:1.47;-webkit-font-smoothing:antialiased;overflow-x:hidden;
+  /* In una tabella di coefficienti le cifre devono incolonnarsi. */
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
 
-/* Nav */
-.nav{position:sticky;top:0;z-index:400;height:52px;
-  background:rgba(10,10,12,.72);border-bottom:1px solid var(--gl-border);
-  box-shadow:none;display:flex;align-items:center;gap:10px;padding:0 20px}
-.nav-brand{font-size:16px;font-weight:700;letter-spacing:-.5px;white-space:nowrap;flex-shrink:0}
-.nav-brand small{font-size:12px;font-weight:400;color:var(--lt);margin-left:6px}
+/* ── NAV — link di testo, come dashboard e homepage ────────────────────── */
+.nav{position:sticky;top:0;z-index:400;height:56px;
+  background:var(--bg);border-bottom:1px solid var(--sep);box-shadow:none;
+  display:flex;align-items:center;gap:10px;
+  padding-inline:max(20px,calc((100% - var(--maxw)) / 2))}
+.nav-brand{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.4px;
+  text-transform:uppercase;white-space:nowrap;flex-shrink:0;
+  display:flex;align-items:baseline;gap:10px}
+.nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lt);margin-left:0;
+  padding-left:10px;border-left:1px solid var(--sep)}
+
+/* Avanti/indietro: due frecce, non due bottoni. Sono un comando secondario. */
 .nav-glass-btn{
   display:inline-flex;align-items:center;justify-content:center;
-  width:30px;height:30px;background:rgba(233,240,236,.06);
-  border:1px solid rgba(233,240,236,.14);border-top-color:rgba(233,240,236,.24);
-  border-radius:9px;font-size:14px;color:rgba(235,235,245,.62);cursor:pointer;
-  box-shadow:0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(233,240,236,.08);
-  transition:all .18s cubic-bezier(.4,0,.2,1);font-family:var(--font);text-decoration:none;flex-shrink:0}
-.nav-glass-btn:hover{background:rgba(233,240,236,.11);color:#fff;
-  border-top-color:rgba(233,240,236,.36);transform:translateY(-1px);
-  box-shadow:0 3px 14px rgba(0,0,0,.4), inset 0 1px 0 rgba(233,240,236,.12)}
-.nav-glass-btn:active{transform:translateY(0);opacity:.8}
+  width:22px;height:22px;
+  background:none;border:0;border-radius:0;box-shadow:none;
+  font-size:15px;color:var(--lt);cursor:pointer;transition:color .16s;
+  font-family:var(--font);text-decoration:none;flex-shrink:0}
+.nav-glass-btn:hover{background:none;color:var(--lp);box-shadow:none;transform:none}
+.nav-glass-btn:active{transform:none;opacity:.6}
 .nav-glass-btn.home-btn{width:auto;padding:0 12px;gap:5px;font-size:12px;font-weight:600}
-.nav-switch-btn{
-  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;
-  background:rgba(10,132,255,.08);
-  border:1px solid rgba(10,132,255,.22);border-top-color:rgba(10,132,255,.35);
-  border-radius:9px;font:12px/1 var(--font);font-weight:600;color:var(--blue);
-  text-decoration:none;cursor:pointer;flex-shrink:0;white-space:nowrap;
-  box-shadow:0 2px 8px rgba(0,0,0,.3), inset 0 1px 0 rgba(233,240,236,.07);
-  transition:all .18s cubic-bezier(.4,0,.2,1)}
-.nav-switch-btn:hover{background:rgba(10,132,255,.15);color:#4da3ff;transform:translateY(-1px)}
-.nav-switch-dot{width:5px;height:5px;border-radius:50%;background:var(--blue);
-  box-shadow:none;flex-shrink:0}
-.nav-btn-group{display:flex;align-items:center;gap:5px;margin-left:8px}
-.nav-right-group{display:flex;align-items:center;gap:8px;margin-left:auto}
 
-/* Bottoni nav unificati — stesso stile della dashboard */
-.nav-home-btn{
-  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 13px;
-  border-radius:9px;font:12px var(--font);font-weight:700;cursor:pointer;
-  background:rgba(10,132,255,.1);border:1px solid rgba(10,132,255,.3);
-  border-top-color:rgba(10,132,255,.45);color:var(--blue);
-  box-shadow:inset 0 1px 0 rgba(233,240,236,.08);
-  transition:all .18s;white-space:nowrap;text-decoration:none;flex-shrink:0}
-.nav-home-btn:hover{background:rgba(10,132,255,.18);transform:translateY(-1px)}
-.nav-orng-btn{
-  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 13px;
-  border-radius:9px;font:12px var(--font);font-weight:700;text-decoration:none;
-  background:rgba(255,159,10,.12);border:1px solid rgba(255,159,10,.35);
-  border-top-color:rgba(255,159,10,.5);color:var(--orng);
-  box-shadow:inset 0 1px 0 rgba(233,240,236,.07);
-  transition:all .18s;white-space:nowrap;flex-shrink:0}
-.nav-orng-btn:hover{background:rgba(255,159,10,.2);transform:translateY(-1px)}
+/* I due link di pagina erano pillole piene, una azzurra e una arancione: due
+   inviti all'azione che gridavano piu' del titolo. Ora sono testo, e il filetto
+   ambra compare solo al passaggio. Qui nessuno dei due e' la pagina corrente —
+   lo dice il marchio a sinistra. */
+.nav-home-btn,.nav-orng-btn,.nav-switch-btn{
+  position:relative;display:inline-flex;align-items:center;gap:6px;
+  height:34px;padding:0 2px;
+  background:none;border:0;border-radius:0;box-shadow:none;
+  font:12px var(--font);font-weight:600;letter-spacing:.02em;
+  color:var(--lt);text-decoration:none;cursor:pointer;
+  white-space:nowrap;flex-shrink:0;transition:color .16s}
+.nav-home-btn:hover,.nav-orng-btn:hover,.nav-switch-btn:hover{
+  background:none;color:var(--lp);transform:none;box-shadow:none}
+.nav-home-btn::after,.nav-orng-btn::after,.nav-switch-btn::after{
+  content:"";position:absolute;left:0;right:0;bottom:7px;height:1.5px;
+  background:var(--orng);opacity:0;transition:opacity .16s}
+.nav-home-btn:hover::after,.nav-orng-btn:hover::after,.nav-switch-btn:hover::after{opacity:1}
+.nav-switch-dot{width:5px;height:5px;border-radius:50%;background:var(--lt);
+  box-shadow:none;flex-shrink:0}
+.nav-btn-group{display:flex;align-items:center;gap:18px;margin-left:22px}
+.nav-right-group{display:flex;align-items:center;gap:18px;margin-left:auto}
+
+/* Lo switcher lingua arriva da i18n.js con la cornice della vecchia palette:
+   la togliamo, restano due sigle con l'attiva in ambra. */
+.nav .i18n-switch{border:0;border-radius:0;background:none;height:auto;gap:2px}
+.nav .i18n-switch button{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
+  padding:3px 5px;border-radius:3px;color:var(--lt)}
+.nav .i18n-switch button + button{border-left:0}
+.nav .i18n-switch button.active{background:none;color:var(--orng)}
+.nav .i18n-switch button:hover{background:none;color:var(--lp)}
 
 @media(max-width:768px){
-  .nav-brand{display:none}
+  .nav-brand small{display:none}
   .nav{justify-content:flex-start}
-  .nav-btn-group{margin-left:0}
-  .nav-right-group{margin-left:auto}
-  .hp-label,.home-lbl{display:none}
-  .nav-home-btn,.nav-orng-btn{padding:0 9px;gap:4px}
+  .nav-btn-group{margin-left:14px;gap:14px}
+  .nav-right-group{margin-left:auto;gap:14px}
 }
 @media(max-width:480px){
-  .nav{height:46px;padding:0 8px;gap:5px}
-  .nav-glass-btn{width:28px;height:28px}
-  .nav-home-btn,.nav-orng-btn{height:28px;padding:0 8px}
+  .nav{height:48px;gap:8px;padding-inline:12px}
+  .nav-brand{font-size:15px}
+  /* Le etichette NON si nascondono piu': ora che le emoji sono via sarebbero
+     due link vuoti. A cedere il posto sono le frecce avanti/indietro, che sul
+     telefono ripetono un gesto che il browser ha gia'. */
+  .nav-glass-btn{display:none}
+  .nav-btn-group{margin-left:10px;gap:12px}
+  .nav-right-group{gap:12px}
 }
 
-/* Hero */
-.hero{padding:36px 20px 28px;
-  background:linear-gradient(180deg,rgba(10,132,255,.06) 0%,transparent 100%);
-  border-bottom:1px solid var(--sep)}
-.hero-ttl{font-size:clamp(22px,4vw,34px);font-weight:800;letter-spacing:-1.5px;margin-bottom:8px}
-.hero-sub{font-size:14px;color:var(--lt);max-width:640px;line-height:1.6;margin-bottom:16px}
-.hero-pills{display:flex;gap:8px;flex-wrap:wrap}
-.hero-pill{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;
-  background:rgba(233,240,236,.05);border:1px solid var(--gl-border);color:var(--ls)}
+/* ── HERO ───────────────────────────────────────────────────────────────
+   Il titolo prende la faccia condensata: e' la stessa voce della classifica,
+   non un grassetto di sistema. Le cinque pillole diventano etichette mono
+   separate da filetti — dicono cosa contiene la pagina, non sono bottoni. */
+.hero{padding:48px 20px 30px;background:var(--bg);
+  border-bottom:1px solid var(--sep);
+  max-width:var(--maxw);margin-inline:auto}
+.hero-eyebrow{font-family:var(--mono);font-size:9.5px;font-weight:400;
+  letter-spacing:.18em;text-transform:uppercase;color:var(--lt);margin-bottom:12px}
+.hero-ttl{font-family:var(--disp);font-size:clamp(32px,5vw,54px);font-weight:500;
+  line-height:.95;text-transform:uppercase;letter-spacing:-.005em;margin-bottom:0}
+.hero-sub{font-size:13.5px;color:var(--ls);max-width:56ch;line-height:1.65;margin-top:16px}
+.hero-sub strong,.hero-sub b{color:var(--lp);font-weight:600}
+.hero-pills{display:flex;flex-wrap:wrap;align-items:center;gap:0;
+  margin-top:24px;padding-top:14px;border-top:1px solid var(--sep)}
+.hero-pill{font-family:var(--mono);font-size:9.5px;font-weight:400;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--lt);
+  padding:3px 14px;background:none;border:0;border-radius:0;white-space:nowrap}
+.hero-pill:first-child{padding-left:0}
+.hero-pill + .hero-pill{border-left:1px solid var(--sep)}
 
-/* Card */
-.card{background:linear-gradient(160deg,rgba(233,240,236,.07) 0%,rgba(233,240,236,.03) 100%);
-  border-radius:var(--r);border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
-  box-shadow:0 4px 20px rgba(0,0,0,.45), inset 0 1px 0 rgba(233,240,236,.08);padding:18px}
-.card-ttl{font-size:11px;font-weight:700;color:var(--lt);text-transform:uppercase;
-  letter-spacing:.7px;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+/* ── CARD ───────────────────────────────────────────────────────────────
+   Erano vetro: gradiente, bordo illuminato in alto e un'ombra da 20px che le
+   faceva galleggiare. Su una pagina di grafici l'unica cosa che deve staccare
+   sono i dati: restano un fondo appena piu' chiaro e un filetto. */
+.card{background:var(--bg1);border:1px solid var(--sep);border-radius:var(--rsm);
+  box-shadow:none;padding:16px}
+.card-ttl{font-family:var(--mono);font-size:9.5px;font-weight:500;color:var(--lt);
+  text-transform:uppercase;letter-spacing:.14em;margin-bottom:14px;
+  display:flex;align-items:center;gap:6px}
 
-/* Layout */
-.main{max-width:1100px;margin:0 auto;padding:20px}
-.section{margin-bottom:48px}
-.section-hd{display:flex;align-items:flex-start;gap:14px;margin-bottom:18px}
-.section-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
-  justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;margin-top:2px}
-.section-ttl{font-size:19px;font-weight:700;letter-spacing:-.4px}
-.section-sub{font-size:13px;color:var(--lt);margin-top:3px;line-height:1.5}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+/* ── LAYOUT E TESTATE DI SEZIONE ────────────────────────────────────────
+   La lettera della sezione era un pallino pieno colorato: nove pallini di nove
+   colori diversi facevano piu' rumore dei numeri. Ora e' una sigla mono in
+   ambra sopra un filetto che apre la sezione. */
+.main{max-width:var(--maxw);margin:0 auto;padding:24px 20px 88px}
+.section{margin-bottom:56px}
+.section-hd{display:flex;align-items:baseline;gap:16px;margin-bottom:20px;
+  padding-top:14px;border-top:1px solid var(--sep)}
+.section-num{width:auto;height:auto;border-radius:0;background:none;
+  font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.14em;
+  color:var(--orng);display:block;flex-shrink:0;margin-top:0}
+.section-ttl{font-family:var(--disp);font-size:23px;font-weight:500;
+  text-transform:uppercase;letter-spacing:.01em;line-height:1.1}
+.section-sub{font-size:13px;color:var(--ls);margin-top:7px;line-height:1.6;max-width:74ch}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 
-/* Stat box */
-.stat-box{background:var(--bg1);
-  border-radius:var(--rsm);border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
-  padding:16px;text-align:center;position:relative;overflow:hidden}
-.stat-box::before{content:"";position:absolute;top:0;left:0;right:0;height:2px}
-.sb-blue::before{background:linear-gradient(90deg,var(--blue),var(--indig))}
-.sb-green::before{background:linear-gradient(90deg,var(--green),var(--teal))}
-.sb-orng::before{background:linear-gradient(90deg,var(--orng),var(--red))}
-.sb-purp::before{background:linear-gradient(90deg,var(--purp),var(--indig))}
-.sb-teal::before{background:linear-gradient(90deg,var(--teal),var(--blue))}
-.stat-val{font-size:36px;font-weight:800;letter-spacing:-2px;line-height:1;font-family:var(--mono)}
-.stat-lbl{font-size:10px;color:var(--lt);text-transform:uppercase;letter-spacing:.6px;margin-top:6px}
-.stat-sub{font-size:11px;color:var(--ls);margin-top:3px;line-height:1.4}
+/* ── STAT BOX ───────────────────────────────────────────────────────────
+   Via la barretta sfumata in cima: cinque varianti (sb-blue, sb-green…) che
+   coloravano il bordo senza dire niente in piu' dell'etichetta sotto. */
+.stat-box{background:var(--bg1);border:1px solid var(--sep);border-radius:var(--rsm);
+  box-shadow:none;padding:15px 14px;text-align:left;position:relative;overflow:hidden}
+.stat-box::before{display:none}
+.stat-val{font-family:var(--mono);font-size:31px;font-weight:500;
+  letter-spacing:-.03em;line-height:1;color:var(--lp)}
+.stat-lbl{font-family:var(--mono);font-size:9px;color:var(--lt);
+  text-transform:uppercase;letter-spacing:.14em;margin-top:9px;line-height:1.4}
+.stat-sub{font-size:11.5px;color:var(--ls);margin-top:5px;line-height:1.45}
 
-/* Help / Modal */
+/* ── HELP E MODALE ──────────────────────────────────────────────────────
+   Il "?" era un pallino che diventava azzurro pieno al passaggio. Ora e' un
+   quadratino di filo che si accende in ambra: stesso segnale, meno peso. */
 .help{display:inline-flex;align-items:center;justify-content:center;
-  width:16px;height:16px;border-radius:50%;background:rgba(233,240,236,.09);
-  border:1px solid var(--sep);font-size:9px;color:var(--lt);cursor:pointer;
-  transition:all .15s;flex-shrink:0;vertical-align:middle;margin-left:4px}
-.help:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
-.mwrap{position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.75);
+  width:15px;height:15px;border-radius:3px;background:none;
+  border:1px solid var(--sep2);font-family:var(--mono);font-size:9px;
+  color:var(--lt);cursor:pointer;transition:color .15s,border-color .15s;
+  flex-shrink:0;vertical-align:middle;margin-left:6px}
+.help:hover{background:none;color:var(--orng);border-color:var(--orng)}
+.mwrap{position:fixed;inset:0;z-index:600;background:rgba(6,12,10,.8);
   display:none;align-items:center;justify-content:center;padding:16px}
 .mwrap.open{display:flex}
-.mbox{background:rgba(22,22,24,.95);
-  border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
-  box-shadow:0 32px 80px rgba(0,0,0,.9), inset 0 1px 0 rgba(233,240,236,.12);
-  border-radius:20px;padding:26px;max-width:520px;width:100%}
-.mbox-icon{font-size:26px;margin-bottom:10px}
-.mbox-ttl{font-size:19px;font-weight:700;letter-spacing:-.4px;margin-bottom:5px}
-.mbox-sub{font-size:12px;color:var(--lt);margin-bottom:14px;
-  font-family:var(--mono);background:rgba(233,240,236,.04);
-  border:1px solid var(--sep);border-radius:var(--rxs);padding:7px 11px}
-.mbox-body{font-size:13px;color:var(--ls);line-height:1.75;margin-bottom:10px}
-.mbox-ex{font-size:12px;color:var(--lt);border-left:3px solid var(--blue);
-  padding:8px 14px;line-height:1.6;background:rgba(10,132,255,.04);
-  border-radius:0 var(--rxs) var(--rxs) 0}
-.mbox-cls{margin-top:18px;width:100%;padding:12px;background:rgba(233,240,236,.07);
-  border:1px solid var(--sep);border-radius:var(--rsm);color:var(--lp);
-  font:14px var(--font);cursor:pointer;transition:background .15s}
-.mbox-cls:hover{background:rgba(233,240,236,.11)}
+.mbox{background:var(--bg1);border:1px solid var(--sep2);border-radius:var(--rsm);
+  box-shadow:0 24px 60px rgba(0,0,0,.75);padding:26px;max-width:520px;width:100%}
+/* L'emoji in cima al modale era decorativa: il titolo dice gia' di cosa parla. */
+.mbox-icon{display:none}
+.mbox-ttl{font-family:var(--disp);font-size:24px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.2px;margin-bottom:8px}
+.mbox-sub{font-family:var(--mono);font-size:11px;color:var(--lt);letter-spacing:.02em;
+  background:none;border:0;border-left:1px solid var(--sep2);border-radius:0;
+  padding:3px 0 3px 12px;margin-bottom:16px;line-height:1.5}
+.mbox-body{font-size:13px;color:var(--ls);line-height:1.75;margin-bottom:14px}
+.mbox-ex{font-size:12px;color:var(--lt);background:none;border-radius:0;
+  border-left:1px solid var(--orng);padding:5px 0 5px 12px;line-height:1.6}
+.mbox-cls{margin-top:22px;width:100%;padding:11px;background:none;
+  border:1px solid var(--sep2);border-radius:var(--rsm);color:var(--ls);
+  font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  cursor:pointer;transition:color .15s,border-color .15s}
+.mbox-cls:hover{background:none;color:var(--lp);border-color:var(--lt)}
 
-/* Table */
-.interp{background:rgba(233,240,236,.03);border:1px solid var(--sep);
-  border-left:3px solid var(--blue);border-radius:0 var(--rsm) var(--rsm) 0;
-  padding:12px 16px;font-size:13px;color:var(--ls);line-height:1.65;margin-top:12px}
-.nota-warn{background:rgba(255,159,10,.06);border:1px solid rgba(255,159,10,.2);
-  border-radius:var(--rsm);padding:10px 14px;font-size:12px;color:var(--orng);
-  line-height:1.6;margin-bottom:14px}
+/* ── NOTE E TABELLE ─────────────────────────────────────────────────────
+   Le note di lettura erano riquadri con fondo, bordo e filetto azzurro. Un
+   filetto solo basta: sono prosa a margine del grafico, non avvisi. */
+.interp{background:none;border:0;border-left:1px solid var(--sep2);border-radius:0;
+  padding:4px 0 4px 14px;font-size:13px;color:var(--ls);line-height:1.65;margin-top:14px}
+.nota-warn{background:none;border:0;border-left:1px solid var(--orng);border-radius:0;
+  padding:4px 0 4px 14px;font-size:12px;color:var(--orng);line-height:1.6;margin-bottom:14px}
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:4px}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:320px}
-th{text-align:left;padding:8px 10px;font-size:10px;font-weight:700;color:var(--lt);
-  text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--sep);white-space:nowrap}
-td{padding:8px 10px;border-bottom:1px solid rgba(233,240,236,.04);color:var(--ls)}
-tr:hover td{background:rgba(233,240,236,.02)}
-.tv{font-family:var(--mono);font-weight:600;color:var(--lp)}
-.torng{color:var(--orng);font-weight:600;font-family:var(--mono)}
+th{font-family:var(--mono);font-size:9px;font-weight:500;color:var(--lt);
+  text-transform:uppercase;letter-spacing:.14em;text-align:left;
+  padding:9px 10px;border-bottom:1px solid var(--sep2);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--sep);color:var(--ls)}
+tr:hover td{background:rgba(233,240,236,.03)}
+.tv{font-family:var(--mono);font-weight:500;color:var(--lp)}
+.torng{font-family:var(--mono);font-weight:500;color:var(--orng)}
 
-/* Badges */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;
-  border-radius:7px;font-size:11px;font-weight:600}
-.badge-green{background:rgba(48,209,88,.1);color:var(--green);border:1px solid rgba(48,209,88,.25)}
-.badge-orng{background:rgba(255,159,10,.1);color:var(--orng);border:1px solid rgba(255,159,10,.25)}
-.badge-red{background:rgba(255,69,58,.08);color:var(--red);border:1px solid rgba(255,69,58,.2)}
-.badge-blue{background:rgba(10,132,255,.1);color:var(--blue);border:1px solid rgba(10,132,255,.25)}
-.badge-purp{background:rgba(191,90,242,.1);color:var(--purp);border:1px solid rgba(191,90,242,.25)}
-.badge-teal{background:rgba(90,200,250,.1);color:var(--teal);border:1px solid rgba(90,200,250,.25)}
+/* ── BADGE ──────────────────────────────────────────────────────────────
+   Erano sei pillole piene, una per tinta. Diventano etichette mono: il
+   colore resta perche' qui e' un giudizio sul dato (buono/moderato/basso),
+   la scatola no. */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:0;
+  background:none;border:0;border-radius:0;
+  font-family:var(--mono);font-size:10px;font-weight:500;
+  letter-spacing:.12em;text-transform:uppercase}
+.badge-green{color:var(--green)}
+.badge-orng{color:var(--orng)}
+.badge-red{color:var(--red)}
+.badge-blue{color:var(--lt)}
+.badge-purp{color:var(--lp)}
+.badge-teal{color:var(--lp)}
 
-/* Accordion */
-.accordion{border:1px solid var(--gl-border);border-radius:var(--r);overflow:hidden;margin-bottom:28px}
-.acc-hd{padding:14px 18px;display:flex;align-items:center;justify-content:space-between;
-  cursor:pointer;background:rgba(233,240,236,.03);transition:background .15s}
-.acc-hd:hover{background:rgba(233,240,236,.05)}
-.acc-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
-.acc-chev{font-size:11px;color:var(--lt);transition:transform .2s;flex-shrink:0}
-.acc-body{display:none;padding:18px;border-top:1px solid var(--sep)}
+/* ── ACCORDION E GUIDA ──────────────────────────────────────────────────
+   Le sei schede della guida erano riquadri con emoji in cima. Le emoji sono
+   via (non sono dati) e i riquadri diventano colonne separate da filetti. */
+.accordion{border:0;border-top:1px solid var(--sep);border-bottom:1px solid var(--sep);
+  border-radius:0;overflow:visible;margin-bottom:36px}
+.acc-hd{padding:14px 0;display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;background:none;transition:none}
+.acc-hd:hover{background:none}
+.acc-hd:hover .acc-title{color:var(--lp)}
+.acc-title{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--lt);transition:color .15s;
+  display:flex;align-items:center;gap:8px}
+.acc-chev{font-size:9px;color:var(--lt);transition:transform .2s;flex-shrink:0}
+.acc-body{display:none;padding:2px 0 22px;border-top:1px solid var(--sep)}
 .acc-body.open{display:block}
-.guide-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.guide-card{background:rgba(233,240,236,.03);border:1px solid var(--sep);
-  border-radius:var(--rsm);padding:13px}
-.guide-icon{font-size:18px;margin-bottom:7px}
-.guide-ttl{font-size:13px;font-weight:600;margin-bottom:5px}
-.guide-body{font-size:12px;color:var(--lt);line-height:1.65}
+.guide-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.guide-card{background:none;border:0;border-left:1px solid var(--sep);border-radius:0;
+  padding:16px 18px}
+.guide-icon{display:none}
+.guide-ttl{font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--lp);margin-bottom:9px}
+.guide-body{font-size:12.5px;color:var(--ls);line-height:1.65}
 
-/* Recap layout */
-.recap-outer{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-top:20px}
-.recap-left{flex:1;min-width:260px;
-  background:var(--bg1);
-  border:1px solid rgba(10,132,255,.18);border-radius:var(--r);padding:20px}
-.recap-right{width:260px;flex-shrink:0;
-  background:var(--bg1);
-  border:2px solid rgba(191,90,242,.35);border-radius:var(--r);padding:20px;
-  position:relative;overflow:hidden}
-.recap-right::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;
-  background:linear-gradient(90deg,var(--purp),var(--indig))}
-.rc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.rc-card{background:rgba(233,240,236,.03);border:1px solid var(--sep);
-  border-radius:var(--rsm);padding:11px 13px}
-.rc-lbl{font-size:11px;color:var(--lt);margin-bottom:7px;line-height:1.4}
-.rc-sub{font-size:11px;color:var(--ls);margin-top:5px}
-@media(max-width:720px){
+/* ── RECAP ──────────────────────────────────────────────────────────────
+   Il riquadro di destra aveva bordo viola da 2px e una barra sfumata in cima:
+   era il pezzo piu' gridato della pagina pur essendo un riepilogo. Ora le due
+   colonne sono divise da un filetto. */
+.recap-outer{display:flex;gap:0;align-items:stretch;flex-wrap:wrap;
+  margin-top:22px;border-top:1px solid var(--sep)}
+.recap-left{flex:1;min-width:280px;background:none;border:0;border-radius:0;
+  padding:22px 24px 22px 0}
+.recap-right{width:290px;flex-shrink:0;background:none;border:0;border-radius:0;
+  border-left:1px solid var(--sep);padding:22px 0 22px 24px;
+  position:relative;overflow:visible}
+.recap-right::before{display:none}
+.rc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--sep)}
+.rc-card{background:var(--bg);border:0;border-radius:0;padding:13px 14px}
+.rc-lbl{font-size:11.5px;color:var(--lt);margin-bottom:8px;line-height:1.4}
+.rc-sub{font-family:var(--mono);font-size:10px;color:var(--ls);margin-top:7px;
+  letter-spacing:.02em}
+@media(max-width:860px){
   .recap-outer{flex-direction:column}
-  .recap-right{width:100%}
-  .rc-grid{grid-template-columns:1fr}
+  .recap-left{padding:22px 0}
+  .recap-right{width:100%;border-left:0;border-top:1px solid var(--sep);padding:22px 0}
 }
 @media(max-width:480px){
   .rc-grid{grid-template-columns:1fr 1fr}
 }
 
-/* Mover rows */
-.mover-row{display:flex;align-items:center;gap:10px;padding:9px 12px;
-  border-radius:10px;margin-bottom:6px;
-  background:rgba(233,240,236,.03);border:1px solid rgba(233,240,236,.07)}
-.mover-delta{font-size:13px;font-weight:800;font-family:var(--mono);
-  width:44px;text-align:center;flex-shrink:0}
+/* ── MOVER ROWS ─────────────────────────────────────────────────────────
+   Righe di una lista, non schede: fondo piatto e un filetto a separarle. */
+.mover-row{display:flex;align-items:center;gap:12px;padding:10px 0;
+  background:none;border:0;border-bottom:1px solid var(--sep);
+  border-radius:0;margin-bottom:0}
+.mover-row:last-child{border-bottom:0}
+.mover-delta{font-family:var(--mono);font-size:13px;font-weight:500;
+  width:44px;text-align:right;flex-shrink:0;letter-spacing:-.02em}
 .mover-info{flex:1;min-width:0}
-.mover-nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mover-sub{font-size:11px;color:var(--lt);margin-top:1px}
-.mover-scores{display:flex;gap:8px;flex-shrink:0}
-.mover-s{text-align:center;font-family:var(--mono);font-size:11px}
-.mover-s-lbl{font-size:9px;color:var(--lt);text-transform:uppercase;letter-spacing:.4px}
+.mover-nm{font-size:13px;font-weight:600;letter-spacing:-.012em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mover-sub{font-family:var(--mono);font-size:9px;color:var(--lt);
+  letter-spacing:.1em;text-transform:uppercase;margin-top:3px}
+.mover-scores{display:flex;gap:14px;flex-shrink:0}
+.mover-s{text-align:right;font-family:var(--mono);font-size:11.5px}
+.mover-s-lbl{font-family:var(--mono);font-size:8.5px;color:var(--lt);
+  text-transform:uppercase;letter-spacing:.12em}
 
-/* Watermark */
-#wm{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:7px;padding:5px 14px 5px 10px;
-  background:rgba(233,240,236,.04);
-  border:1px solid rgba(233,240,236,.09);border-top-color:rgba(233,240,236,.14);
-  border-radius:20px;z-index:800;pointer-events:none}
-#wm-dot{width:6px;height:6px;border-radius:50%;background:var(--blue);
+/* ── FIRMA ──────────────────────────────────────────────────────────────
+   Era una pillola con bordo e pallino azzurro sopra il contenuto. E' una
+   firma: testo mono, senza scatola. */
+#wm{position:fixed;bottom:0;left:0;right:0;
+  display:flex;align-items:center;justify-content:center;gap:8px;padding:7px 12px;
+  background:var(--bg);border:0;border-top:1px solid var(--sep);
+  border-radius:0;z-index:800;pointer-events:none}
+#wm-dot{width:3px;height:10px;border-radius:1px;background:var(--orng);
   box-shadow:none;flex-shrink:0}
-#wm-text{font-size:10px;font-weight:500;letter-spacing:.3px;
-  color:rgba(235,235,245,.28);white-space:nowrap}
+#wm-text{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--lq);white-space:nowrap}
 
 /* ── RESPONSIVE ── */
 @media (max-width: 900px) {
@@ -2001,58 +2076,46 @@ tr:hover td{background:rgba(233,240,236,.02)}
   .guide-grid{grid-template-columns:1fr 1fr}
 }
 @media (max-width: 720px) {
-  .nav{padding:0 12px;height:48px}
-  .nav-brand small{display:none}
-  .nav-right-group{gap:5px}
-  .nav-switch-btn span:not(.nav-switch-dot){display:none}
-  .nav-switch-btn{padding:0 8px}
-  .hero{padding:22px 14px 18px}
-  .hero-ttl{font-size:22px}
+  .hero{padding:30px 16px 22px}
   .hero-sub{font-size:13px}
-  .hero-pill{font-size:11px;padding:4px 9px}
-  .main{padding:14px}
+  .main{padding:18px 16px 56px}
   .g2{grid-template-columns:1fr}
   .g3{grid-template-columns:1fr 1fr}
   .g4{grid-template-columns:1fr 1fr}
   .guide-grid{grid-template-columns:1fr 1fr}
-  .stat-val{font-size:28px}
-  .section-ttl{font-size:17px}
+  .stat-val{font-size:27px}
+  .section{margin-bottom:42px}
+  .section-ttl{font-size:20px}
   .card{padding:14px}
-  .recap-card > .g3{grid-template-columns:1fr}
-  .mover-row{flex-wrap:wrap;gap:6px}
+  .mover-row{flex-wrap:wrap;gap:8px}
   .mover-scores{width:100%;justify-content:flex-end}
 }
 @media (max-width: 480px) {
-  .nav{padding:0 10px;gap:5px;height:46px}
-  .nav-brand{font-size:13px}
-  .nav-glass-btn.home-btn{padding:0 8px}
-  .hero{padding:16px 12px 14px}
-  .hero-ttl{font-size:19px;letter-spacing:-1px}
+  .hero{padding:24px 14px 18px}
+  .hero-ttl{font-size:30px}
+  /* Le etichette dell'hero su telefono starebbero su quattro righe. */
   .hero-pill{display:none}
-  .hero-pills .hero-pill:first-child{display:flex}
-  .main{padding:10px}
-  .section{margin-bottom:32px}
-  .section-hd{gap:10px}
-  .section-num{width:28px;height:28px;font-size:12px}
-  .section-ttl{font-size:16px}
+  .hero-pills .hero-pill:first-child{display:inline-block}
+  .main{padding:14px 14px 52px}
+  .section{margin-bottom:34px}
+  .section-hd{gap:12px}
+  .section-num{font-size:10px}
+  .section-ttl{font-size:18px}
   .g2,.g3,.g4{grid-template-columns:1fr}
   .guide-grid{grid-template-columns:1fr}
+  .guide-card{border-left:0;border-top:1px solid var(--sep);padding:14px 0}
+  .guide-card:first-child{border-top:0}
   .stat-val{font-size:26px}
-  .stat-lbl{font-size:9px}
-  .acc-hd{padding:12px 14px}
-  .acc-title{font-size:13px}
-  .acc-body{padding:12px}
-  .card{padding:12px}
-  .card-ttl{font-size:10px}
+  .acc-body{padding:2px 0 16px}
+  .card{padding:13px}
   table{font-size:12px}
-  th{padding:6px 8px;font-size:9px}
-  td{padding:7px 8px}
-  .mbox{padding:18px 14px;border-radius:16px}
-  .mbox-ttl{font-size:17px}
+  th{padding:7px 8px}
+  td{padding:8px 8px}
+  .mbox{padding:20px 16px}
+  .mbox-ttl{font-size:21px}
   .mbox-body{font-size:12px}
-  .recap-card{padding:14px}
   .mover-nm{font-size:12px}
-  .mover-delta{width:36px;font-size:12px}
+  .mover-delta{width:38px;font-size:12px}
 }
 /* Fix autozoom input iOS */
 @media (max-width: 768px){input,select,textarea{font-size:16px !important}}
@@ -2060,6 +2123,8 @@ tr:hover td{background:rgba(233,240,236,.02)}
 @media (max-width:480px){
   .chart-h{height:240px !important}
 }
+/* Su telefono la fascia della firma mangia troppa altezza. */
+@media (max-width:600px){#wm{display:none}}
 """
 
 
@@ -2152,7 +2217,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
             h += (
                 f'<tr><td style="color:var(--lp);font-weight:500">{r["nome"]}</td>'
                 f'<td style="color:var(--lt);font-size:12px">{r["squadra"]}</td>'
-                f'<td style="font-family:var(--mono);color:var(--teal);font-weight:700">{aii_s}</td>'
+                f'<td style="font-family:var(--mono);color:var(--lp);font-weight:700">{aii_s}</td>'
                 f'<td style="font-family:var(--mono);font-size:12px">{eta_s}aa</td>'
                 f'<td style="font-family:var(--mono)">{tpi_s}</td></tr>'
             )
@@ -2164,16 +2229,16 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         v2_section = f"""
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--teal)">D</div>
+    <div class="section-num">D</div>
     <div>
       <div class="section-ttl"><span {_bi("Indice Et&agrave; &amp; Affidabilit&agrave; Fisica","Age Index &amp; Physical Reliability")}>Age Index &amp; Physical Reliability</span> <span class="help" onclick="openM('v2')">?</span></div>
       <div class="section-sub" {_bi("Valida AII (Indice Et&agrave;) e PRI (Indice di Affidabilit&agrave; Fisica).","Validates AII (Age Index) and PRI (Physical Reliability Index).")}>Valida AII (Et&agrave; Index) e PRI (Physical Reliability Index).</div>
     </div>
   </div>
   <div class="g3">
-    <div class="stat-box sb-teal"><div class="stat-val" style="color:var(--teal)">{n_aii}</div><div class="stat-lbl" {_bi("Giocatori con AII","Players with AII")}>Giocatori con AII</div><div class="stat-sub">r(AII,TPI) = {_sf(aii_r,3)}</div></div>
-    <div class="stat-box sb-purp"><div class="stat-val" style="color:var(--purp)">{n_pri}</div><div class="stat-lbl" {_bi("Giocatori con PRI","Players with PRI")}>Giocatori con PRI</div><div class="stat-sub">r(TPI_ext,TPI) = {_sf(ext_r,3)}</div></div>
-    <div class="stat-box sb-blue"><div class="stat-val" style="color:var(--teal)">{_sf(eta_mean,1)}</div><div class="stat-lbl" {_bi("Et&agrave; media lega","League mean age")}>Et&agrave; media lega</div><div class="stat-sub" {_bi("anni &middot; ATT+CEN qualificati","years &middot; qualified FWD+MID")}>anni ATT+CEN qualificati</div></div>
+    <div class="stat-box sb-teal"><div class="stat-val">{n_aii}</div><div class="stat-lbl" {_bi("Giocatori con AII","Players with AII")}>Giocatori con AII</div><div class="stat-sub">r(AII,TPI) = {_sf(aii_r,3)}</div></div>
+    <div class="stat-box sb-purp"><div class="stat-val">{n_pri}</div><div class="stat-lbl" {_bi("Giocatori con PRI","Players with PRI")}>Giocatori con PRI</div><div class="stat-sub">r(TPI_ext,TPI) = {_sf(ext_r,3)}</div></div>
+    <div class="stat-box sb-blue"><div class="stat-val">{_sf(eta_mean,1)}</div><div class="stat-lbl" {_bi("Et&agrave; media lega","League mean age")}>Et&agrave; media lega</div><div class="stat-sub" {_bi("anni &middot; ATT+CEN qualificati","years &middot; qualified FWD+MID")}>anni ATT+CEN qualificati</div></div>
   </div>
   <div class="g2">
     <div class="card"><div class="card-ttl" {_bi("Top 5 Affidabilit&agrave; Fisica (PRI)","Top 5 Physical Reliability (PRI)")}>Top 5 Affidabilit&agrave; Fisica (PRI)</div>
@@ -2187,13 +2252,13 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     <div class="card"><div class="card-ttl" {_bi("Top 5 Indice Et&agrave; (AII)","Top 5 Age Index (AII)")}>Top 5 Et&agrave; Index (AII)</div>
       <div class="table-wrap"><table><tr><th {_bi("Giocatore","Player")}>Giocatore</th><th {_bi("Squadra","Team")}>Squadra</th><th>AII</th><th {_bi("Et&agrave;","Age")}>Et&agrave;</th><th>TPI</th></tr>
       <tbody>{v2_aii_rows(top_aii)}</tbody></table>
-      <div class="interp" {_bi("&#128161; AII alto + TPI in crescita = profilo scout ideale per investimento a lungo termine.","&#128161; High AII + rising TPI = ideal scouting profile for a long-term investment.")}>&#128161; AII alto + TPI in crescita = profilo scout ideale per investimento a lungo termine.</div></div>
+      <div class="interp" {_bi("AII alto + TPI in crescita = profilo scout ideale per investimento a lungo termine.","High AII + rising TPI = ideal scouting profile for a long-term investment.")}>AII alto + TPI in crescita = profilo scout ideale per investimento a lungo termine.</div></div>
     <div class="card"><div class="card-ttl"><span {_bi("Scatter AII vs PRI","Scatter AII vs PRI")}>Scatter AII vs PRI</span> <span class="help" onclick="openM('scatter_d')">?</span></div>
       <div id="chart-d" class="chart-h" style="height:280px"></div></div>
   </div>
 </div>"""
     elif v2_msg:
-        v2_section = f'<div class="nota-warn" style="margin-top:20px">&#9888; {v2_msg}</div>'
+        v2_section = f'<div class="nota-warn" style="margin-top:20px">{v2_msg}</div>'
     else:
         v2_section = ""
 
@@ -2219,9 +2284,9 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
               </div>
               <div class="mover-scores">
                 <div class="mover-s"><div class="mover-s-lbl">TPI</div><div style="color:var(--orng);font-family:var(--mono);font-size:11px;font-weight:700">{tpi_s}</div></div>
-                <div class="mover-s"><div class="mover-s-lbl">PRO</div><div style="color:var(--purp);font-family:var(--mono);font-size:11px;font-weight:700">{pro_s}</div></div>
-                <div class="mover-s"><div class="mover-s-lbl">AII</div><div style="color:var(--teal);font-family:var(--mono);font-size:11px">{aii_s}</div></div>
-                <div class="mover-s"><div class="mover-s-lbl">PRI</div><div style="color:var(--purp);font-family:var(--mono);font-size:11px">{pri_s}</div></div>
+                <div class="mover-s"><div class="mover-s-lbl">PRO</div><div style="color:var(--lp);font-family:var(--mono);font-size:11px;font-weight:700">{pro_s}</div></div>
+                <div class="mover-s"><div class="mover-s-lbl">AII</div><div style="color:var(--lp);font-family:var(--mono);font-size:11px">{aii_s}</div></div>
+                <div class="mover-s"><div class="mover-s-lbl">PRI</div><div style="color:var(--lp);font-family:var(--mono);font-size:11px">{pri_s}</div></div>
               </div>
             </div>"""
         return h
@@ -2241,28 +2306,28 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         e_section = f"""
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--purp)">E</div>
+    <div class="section-num">E</div>
     <div>
       <div class="section-ttl"><span {_bi("Validazione TPI Pro — Modello a 6 Dimensioni","TPI Pro Validation — 6-Dimension Model")}>TPI Pro Validation — 6-Dimension Model</span> <span class="help" onclick="openM('tpi_pro')">?</span></div>
       <div class="section-sub" {_bi("Confronto ranking TPI classico vs TPI Pro (6 dimensioni). Chi guadagna/perde posizioni?","Ranking comparison: classic TPI vs TPI Pro (6 dimensions). Who gains/loses positions?")}>Confronto ranking TPI classico vs TPI Pro (6 dimensioni). Chi guadagna/perde posizioni?</div>
     </div>
   </div>
   <div class="g4">
-    <div class="stat-box sb-purp"><div class="stat-val" style="color:var(--purp)">{n_pro}</div><div class="stat-lbl" {_bi("Giocatori TPI Pro","TPI Pro players")}>Giocatori TPI Pro</div><div class="stat-sub" {_bi("con AII + PRI","with AII + PRI")}>con AII + PRI</div></div>
+    <div class="stat-box sb-purp"><div class="stat-val">{n_pro}</div><div class="stat-lbl" {_bi("Giocatori TPI Pro","TPI Pro players")}>Giocatori TPI Pro</div><div class="stat-sub" {_bi("con AII + PRI","with AII + PRI")}>con AII + PRI</div></div>
     <div class="stat-box sb-blue"><div class="stat-val" style="color:{rcol(r_pro)}">{_sf(r_pro,3)}</div><div class="stat-lbl">r(TPI,TPI Pro)</div><div class="stat-sub">{pval(p_pro)}</div></div>
-    <div class="stat-box sb-green"><div class="stat-val" style="color:var(--green)">{n_dp}</div><div class="stat-lbl" {_bi("Salgono &gt;2 pos","Rise &gt;2 pos")}>Salgono &gt;2 pos</div><div class="stat-sub" {_bi("valorizzati da AII/PRI","boosted by AII/PRI")}>valorizzati da AII/PRI</div></div>
-    <div class="stat-box" style="border-color:rgba(255,69,58,.2)"><div class="stat-val" style="color:var(--red)">{n_dn}</div><div class="stat-lbl" {_bi("Scendono &gt;2 pos","Fall &gt;2 pos")}>Scendono &gt;2 pos</div><div class="stat-sub" {_bi("penalizzati da AII/PRI","penalized by AII/PRI")}>penalizzati da AII/PRI</div></div>
+    <div class="stat-box sb-green"><div class="stat-val">{n_dp}</div><div class="stat-lbl" {_bi("Salgono &gt;2 pos","Rise &gt;2 pos")}>Salgono &gt;2 pos</div><div class="stat-sub" {_bi("valorizzati da AII/PRI","boosted by AII/PRI")}>valorizzati da AII/PRI</div></div>
+    <div class="stat-box"><div class="stat-val">{n_dn}</div><div class="stat-lbl" {_bi("Scendono &gt;2 pos","Fall &gt;2 pos")}>Scendono &gt;2 pos</div><div class="stat-sub" {_bi("penalizzati da AII/PRI","penalized by AII/PRI")}>penalizzati da AII/PRI</div></div>
   </div>
   <div class="g2">
     <div class="card"><div class="card-ttl"><span {_bi("Scatter TPI vs TPI Pro","Scatter TPI vs TPI Pro")}>Scatter TPI vs TPI Pro</span> <span class="help" onclick="openM('scatter_e')">?</span></div>
       <div id="chart-e" class="chart-h" style="height:300px"></div></div>
     <div class="card"><div class="card-ttl" {_bi("Interpretazione","Interpretation")}>Interpretazione</div>
-      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi('<p style="margin-bottom:10px">Un <strong style="color:var(--purp)">r elevato</strong> (es. 0.85+) indica che TPI Pro &egrave; coerente con TPI classico — aggiunge informazione senza stravolgere la classifica.</p><p style="margin-bottom:10px">Le <strong style="color:var(--green)">salite</strong> identificano giocatori giovani e fisicamente affidabili che il TPI classico sottovaluta.</p><p>Le <strong style="color:var(--red)">discese</strong> segnalano veterani o giocatori fragili che il TPI classico sovrastima.</p>', '<p style="margin-bottom:10px">A <strong style="color:var(--purp)">high r</strong> (e.g. 0.85+) means TPI Pro is consistent with the classic TPI — it adds information without upending the ranking.</p><p style="margin-bottom:10px">The <strong style="color:var(--green)">risers</strong> are young, physically reliable players that the classic TPI undervalues.</p><p>The <strong style="color:var(--red)">fallers</strong> flag veterans or fragile players that the classic TPI overrates.</p>')}>
-        <p style="margin-bottom:10px">Un <strong style="color:var(--purp)">r elevato</strong> (es. 0.85+) indica che TPI Pro &egrave; coerente con TPI classico — aggiunge informazione senza stravolgere la classifica.</p>
+      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi('<p style="margin-bottom:10px">Un <strong style="color:var(--lp)">r elevato</strong> (es. 0.85+) indica che TPI Pro &egrave; coerente con TPI classico — aggiunge informazione senza stravolgere la classifica.</p><p style="margin-bottom:10px">Le <strong style="color:var(--green)">salite</strong> identificano giocatori giovani e fisicamente affidabili che il TPI classico sottovaluta.</p><p>Le <strong style="color:var(--red)">discese</strong> segnalano veterani o giocatori fragili che il TPI classico sovrastima.</p>', '<p style="margin-bottom:10px">A <strong style="color:var(--lp)">high r</strong> (e.g. 0.85+) means TPI Pro is consistent with the classic TPI — it adds information without upending the ranking.</p><p style="margin-bottom:10px">The <strong style="color:var(--green)">risers</strong> are young, physically reliable players that the classic TPI undervalues.</p><p>The <strong style="color:var(--red)">fallers</strong> flag veterans or fragile players that the classic TPI overrates.</p>')}>
+        <p style="margin-bottom:10px">Un <strong style="color:var(--lp)">r elevato</strong> (es. 0.85+) indica che TPI Pro &egrave; coerente con TPI classico — aggiunge informazione senza stravolgere la classifica.</p>
         <p style="margin-bottom:10px">Le <strong style="color:var(--green)">salite</strong> identificano giocatori giovani e fisicamente affidabili che il TPI classico sottovaluta.</p>
         <p>Le <strong style="color:var(--red)">discese</strong> segnalano veterani o giocatori fragili che il TPI classico sovrastima.</p>
       </div>
-      <div class="interp" {_bi("&#128161; r(TPI,TPI Pro) ideale: 0.80&ndash;0.95. Troppo basso = AII/PRI distorcono. Troppo alto = non aggiungono nulla di nuovo.","&#128161; Ideal r(TPI,TPI Pro): 0.80&ndash;0.95. Too low = AII/PRI distort. Too high = they add nothing new.")}>&#128161; r(TPI,TPI Pro) ideale: 0.80&ndash;0.95. Troppo basso = AII/PRI distorcono. Troppo alto = non aggiungono nulla di nuovo.</div>
+      <div class="interp" {_bi("r(TPI,TPI Pro) ideale: 0.80&ndash;0.95. Troppo basso = AII/PRI distorcono. Troppo alto = non aggiungono nulla di nuovo.","Ideal r(TPI,TPI Pro): 0.80&ndash;0.95. Too low = AII/PRI distort. Too high = they add nothing new.")}>r(TPI,TPI Pro) ideale: 0.80&ndash;0.95. Troppo basso = AII/PRI distorcono. Troppo alto = non aggiungono nulla di nuovo.</div>
     </div>
   </div>
   <div class="g2">
@@ -2283,16 +2348,16 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   if(!sc||!sc.length){{document.getElementById("chart-e").innerHTML='<div style="color:var(--lt);padding:32px;text-align:center;font-size:13px">Nessun dato TPI Pro</div>';return;}}
   var xv=sc.map(d=>d.tpi),yv=sc.map(d=>d.pro);
   var xmin=Math.min(...xv),xmax=Math.max(...xv);
-  var rc={{"ATT":"#ff9f0a","CEN":"#30d158","DIF":"#0a84ff","":"#48484a"}};
+  var rc={{"POR":"#7A8A84","DIF":"#5A93C4","CEN":"#5FAE7E","ATT":"#D98E6A","":"#46554F"}};
   Plotly.newPlot("chart-e",[
     {{type:"scatter",mode:"markers",x:xv,y:yv,
       text:sc.map(d=>d.nome+"<br>"+d.squadra),
       hovertemplate:"%{{text}}<br>TPI: %{{x:.3f}}<br>TPI Pro: %{{y:.3f}}<extra></extra>",
-      marker:{{color:sc.map(d=>rc[d.ruolo]||"#636366"),size:8,opacity:.82,
+      marker:{{color:sc.map(d=>rc[d.ruolo]||"#46554F"),size:8,opacity:.82,
         line:{{color:"rgba(233,240,236,.12)",width:1}}}}}},
     {{type:"scatter",mode:"lines",
       x:[xmin,xmax],y:[sl*xmin+ic,sl*xmax+ic],
-      line:{{color:"rgba(191,90,242,.55)",width:2,dash:"dot"}},hoverinfo:"skip"}},
+      line:{{color:"rgba(255,176,32,.55)",width:2,dash:"dot"}},hoverinfo:"skip"}},
     {{type:"scatter",mode:"lines",
       x:[Math.min(xmin,Math.min(...yv)),Math.max(xmax,Math.max(...yv))],
       y:[Math.min(xmin,Math.min(...yv)),Math.max(xmax,Math.max(...yv))],
@@ -2303,10 +2368,10 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     margin:{{t:8,b:46,l:54,r:8}},height:300,showlegend:false,
     annotations:[{{x:.02,y:.97,xref:"paper",yref:"paper",
       text:"r = {_sf(r_pro,3)}",showarrow:false,
-      font:{{color:"rgba(235,235,245,.6)",size:13}},align:"left"}}]}},PL);
+      font:{{color:"rgba(233,240,236,.66)",size:13}},align:"left"}}]}},PL);
 }})();"""
     elif pro_msg:
-        e_section = f'<div class="nota-warn" style="margin-top:16px">&#9888; {pro_msg}</div>'
+        e_section = f'<div class="nota-warn" style="margin-top:16px">{pro_msg}</div>'
         e_js = ""
     else:
         e_section = ""
@@ -2362,25 +2427,25 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
             <span class="badge {pro_cls}">{pro_lbl}</span>
             <span style="font-size:11px;color:var(--lt)">r(TPI, TPI Pro)</span>
           </div>
-          <div style="font-size:22px;font-weight:800;letter-spacing:-1px;
-                      font-family:var(--mono);color:var(--purp);line-height:1;margin-bottom:6px">
+          <div style="font-size:26px;font-weight:500;letter-spacing:-.03em;
+                      font-family:var(--mono);color:var(--lp);line-height:1;margin-bottom:6px">
             {_sf(r_pro_v,3)}
           </div>
           <div style="font-size:11px;color:var(--lt);margin-bottom:12px" {_bi(f'{ve.get("n_pro",0)} giocatori con AII+PRI', f'{ve.get("n_pro",0)} players with AII+PRI')}>
             {ve.get("n_pro",0)} giocatori con AII+PRI
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <div style="flex:1;min-width:60px;background:rgba(48,209,88,.06);
-                        border:1px solid rgba(48,209,88,.2);border-radius:8px;
-                        padding:7px 10px;text-align:center">
+            <div style="flex:1;min-width:60px;background:none;
+                        border:0;border-left:1px solid var(--green);border-radius:0;
+                        padding:2px 0 2px 10px">
               <div style="font-size:16px;font-weight:800;color:var(--green);
                           font-family:var(--mono)">{ve.get("n_delta_pos",0)}</div>
               <div style="font-size:9px;color:var(--lt);text-transform:uppercase;
                           letter-spacing:.5px;margin-top:2px" {_bi("Salgono","Rise")}>Salgono</div>
             </div>
-            <div style="flex:1;min-width:60px;background:rgba(255,69,58,.05);
-                        border:1px solid rgba(255,69,58,.18);border-radius:8px;
-                        padding:7px 10px;text-align:center">
+            <div style="flex:1;min-width:60px;background:none;
+                        border:0;border-left:1px solid var(--red);border-radius:0;
+                        padding:2px 0 2px 10px">
               <div style="font-size:16px;font-weight:800;color:var(--red);
                           font-family:var(--mono)">{ve.get("n_delta_neg",0)}</div>
               <div style="font-size:9px;color:var(--lt);text-transform:uppercase;
@@ -2389,9 +2454,9 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
           </div>"""
     else:
         e_recap_inner = f"""
-          <div style="font-size:12px;color:var(--lt);line-height:1.6" {_bi('Popola <code style="font-family:var(--mono);color:var(--purp)">t_infortuni</code> e <code style="font-family:var(--mono);color:var(--teal)">data_nascita</code>, poi riesegui <code style="font-family:var(--mono)">parte1_analisi.py</code>.', 'Populate <code style="font-family:var(--mono);color:var(--purp)">t_infortuni</code> and <code style="font-family:var(--mono);color:var(--teal)">data_nascita</code>, then re-run <code style="font-family:var(--mono)">parte1_analisi.py</code>.')}>
-            Popola <code style="font-family:var(--mono);color:var(--purp)">t_infortuni</code>
-            e <code style="font-family:var(--mono);color:var(--teal)">data_nascita</code>,
+          <div style="font-size:12px;color:var(--lt);line-height:1.6" {_bi('Popola <code style="font-family:var(--mono);color:var(--lp)">t_infortuni</code> e <code style="font-family:var(--mono);color:var(--lp)">data_nascita</code>, poi riesegui <code style="font-family:var(--mono)">parte1_analisi.py</code>.', 'Populate <code style="font-family:var(--mono);color:var(--lp)">t_infortuni</code> and <code style="font-family:var(--mono);color:var(--lp)">data_nascita</code>, then re-run <code style="font-family:var(--mono)">parte1_analisi.py</code>.')}>
+            Popola <code style="font-family:var(--mono);color:var(--lp)">t_infortuni</code>
+            e <code style="font-family:var(--mono);color:var(--lp)">data_nascita</code>,
             poi riesegui <code style="font-family:var(--mono)">parte1_analisi.py</code>.
           </div>"""
 
@@ -2399,8 +2464,8 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 <div class="recap-outer">
   <!-- Colonna sinistra: A B C D -->
   <div class="recap-left">
-    <div style="font-size:11px;font-weight:700;color:var(--lt);
-                text-transform:uppercase;letter-spacing:.7px;margin-bottom:14px" {_bi("Riepilogo Validazione","Validation summary")}>
+    <div style="font-family:var(--mono);font-size:9.5px;font-weight:500;color:var(--lt);
+                text-transform:uppercase;letter-spacing:.16em;margin-bottom:16px" {_bi("Riepilogo Validazione","Validation summary")}>
       Riepilogo Validazione
     </div>
     <div class="rc-grid">{recap_abcd}</div>
@@ -2409,20 +2474,20 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <!-- Colonna destra: E — TPI Pro in evidenza -->
   <div class="recap-right">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-      <div style="font-size:11px;font-weight:700;color:var(--lt);
-                  text-transform:uppercase;letter-spacing:.7px">
+      <div style="font-family:var(--mono);font-size:9.5px;font-weight:500;color:var(--lt);
+                  text-transform:uppercase;letter-spacing:.16em">
         E &mdash; TPI Pro
       </div>
-      <span style="display:inline-flex;align-items:center;gap:4px;
-                   padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;
-                   background:rgba(191,90,242,.15);border:1px solid rgba(191,90,242,.35);
-                   color:var(--purp);text-transform:uppercase;letter-spacing:.5px">
-        &#10024; <span {_bi("Nuovo indice","New index")}>Nuovo indice</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:0;
+                   background:none;border:0;border-radius:0;
+                   font-family:var(--mono);font-size:9.5px;font-weight:500;
+                   color:var(--orng);text-transform:uppercase;letter-spacing:.14em">
+        <span {_bi("Nuovo indice","New index")}>Nuovo indice</span>
       </span>
     </div>
-    <div style="font-size:12px;color:var(--ls);line-height:1.6;margin-bottom:14px" {_bi('Aggiunge <strong style="color:var(--teal)">AII</strong> (et&agrave;) e <strong style="color:var(--purp)">PRI</strong> (fisico) al TPI classico. r ideale = 0.80&ndash;0.95.', 'Adds <strong style="color:var(--teal)">AII</strong> (age) and <strong style="color:var(--purp)">PRI</strong> (physical) to the classic TPI. Ideal r = 0.80&ndash;0.95.')}>
-      Aggiunge <strong style="color:var(--teal)">AII</strong> (et&agrave;)
-      e <strong style="color:var(--purp)">PRI</strong> (fisico) al TPI classico.
+    <div style="font-size:12px;color:var(--ls);line-height:1.6;margin-bottom:14px" {_bi('Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;) e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico. r ideale = 0.80&ndash;0.95.', 'Adds <strong style="color:var(--lp)">AII</strong> (age) and <strong style="color:var(--lp)">PRI</strong> (physical) to the classic TPI. Ideal r = 0.80&ndash;0.95.')}>
+      Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;)
+      e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico.
       r ideale = 0.80&ndash;0.95.
     </div>
     {e_recap_inner}
@@ -2461,14 +2526,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     # Hero sottotitolo bilingue (numeri reali in entrambe le lingue)
     _hsub_it = (
         '5 test indipendenti per verificare che il TPI misuri qualit&agrave; reale — '
-        f'non rumore. Backtest predittivo <strong style="color:var(--green)">r = {_r2(r_c)}</strong>, '
-        f'correlazione Fantacalcio <strong style="color:var(--blue)">r = {_r2(r_a)}</strong>. '
+        f'non rumore. Backtest predittivo <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
+        f'correlazione Fantacalcio <strong style="color:var(--orng)">r = {_r2(r_a)}</strong>. '
         'Clicca <strong style="color:var(--lp)">?</strong> su ogni sezione per i dettagli metodologici.'
     )
     _hsub_en = (
         '5 independent tests to verify that TPI measures real player quality — '
-        f'not noise. Predictive backtest <strong style="color:var(--green)">r = {_r2(r_c)}</strong>, '
-        f'Fantacalcio correlation <strong style="color:var(--blue)">r = {_r2(r_a)}</strong>. '
+        f'not noise. Predictive backtest <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
+        f'Fantacalcio correlation <strong style="color:var(--orng)">r = {_r2(r_a)}</strong>. '
         'Click <strong style="color:var(--lp)">?</strong> on each section for methodology details.'
     )
     hero_sub = f'<div class="hero-sub" {_bi(_hsub_it, _hsub_en)}>{_hsub_it}</div>'
@@ -2478,15 +2543,15 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         _aci = _ci_txt(val_a.get("sp_ci_lo"), val_a.get("sp_ci_hi"))
         _apr = _sf(val_a.get("partial_r"), 3)
         _amin, _amax = _sf(a_loo.get("min"), 3), _sf(a_loo.get("max"), 3)
-        _a_it = (f'&#128300; <strong>Rigore:</strong> Spearman &rho; IC95% bootstrap {_aci} &middot; '
+        _a_it = (f'<strong>Rigore:</strong> Spearman &rho; IC95% bootstrap {_aci} &middot; '
                  f'correlazione parziale controllando il ruolo = <strong>{_apr}</strong> '
                  f'(se molto &lt; r grezza, parte era effetto-ruolo) &middot; '
                  f'leave-one-out r &isin; [{_amin}, {_amax}].')
-        _a_en = (f'&#128300; <strong>Rigor:</strong> Spearman &rho; 95% bootstrap CI {_aci} &middot; '
+        _a_en = (f'<strong>Rigor:</strong> Spearman &rho; 95% bootstrap CI {_aci} &middot; '
                  f'partial correlation controlling for role = <strong>{_apr}</strong> '
                  f'(if much &lt; raw r, part was a role effect) &middot; '
                  f'leave-one-out r &isin; [{_amin}, {_amax}].')
-        a_rigor = (f'<div class="interp" style="border-left-color:var(--teal);margin-top:8px" '
+        a_rigor = (f'<div class="interp" style="margin-top:8px" '
                    f'{_bi(_a_it, _a_en)}>{_a_it}</div>')
     else:
         a_rigor = ""
@@ -2499,15 +2564,15 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     _bfair = val_b.get("fair_overlap_pct", "&mdash;")
     _bp = _sf(b_hyper.get("p"), 4)
     _bexp = _sf(b_hyper.get("expected"), 2)
-    _b_it = (f'&#128300; <strong>Rigore:</strong> sul set comune (~{_bnc} giocatori) '
+    _b_it = (f'<strong>Rigore:</strong> sul set comune (~{_bnc} giocatori) '
              f'Kendall &tau; = <strong>{_bk}</strong>, Spearman &rho; = {_bsp} IC95% {_bci}. '
              f'Overlap fair (stesso bacino) = {_bfair}% &middot; p(ipergeometrico) = {_bp} '
              f'(coincidenze attese per caso: {_bexp}/10).')
-    _b_en = (f'&#128300; <strong>Rigor:</strong> on the common set (~{_bnc} players) '
+    _b_en = (f'<strong>Rigor:</strong> on the common set (~{_bnc} players) '
              f'Kendall &tau; = <strong>{_bk}</strong>, Spearman &rho; = {_bsp} 95% CI {_bci}. '
              f'Fair overlap (same pool) = {_bfair}% &middot; p(hypergeometric) = {_bp} '
              f'(coincidences expected by chance: {_bexp}/10).')
-    b_rigor = (f'<div class="interp" style="border-left-color:var(--teal);margin-top:8px" '
+    b_rigor = (f'<div class="interp" style="margin-top:8px" '
                f'{_bi(_b_it, _b_en)}>{_b_it}</div>')
 
     c_skill = val_c.get("skill") or {}
@@ -2524,17 +2589,17 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
                      "del TPI (peso 0.32), non il composito completo: evidenza parziale.")
         _cnote_en = ("Backtest on offensive output (xG+xA)/90 — the dominant TPI component "
                      "(weight 0.32), not the full composite: partial evidence.")
-        _c_it = (f'&#128300; <strong>Rigore:</strong> RMSE <em>out-of-sample</em> (k-fold) = '
+        _c_it = (f'<strong>Rigore:</strong> RMSE <em>out-of-sample</em> (k-fold) = '
                  f'<strong>{_crmse}</strong> &middot; skill vs persistenza = {_csp}, vs media-ruolo = {_csg} '
                  f'(&gt;0 = batte la baseline) &middot; placebo: r oss. {_cobs} vs nulla p95 {_cnull} '
                  f'(p_perm {_cpp}) &middot; affidabilit&agrave; pari/dispari &rho; = {_crel}.'
-                 f'<br><span style="color:var(--lt)">&#9888; {_cnote_it}</span>')
-        _c_en = (f'&#128300; <strong>Rigor:</strong> <em>out-of-sample</em> RMSE (k-fold) = '
+                 f'<br><span style="color:var(--lt)">{_cnote_it}</span>')
+        _c_en = (f'<strong>Rigor:</strong> <em>out-of-sample</em> RMSE (k-fold) = '
                  f'<strong>{_crmse}</strong> &middot; skill vs persistence = {_csp}, vs role-mean = {_csg} '
                  f'(&gt;0 = beats the baseline) &middot; placebo: observed r {_cobs} vs null p95 {_cnull} '
                  f'(p_perm {_cpp}) &middot; odd/even reliability &rho; = {_crel}.'
-                 f'<br><span style="color:var(--lt)">&#9888; {_cnote_en}</span>')
-        c_rigor = (f'<div class="interp" style="border-left-color:var(--teal);margin-top:8px" '
+                 f'<br><span style="color:var(--lt)">{_cnote_en}</span>')
+        c_rigor = (f'<div class="interp" style="margin-top:8px" '
                    f'{_bi(_c_it, _c_en)}>{_c_it}</div>')
     else:
         c_rigor = ""
@@ -2544,14 +2609,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     if vf.get("has_data"):
         f_rows = "".join(
             f'<tr><td style="color:var(--lp)">{r["squadra"]}</td>'
-            f'<td style="font-family:var(--mono);color:var(--teal)">{_sf(r["tpi"],3)}</td>'
+            f'<td style="font-family:var(--mono);color:var(--lp)">{_sf(r["tpi"],3)}</td>'
             f'<td style="font-family:var(--mono)">{_sf(r["criterio"],2)}</td></tr>'
             for r in vf.get("rows", [])
         )
         f_section = f"""
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--indig)">F</div>
+    <div class="section-num">F</div>
     <div>
       <div class="section-ttl" {_bi("Validit&agrave; ecologica &mdash; livello squadra","Ecological validity &mdash; team level")}>Validit&agrave; ecologica &mdash; livello squadra</div>
       <div class="section-sub" {_bi(f"Il TPI medio di squadra spiega l'xG totale prodotto? Esito reale e indipendente ({vf.get('n')} squadre).", f"Does mean team TPI explain total xG produced? A real, independent outcome ({vf.get('n')} teams).")}>Il TPI medio di squadra spiega l'xG totale prodotto? Esito reale e indipendente ({vf.get("n")} squadre).</div>
@@ -2559,16 +2624,16 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
   <div class="g3">
     <div class="stat-box sb-blue"><div class="stat-val" style="color:{rcol(vf.get("r"))}">{_sf(vf.get("r"),3)}</div><div class="stat-lbl">Spearman &rho;</div><div class="stat-sub" {_bi("TPI medio &harr; xG squadra","mean TPI &harr; team xG")}>TPI medio &harr; xG squadra</div></div>
-    <div class="stat-box sb-teal"><div class="stat-val" style="color:var(--teal);font-size:17px">{_ci_txt(vf.get("ci_lo"), vf.get("ci_hi"))}</div><div class="stat-lbl" {_bi("IC95% bootstrap","95% bootstrap CI")}>IC95% bootstrap</div><div class="stat-sub" {_bi("censo lega &rarr; CI ampia","league census &rarr; wide CI")}>censo lega &rarr; CI ampia</div></div>
-    <div class="stat-box sb-purp"><div class="stat-val" style="color:var(--purp)">{vf.get("n")}</div><div class="stat-lbl" {_bi("Squadre","Teams")}>Squadre</div><div class="stat-sub" {_bi("popolazione completa","full population")}>popolazione completa</div></div>
+    <div class="stat-box sb-teal"><div class="stat-val" style="font-size:17px">{_ci_txt(vf.get("ci_lo"), vf.get("ci_hi"))}</div><div class="stat-lbl" {_bi("IC95% bootstrap","95% bootstrap CI")}>IC95% bootstrap</div><div class="stat-sub" {_bi("censo lega &rarr; CI ampia","league census &rarr; wide CI")}>censo lega &rarr; CI ampia</div></div>
+    <div class="stat-box sb-purp"><div class="stat-val">{vf.get("n")}</div><div class="stat-lbl" {_bi("Squadre","Teams")}>Squadre</div><div class="stat-sub" {_bi("popolazione completa","full population")}>popolazione completa</div></div>
   </div>
   <div class="card"><div class="card-ttl" {_bi("Aggregato per squadra","Per-team aggregate")}>Aggregato per squadra</div>
     <div class="table-wrap"><table><tr><th {_bi("Squadra","Team")}>Squadra</th><th {_bi("TPI medio","Mean TPI")}>TPI medio</th><th {_bi("xG totale","Total xG")}>xG totale</th></tr><tbody>{f_rows}</tbody></table></div>
-    <div class="interp" {_bi("&#128161; Una &rho; alta conferma che l'indice cattura impatto offensivo che si traduce in produzione di squadra. n=20 &rarr; leggere con l'IC.","&#128161; A high &rho; confirms the index captures offensive impact that translates into team production. n=20 &rarr; read with the CI.")}>&#128161; Una &rho; alta conferma che l'indice cattura impatto offensivo che si traduce in produzione di squadra. n=20 &rarr; leggere con l'IC.</div>
+    <div class="interp" {_bi("Una &rho; alta conferma che l'indice cattura impatto offensivo che si traduce in produzione di squadra. n=20 &rarr; leggere con l'IC.","A high &rho; confirms the index captures offensive impact that translates into team production. n=20 &rarr; read with the CI.")}>Una &rho; alta conferma che l'indice cattura impatto offensivo che si traduce in produzione di squadra. n=20 &rarr; leggere con l'IC.</div>
   </div>
 </div>"""
     elif vf.get("msg"):
-        f_section = f'<div class="nota-warn" style="margin-top:16px">&#9888; {vf["msg"]}</div>'
+        f_section = f'<div class="nota-warn" style="margin-top:16px">{vf["msg"]}</div>'
     else:
         f_section = ""
 
@@ -2579,7 +2644,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         labs = vg.get("labels", [])
         g_bars = "".join(
             f'<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;color:var(--ls)"><span>PC{i+1}</span><span style="font-family:var(--mono)">{round(e*100,1)}%</span></div>'
-            f'<div style="height:6px;background:rgba(233,240,236,.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:{round(e*100,1)}%;background:linear-gradient(90deg,var(--teal),var(--blue))"></div></div></div>'
+            f'<div style="height:6px;background:rgba(233,240,236,.06);border-radius:3px;overflow:hidden"><div style="height:100%;width:{round(e*100,1)}%;background:var(--orng)"></div></div></div>'
             for i, e in enumerate(explained)
         )
         pc1 = vg.get("pc1") or 0
@@ -2596,7 +2661,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         g_section = f"""
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--teal)">G</div>
+    <div class="section-num">G</div>
     <div>
       <div class="section-ttl" {_bi("Struttura interna del composito","Internal structure of the composite")}>Struttura interna del composito</div>
       <div class="section-sub" {_bi(f"Le {len(labs)} dimensioni misurano cose diverse o sono ridondanti? PCA su {vg.get('n')} giocatori.", f"Do the {len(labs)} dimensions measure different things or are they redundant? PCA on {vg.get('n')} players.")}>Le {len(labs)} dimensioni misurano cose diverse o sono ridondanti? PCA su {vg.get("n")} giocatori.</div>
@@ -2604,14 +2669,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
   <div class="g2">
     <div class="card"><div class="card-ttl" {_bi("Varianza spiegata (PCA)","Explained variance (PCA)")}>Varianza spiegata (PCA)</div>{g_bars}
-      <div class="interp" {_bi(f"&#128202; PC1 = {_g_pc1}%. {g_verd_it}", f"&#128202; PC1 = {_g_pc1}%. {g_verd_en}")}>&#128202; PC1 = {_g_pc1}%. {g_verd_it}</div></div>
+      <div class="interp" {_bi(f"PC1 = {_g_pc1}%. {g_verd_it}", f"PC1 = {_g_pc1}%. {g_verd_en}")}>PC1 = {_g_pc1}%. {g_verd_it}</div></div>
     <div class="card"><div class="card-ttl" {_bi("Dimensioni incluse","Dimensions included")}>Dimensioni incluse</div>
       <div style="font-size:13px;color:var(--ls);line-height:2">{" &middot; ".join(labs)}</div>
-      <div class="interp" {_bi("&#128161; PC1 vicino al 100% = ridondanza fra dimensioni (pesi poco influenti); valori bassi giustificano la pesatura multi-dimensione.","&#128161; PC1 near 100% = redundancy across dimensions (weights barely matter); low values justify the multi-dimension weighting.")}>&#128161; PC1 vicino al 100% = ridondanza fra dimensioni (pesi poco influenti); valori bassi giustificano la pesatura multi-dimensione.</div></div>
+      <div class="interp" {_bi("PC1 vicino al 100% = ridondanza fra dimensioni (pesi poco influenti); valori bassi giustificano la pesatura multi-dimensione.","PC1 near 100% = redundancy across dimensions (weights barely matter); low values justify the multi-dimension weighting.")}>PC1 vicino al 100% = ridondanza fra dimensioni (pesi poco influenti); valori bassi giustificano la pesatura multi-dimensione.</div></div>
   </div>
 </div>"""
     elif vg.get("msg"):
-        g_section = f'<div class="nota-warn" style="margin-top:16px">&#9888; {vg["msg"]}</div>'
+        g_section = f'<div class="nota-warn" style="margin-top:16px">{vg["msg"]}</div>'
     else:
         g_section = ""
 
@@ -2624,7 +2689,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         h_section = f"""
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--orng)">H</div>
+    <div class="section-num">H</div>
     <div>
       <div class="section-ttl" {_bi("Robustezza ai pesi","Robustness to weights")}>Robustezza ai pesi</div>
       <div class="section-sub" {_bi(f"Il ranking regge se i pesi cambiano di &plusmn;{int(vh.get('pct',0.2)*100)}%? Monte Carlo su {vh.get('n')} giocatori.", f"Does the ranking hold if the weights change by &plusmn;{int(vh.get('pct',0.2)*100)}%? Monte Carlo on {vh.get('n')} players.")}>Il ranking regge se i pesi cambiano di &plusmn;{int(vh.get("pct",0.2)*100)}%? Monte Carlo su {vh.get("n")} giocatori.</div>
@@ -2632,14 +2697,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
   <div class="g4">
     <div class="stat-box sb-green"><div class="stat-val" style="color:{rcol(vh.get("spearman_median"))}">{_sf(vh.get("spearman_median"),3)}</div><div class="stat-lbl" {_bi("Spearman mediana","Median Spearman")}>Spearman mediana</div><div class="stat-sub" {_bi("perturbato vs base","perturbed vs base")}>perturbato vs base</div></div>
-    <div class="stat-box sb-orng"><div class="stat-val" style="color:var(--orng)">{_sf(vh.get("spearman_min"),3)}</div><div class="stat-lbl" {_bi("Caso peggiore","Worst case")}>Caso peggiore</div><div class="stat-sub" {_bi("&rho; minima","minimum &rho;")}>&rho; minima</div></div>
-    <div class="stat-box sb-blue"><div class="stat-val" style="color:var(--blue)">{int(h_ov.get("10",0)*100)}%</div><div class="stat-lbl" {_bi("Top 10 stabile","Top 10 stable")}>Top 10 stabile</div><div class="stat-sub">min {int(h_ovm.get("10",0)*100)}%</div></div>
-    <div class="stat-box sb-purp"><div class="stat-val" style="color:var(--purp)">{int(h_cov*100)}%</div><div class="stat-lbl" {_bi("Copertura pesi","Weight coverage")}>Copertura pesi</div><div class="stat-sub" {_bi("dim nel payload","dims in payload")}>dim nel payload</div></div>
+    <div class="stat-box sb-orng"><div class="stat-val">{_sf(vh.get("spearman_min"),3)}</div><div class="stat-lbl" {_bi("Caso peggiore","Worst case")}>Caso peggiore</div><div class="stat-sub" {_bi("&rho; minima","minimum &rho;")}>&rho; minima</div></div>
+    <div class="stat-box sb-blue"><div class="stat-val">{int(h_ov.get("10",0)*100)}%</div><div class="stat-lbl" {_bi("Top 10 stabile","Top 10 stable")}>Top 10 stabile</div><div class="stat-sub">min {int(h_ovm.get("10",0)*100)}%</div></div>
+    <div class="stat-box sb-purp"><div class="stat-val">{int(h_cov*100)}%</div><div class="stat-lbl" {_bi("Copertura pesi","Weight coverage")}>Copertura pesi</div><div class="stat-sub" {_bi("dim nel payload","dims in payload")}>dim nel payload</div></div>
   </div>
-  <div class="card"><div class="interp" {_bi(f"&#128161; &rho; mediana vicina a 1 e Top-10 stabile = il ranking non dipende dalla scelta fine dei pesi. Copertura {int(h_cov*100)}% (manca 'finishing' fra gli z-score esportati): test parziale ma indicativo.", f"&#128161; Median &rho; close to 1 and a stable Top-10 = the ranking does not depend on the fine choice of weights. Coverage {int(h_cov*100)}% ('finishing' missing from the exported z-scores): partial but indicative test.")}>&#128161; &rho; mediana vicina a 1 e Top-10 stabile = il ranking non dipende dalla scelta fine dei pesi. Copertura {int(h_cov*100)}% (manca 'finishing' fra gli z-score esportati): test parziale ma indicativo.</div></div>
+  <div class="card"><div class="interp" {_bi(f"&rho; mediana vicina a 1 e Top-10 stabile = il ranking non dipende dalla scelta fine dei pesi. Copertura {int(h_cov*100)}% (manca 'finishing' fra gli z-score esportati): test parziale ma indicativo.", f"Median &rho; close to 1 and a stable Top-10 = the ranking does not depend on the fine choice of weights. Coverage {int(h_cov*100)}% ('finishing' missing from the exported z-scores): partial but indicative test.")}>&rho; mediana vicina a 1 e Top-10 stabile = il ranking non dipende dalla scelta fine dei pesi. Copertura {int(h_cov*100)}% (manca 'finishing' fra gli z-score esportati): test parziale ma indicativo.</div></div>
 </div>"""
     elif vh.get("msg"):
-        h_section = f'<div class="nota-warn" style="margin-top:16px">&#9888; {vh["msg"]}</div>'
+        h_section = f'<div class="nota-warn" style="margin-top:16px">{vh["msg"]}</div>'
     else:
         h_section = ""
 
@@ -2657,21 +2722,21 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         i_section = f"""
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--purp)">I</div>
+    <div class="section-num">I</div>
     <div>
       <div class="section-ttl" {_bi("Validit&agrave; incrementale TPI Pro (non circolare)","TPI Pro incremental validity (non-circular)")}>Validit&agrave; incrementale TPI Pro (non circolare)</div>
       <div class="section-sub" {_bi(f"TPI Pro predice la forma recente meglio del TPI classico? Confronto appaiato su {vi.get('n')} giocatori.", f"Does TPI Pro predict recent form better than the classic TPI? Paired comparison on {vi.get('n')} players.")}>TPI Pro predice la forma recente meglio del TPI classico? Confronto appaiato su {vi.get("n")} giocatori.</div>
     </div>
   </div>
   <div class="g3">
-    <div class="stat-box sb-orng"><div class="stat-val" style="color:var(--orng)">{_sf(vi.get("rmse_base"),3)}</div><div class="stat-lbl">RMSE OOS &middot; TPI</div><div class="stat-sub" {_bi("errore base","base error")}>errore base</div></div>
-    <div class="stat-box sb-purp"><div class="stat-val" style="color:var(--purp)">{_sf(vi.get("rmse_pro"),3)}</div><div class="stat-lbl">RMSE OOS &middot; TPI Pro</div><div class="stat-sub" {_bi("errore esteso","extended error")}>errore esteso</div></div>
+    <div class="stat-box sb-orng"><div class="stat-val">{_sf(vi.get("rmse_base"),3)}</div><div class="stat-lbl">RMSE OOS &middot; TPI</div><div class="stat-sub" {_bi("errore base","base error")}>errore base</div></div>
+    <div class="stat-box sb-purp"><div class="stat-val">{_sf(vi.get("rmse_pro"),3)}</div><div class="stat-lbl">RMSE OOS &middot; TPI Pro</div><div class="stat-sub" {_bi("errore esteso","extended error")}>errore esteso</div></div>
     <div class="stat-box sb-green"><div class="stat-val" style="color:{i_col}">{_sf(vi.get("delta_rmse"),3)}</div><div class="stat-lbl">&Delta; (base&minus;pro)</div><div class="stat-sub">IC95% {_ci_txt(vi.get("ci_lo"), vi.get("ci_hi"))}</div></div>
   </div>
-  <div class="card"><div class="interp" style="border-left-color:{i_col}" {_bi(f"&#128161; {i_verd_it} Sostituisce r(TPI,TPI Pro), circolare per costruzione (TPI Pro contiene il TPI).", f"&#128161; {i_verd_en} It replaces r(TPI,TPI Pro), circular by construction (TPI Pro contains the TPI).")}>&#128161; {i_verd_it} Sostituisce r(TPI,TPI Pro), circolare per costruzione (TPI Pro contiene il TPI).</div></div>
+  <div class="card"><div class="interp" style="border-left-color:{i_col}" {_bi(f"{i_verd_it} Sostituisce r(TPI,TPI Pro), circolare per costruzione (TPI Pro contiene il TPI).", f"{i_verd_en} It replaces r(TPI,TPI Pro), circular by construction (TPI Pro contains the TPI).")}>{i_verd_it} Sostituisce r(TPI,TPI Pro), circolare per costruzione (TPI Pro contiene il TPI).</div></div>
 </div>"""
     elif vi.get("msg"):
-        i_section = f'<div class="nota-warn" style="margin-top:16px">&#9888; {vi["msg"]}</div>'
+        i_section = f'<div class="nota-warn" style="margin-top:16px">{vi["msg"]}</div>'
     else:
         i_section = ""
 
@@ -2702,7 +2767,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <div class="nav-brand">TPI Validation <small>Serie A 25/26</small></div>
   <div class="nav-btn-group">
     <a class="nav-home-btn" href="dashboard_serie_a.html" data-i18n-title="nav_back_ranking" title="Torna alla classifica">
-      &#127942; <span class="home-lbl" data-i18n="term_ranking">Classifica</span>
+      <span class="home-lbl" data-i18n="term_ranking">Classifica</span>
     </a>
     <a class="nav-glass-btn" href="javascript:history.back()" data-i18n-title="nav_back" title="Indietro" data-i18n-aria-label="nav_back">&#8592;</a>
     <a class="nav-glass-btn" href="javascript:history.forward()" data-i18n-title="nav_forward" title="Avanti" data-i18n-aria-label="nav_forward">&#8594;</a>
@@ -2710,24 +2775,21 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <div class="nav-right-group">
     <span data-i18n-switcher></span>
     <a class="nav-orng-btn" href="index.html" data-i18n-title="nav_back_homepage" title="Torna alla Homepage">
-      &#127968; <span class="hp-label" data-i18n="nav_home">Homepage</span>
+      <span class="hp-label" data-i18n="nav_home">Homepage</span>
     </a>
   </div>
 </nav>
 
 <div class="hero">
+  <div class="hero-eyebrow">Serie A Scout Index &middot; TPI System</div>
   <div class="hero-ttl" data-i18n="val_title">Model Validation</div>
-  <div style="font-size:11px;color:var(--purp);font-weight:600;letter-spacing:.3px;
-    text-transform:uppercase;margin-top:4px;margin-bottom:10px">
-    Serie A Scout Index · TPI System
-  </div>
   {hero_sub}
   <div class="hero-pills">
-    <span class="hero-pill">&#127941; Pearson r vs Fantacalcio</span>
-    <span class="hero-pill">&#128200; <span {_bi("Sovrapposizione Top 10 WhoScored","Top 10 Overlap WhoScored")}>Top 10 Overlap WhoScored</span></span>
-    <span class="hero-pill">&#128336; <span {_bi(f"Backtest predittivo r={_r2(r_c)}", f"Predictive Backtest r={_r2(r_c)}")}>Predictive Backtest r={_r2(r_c)}</span></span>
-    <span class="hero-pill">&#129516; <span {_bi("Indice Et&agrave; &amp; Fisico","Age &amp; Physical Index")}>Age &amp; Physical Index</span></span>
-    <span class="hero-pill">&#10024; TPI Pro</span>
+    <span class="hero-pill">Pearson r vs Fantacalcio</span>
+    <span class="hero-pill"><span {_bi("Sovrapposizione Top 10 WhoScored","Top 10 Overlap WhoScored")}>Top 10 Overlap WhoScored</span></span>
+    <span class="hero-pill"><span {_bi(f"Backtest predittivo r={_r2(r_c)}", f"Predictive Backtest r={_r2(r_c)}")}>Predictive Backtest r={_r2(r_c)}</span></span>
+    <span class="hero-pill"><span {_bi("Indice Et&agrave; &amp; Fisico","Age &amp; Physical Index")}>Age &amp; Physical Index</span></span>
+    <span class="hero-pill">TPI Pro</span>
   </div>
 </div>
 
@@ -2735,22 +2797,22 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 
 <div class="accordion">
   <div class="acc-hd" onclick="toggleAcc('acc1')">
-    <div class="acc-title">&#128214; <span {_bi("Come leggere i risultati","How to read the results")}>Come leggere i risultati</span></div>
+    <div class="acc-title"><span {_bi("Come leggere i risultati","How to read the results")}>Come leggere i risultati</span></div>
     <span class="acc-chev" id="chev-acc1">&#9660;</span>
   </div>
   <div class="acc-body" id="acc1">
     <div class="guide-grid">
-      <div class="guide-card"><div class="guide-icon">&#128202;</div><div class="guide-ttl" {_bi("r di Pearson","Pearson's r")}>r di Pearson</div>
+      <div class="guide-card"><div class="guide-ttl" {_bi("r di Pearson","Pearson's r")}>r di Pearson</div>
         <div class="guide-body" {_bi('<strong style="color:var(--green)">r&gt;0.6</strong> forte &middot; <strong style="color:var(--orng)">0.4–0.6</strong> moderata &middot; <strong style="color:var(--red)">&lt;0.4</strong> debole. Per sport r=0.5 con fonti esterne &egrave; ottimo.', '<strong style="color:var(--green)">r&gt;0.6</strong> strong &middot; <strong style="color:var(--orng)">0.4–0.6</strong> moderate &middot; <strong style="color:var(--red)">&lt;0.4</strong> weak. For sport, r=0.5 against external sources is excellent.')}><strong style="color:var(--green)">r&gt;0.6</strong> forte &middot; <strong style="color:var(--orng)">0.4–0.6</strong> moderata &middot; <strong style="color:var(--red)">&lt;0.4</strong> debole. Per sport r=0.5 con fonti esterne &egrave; ottimo.</div></div>
-      <div class="guide-card"><div class="guide-icon">&#128270;</div><div class="guide-ttl">p-value</div>
+      <div class="guide-card"><div class="guide-ttl">p-value</div>
         <div class="guide-body" {_bi('<strong style="color:var(--green)">p&lt;0.05</strong> = significativo. Senza p basso anche r alto potrebbe essere fortuna.', '<strong style="color:var(--green)">p&lt;0.05</strong> = significant. Without a low p, even a high r could be luck.')}><strong style="color:var(--green)">p&lt;0.05</strong> = significativo. Senza p basso anche r alto potrebbe essere fortuna.</div></div>
-      <div class="guide-card"><div class="guide-icon">&#127919;</div><div class="guide-ttl" {_bi("Overlap basso = forza","Low overlap = strength")}>Overlap basso = forza</div>
+      <div class="guide-card"><div class="guide-ttl" {_bi("Overlap basso = forza","Low overlap = strength")}>Overlap basso = forza</div>
         <div class="guide-body" {_bi("Overlap basso = il TPI trova giocatori non valorizzati dalla stampa. 100% = non aggiunge nulla.","Low overlap = the TPI finds players the press undervalues. 100% = it adds nothing.")}>Overlap basso = il TPI trova giocatori non valorizzati dalla stampa. 100% = non aggiunge nulla.</div></div>
-      <div class="guide-card"><div class="guide-icon">&#128336;</div><div class="guide-ttl">Backtest</div>
+      <div class="guide-card"><div class="guide-ttl">Backtest</div>
         <div class="guide-body" {_bi("Prima met&agrave; stagione predice la seconda? Un indice senza potere predittivo misura solo la fortuna del momento.","Does the first half of the season predict the second? An index with no predictive power only measures momentary luck.")}>Prima met&agrave; stagione predice la seconda? Un indice senza potere predittivo misura solo la fortuna del momento.</div></div>
-      <div class="guide-card"><div class="guide-icon">&#10024;</div><div class="guide-ttl">TPI Pro</div>
+      <div class="guide-card"><div class="guide-ttl">TPI Pro</div>
         <div class="guide-body" {_bi("Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. r(TPI,TPI Pro) ideale = 0.80–0.95.","Adds AII (age) and PRI (physical reliability) to the classic TPI. Ideal r(TPI,TPI Pro) = 0.80–0.95.")}>Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. r(TPI,TPI Pro) ideale = 0.80–0.95.</div></div>
-      <div class="guide-card"><div class="guide-icon">&#9888;</div><div class="guide-ttl" {_bi("Limiti","Limits")}>Limiti</div>
+      <div class="guide-card"><div class="guide-ttl" {_bi("Limiti","Limits")}>Limiti</div>
         <div class="guide-body" {_bi("Voti Fantacalcio e WhoScored sono inseriti manualmente. Backtest payload = Output Adj vs EWMA come proxy.","Fantacalcio and WhoScored ratings are entered manually. Payload backtest = Output Adj vs EWMA as a proxy.")}>Voti Fantacalcio e WhoScored sono inseriti manualmente. Backtest payload = Output Adj vs EWMA come proxy.</div></div>
     </div>
   </div>
@@ -2759,7 +2821,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 <!-- SEZIONE A -->
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--blue)">A</div>
+    <div class="section-num">A</div>
     <div>
       <div class="section-ttl"><span {_bi("TPI vs Voti Fantacalcio","TPI vs Fantacalcio Ratings")}>TPI vs Fantacalcio Ratings</span> <span class="help" onclick="openM('pearson')">?</span></div>
       <div class="section-sub" {_bi("Il TPI correla col consenso degli esperti? r=0.4–0.7 &egrave; l'ideale — abbastanza alto da confermare la qualit&agrave;, abbastanza basso da aggiungere informazione indipendente.","Does TPI correlate with expert consensus? r=0.4–0.7 is ideal — high enough to confirm quality, low enough to add independent insight.")}>Does TPI correlate with expert consensus? r=0.4–0.7 is ideal — high enough to confirm quality, low enough to add independent insight.</div>
@@ -2777,7 +2839,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
       <div class="stat-sub"><span {_bi("robusto agli outlier","robust to outliers")}>robusto agli outlier</span> &middot; {pval(val_a.get("p_spearman"))}</div>
     </div>
     <div class="stat-box sb-orng">
-      <div class="stat-val" style="color:var(--orng)">{_sf(val_a.get("cohen_d"),2)}</div>
+      <div class="stat-val">{_sf(val_a.get("cohen_d"),2)}</div>
       <div class="stat-lbl">Cohen&#x2019;s d</div>
       <div class="stat-sub" {_bi("effect size top vs bottom 25%","effect size top vs bottom 25%")}>effect size top vs bottom 25%</div>
     </div>
@@ -2791,7 +2853,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         <p style="margin-bottom:10px">r=0.4–0.7 &egrave; il risultato ideale: il TPI conferma e arricchisce.</p>
         <p>r&gt;0.9 = il TPI non aggiunge nulla. r&lt;0.3 = troppo distante dalla qualit&agrave; percepita.</p>
       </div>
-      <div class="interp">&#128161; <span {_bi(val_a.get("interpretazione","&mdash;"), val_a.get("interpretazione_en","&mdash;"))}>{val_a.get("interpretazione","&mdash;")}</span></div>
+      <div class="interp"><span {_bi(val_a.get("interpretazione","&mdash;"), val_a.get("interpretazione_en","&mdash;"))}>{val_a.get("interpretazione","&mdash;")}</span></div>
       {a_rigor}
     </div>
   </div>
@@ -2800,16 +2862,16 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 <!-- SEZIONE B -->
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--orng)">B</div>
+    <div class="section-num">B</div>
     <div>
       <div class="section-ttl"><span {_bi("Top 10 TPI vs Classifiche WhoScored","Top 10 TPI vs WhoScored Rankings")}>Top 10 TPI vs WhoScored Rankings</span> <span class="help" onclick="openM('overlap')">?</span></div>
       <div class="section-sub" {_bi("Overlap basso = informazione indipendente. Il TPI individua giocatori sottovalutati che le classifiche popolari mancano.","Low overlap = independent insight. TPI identifies undervalued players that popular rankings miss.")}>Low overlap = independent insight. TPI identifies undervalued players that popular rankings miss.</div>
     </div>
   </div>
   <div class="g3">
-    <div class="stat-box sb-orng"><div class="stat-val" style="color:var(--orng)">{ov}%</div><div class="stat-lbl" {_bi("Overlap Top 10","Top 10 Overlap")}>Overlap Top 10</div><div class="stat-sub" {_bi("in comune con WhoScored","in common with WhoScored")}>in comune con WhoScored</div></div>
-    <div class="stat-box sb-green"><div class="stat-val" style="color:var(--green)">{len(val_b.get("divergenze_pos",[]))}</div><div class="stat-lbl" {_bi("Sottovalutati","Undervalued")}>Sottovalutati</div><div class="stat-sub" {_bi("TPI alto, WhoScored basso","high TPI, low WhoScored")}>TPI alto, WhoScored basso</div></div>
-    <div class="stat-box" style="border-color:rgba(255,69,58,.2)"><div class="stat-val" style="color:var(--red)">{len(val_b.get("divergenze_neg",[]))}</div><div class="stat-lbl" {_bi("Sopravvalutati","Overvalued")}>Sopravvalutati</div><div class="stat-sub" {_bi("TPI basso, WhoScored alto","low TPI, high WhoScored")}>TPI basso, WhoScored alto</div></div>
+    <div class="stat-box sb-orng"><div class="stat-val">{ov}%</div><div class="stat-lbl" {_bi("Overlap Top 10","Top 10 Overlap")}>Overlap Top 10</div><div class="stat-sub" {_bi("in comune con WhoScored","in common with WhoScored")}>in comune con WhoScored</div></div>
+    <div class="stat-box sb-green"><div class="stat-val">{len(val_b.get("divergenze_pos",[]))}</div><div class="stat-lbl" {_bi("Sottovalutati","Undervalued")}>Sottovalutati</div><div class="stat-sub" {_bi("TPI alto, WhoScored basso","high TPI, low WhoScored")}>TPI alto, WhoScored basso</div></div>
+    <div class="stat-box"><div class="stat-val">{len(val_b.get("divergenze_neg",[]))}</div><div class="stat-lbl" {_bi("Sopravvalutati","Overvalued")}>Sopravvalutati</div><div class="stat-sub" {_bi("TPI basso, WhoScored alto","low TPI, high WhoScored")}>TPI basso, WhoScored alto</div></div>
   </div>
   <div class="g2">
     <div class="card"><div class="card-ttl" {_bi("Top 10 per TPI","Top 10 by TPI")}>Top 10 per TPI</div>
@@ -2819,7 +2881,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
   <div class="card"><div class="card-ttl"><span {_bi("Divergenze notevoli","Notable divergences")}>Divergenze notevoli</span> <span class="help" onclick="openM('divergenze')">?</span></div>
     <div id="div-content"></div>
-    <div class="interp" {_bi("&#128270; Divergenze = insight, non errori. Identificano giocatori con impatto reale non riconosciuto.","&#128270; Divergences = insight, not errors. They identify players with real impact that goes unrecognized.")}>&#128270; Divergenze = insight, non errori. Identificano giocatori con impatto reale non riconosciuto.</div>
+    <div class="interp" {_bi("Divergenze = insight, non errori. Identificano giocatori con impatto reale non riconosciuto.","Divergences = insight, not errors. They identify players with real impact that goes unrecognized.")}>Divergenze = insight, non errori. Identificano giocatori con impatto reale non riconosciuto.</div>
     {b_rigor}
   </div>
 </div>
@@ -2827,7 +2889,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 <!-- SEZIONE C -->
 <div class="section">
   <div class="section-hd">
-    <div class="section-num" style="background:var(--green)">C</div>
+    <div class="section-num">C</div>
     <div>
       <div class="section-ttl"><span {_bi(f"Backtest Predittivo — r = {_r2(r_c)}", f"Predictive Backtest — r = {_r2(r_c)}")}>Predictive Backtest — r = {_r2(r_c)}</span> <span class="help" onclick="openM('backtest')">?</span></div>
       <div class="section-sub" {_bi(f"Il TPI di inizio stagione predice il rendimento di fine stagione? {val_c.get('early_range','First half')} &rarr; {val_c.get('late_range','Second half')}", f"Can early-season TPI predict late-season performance? {val_c.get('early_range','First half')} &rarr; {val_c.get('late_range','Second half')}")}>Can early-season TPI predict late-season performance? {val_c.get("early_range","First half")} &rarr; {val_c.get("late_range","Second half")}</div>
@@ -2841,12 +2903,12 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
       <div class="stat-sub">95% CI [{_sf(val_c.get("ci_lo"),3)}, {_sf(val_c.get("ci_hi"),3)}]</div>
     </div>
     <div class="stat-box sb-blue">
-      <div class="stat-val" style="color:var(--teal)">{_sf(val_c.get("tau"),3)}</div>
+      <div class="stat-val">{_sf(val_c.get("tau"),3)}</div>
       <div class="stat-lbl">Kendall &#964;</div>
       <div class="stat-sub"><span {_bi("stabilit&agrave; ranking","ranking stability")}>ranking stability</span> &middot; {pval(val_c.get("p_tau"))}</div>
     </div>
-    <div class="stat-box" style="border-color:rgba(48,209,88,.2)">
-      <div class="stat-val" style="color:var(--green);font-size:16px">{_sf(val_c.get("rmse"),4)}</div>
+    <div class="stat-box">
+      <div class="stat-val" style="font-size:16px">{_sf(val_c.get("rmse"),4)}</div>
       <div class="stat-lbl">RMSE</div>
       <div class="stat-sub">MAE = {_sf(val_c.get("mae"),4)}</div>
     </div>
@@ -2860,7 +2922,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         <p style="margin-bottom:10px"><strong style="color:var(--green)">r&gt;0.5</strong> = qualit&agrave; stabile &middot; <strong style="color:var(--orng)">r=0.3–0.5</strong> = segnale parziale &middot; <strong style="color:var(--red)">r&lt;0.3</strong> = troppo volatile.</p>
         <p><strong style="color:var(--lp)">Spearman</strong> &egrave; robusto agli outlier &mdash; ideale per dati sportivi.</p>
       </div>
-      <div class="interp">&#128161; <span {_bi(val_c.get("interpretazione","&mdash;"), val_c.get("interpretazione_en","&mdash;"))}>{val_c.get("interpretazione","&mdash;")}</span></div>
+      <div class="interp"><span {_bi(val_c.get("interpretazione","&mdash;"), val_c.get("interpretazione_en","&mdash;"))}>{val_c.get("interpretazione","&mdash;")}</span></div>
       {c_rigor}
     </div>
   </div>
@@ -2899,13 +2961,15 @@ const R_A={_js_num(r_a)};const R_C={_js_num(r_c)};const OV={ov};
 
 const PL={{responsive:true,displayModeBar:false}};
 const BL={{paper_bgcolor:"transparent",plot_bgcolor:"transparent",
-  font:{{color:"rgba(235,235,245,.28)",family:"-apple-system,sans-serif"}},
-  xaxis:{{gridcolor:"rgba(233,240,236,.05)",color:"rgba(235,235,245,.28)",
-    tickfont:{{size:10}},zeroline:false}},
-  yaxis:{{gridcolor:"rgba(233,240,236,.05)",color:"rgba(235,235,245,.28)",
-    tickfont:{{size:10}},zeroline:false}}}};
-const RC_MAP={{"ATT":"#ff9f0a","CEN":"#30d158","DIF":"#0a84ff","":"#48484a"}};
-const rcf=r=>RC_MAP[r]||"#636366";
+  font:{{color:"rgba(233,240,236,.38)",family:"JetBrains Mono,ui-monospace,monospace",size:10}},
+  xaxis:{{gridcolor:"rgba(233,240,236,.07)",color:"rgba(233,240,236,.38)",
+    tickfont:{{size:9.5}},zeroline:false}},
+  yaxis:{{gridcolor:"rgba(233,240,236,.07)",color:"rgba(233,240,236,.38)",
+    tickfont:{{size:9.5}},zeroline:false}}}};
+/* Stessa triade desaturata di RUOLO_COLORS in parte2_dashboard.py: se cambia
+   li', va cambiata anche qui, altrimenti il ruolo ha due colori nel sito. */
+const RC_MAP={{"POR":"#7A8A84","DIF":"#5A93C4","CEN":"#5FAE7E","ATT":"#D98E6A","":"#46554F"}};
+const rcf=r=>RC_MAP[r]||"#46554F";
 function T(k,fb){{ return (window.SerieAi18n ? window.SerieAi18n.t(k) : (fb!=null?fb:k)); }}
 
 const SPIEG={{
@@ -2988,13 +3052,13 @@ function toggleAcc(id){{
         line:{{color:"rgba(233,240,236,.15)",width:1}}}}}},
     {{type:"scatter",mode:"lines",x:[xmn,xmx],
       y:[SL_A===null?0:SL_A*xmn+(IC_A||0),SL_A===null?0:SL_A*xmx+(IC_A||0)],
-      line:{{color:"rgba(10,132,255,.5)",width:2,dash:"dot"}},hoverinfo:"skip"}},
+      line:{{color:"rgba(255,176,32,.55)",width:2,dash:"dot"}},hoverinfo:"skip"}},
   ],{{...BL,xaxis:{{...BL.xaxis,title:T("val_ax_tpi_tot","TPI Totale")}},
     yaxis:{{...BL.yaxis,title:T("val_ax_fanta","Voto Fantacalcio")}},
     margin:{{t:8,b:46,l:50,r:8}},height:300,showlegend:false,
     annotations:[{{x:.02,y:.97,xref:"paper",yref:"paper",
       text:"r = "+(R_A!==null?R_A.toFixed(3):"—"),showarrow:false,
-      font:{{color:"rgba(235,235,245,.6)",size:13}},align:"left"}}]}},PL);
+      font:{{color:"rgba(233,240,236,.66)",size:13}},align:"left"}}]}},PL);
 }})();
 
 /* ── Table B ── */
@@ -3023,13 +3087,13 @@ function toggleAcc(id){{
   if(!DIV_POS.length&&!DIV_NEG.length){{
     dc.innerHTML='<p style="color:var(--lt);font-size:13px;padding:8px 0">Nessuna divergenza ≥4 posizioni rilevata.</p>';return;}}
   var h='<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px">';
-  if(DIV_POS.length){{h+='<div><div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">&#128200; Sottovalutati</div>';
-    DIV_POS.forEach(d=>{{h+=`<div style="padding:10px;background:rgba(48,209,88,.05);border:1px solid rgba(48,209,88,.15);border-radius:10px;margin-bottom:6px">
+  if(DIV_POS.length){{h+='<div><div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">Sottovalutati</div>';
+    DIV_POS.forEach(d=>{{h+=`<div style="padding:9px 0 9px 12px;background:none;border:0;border-left:1px solid var(--green);border-radius:0;margin-bottom:4px">
       <div style="font-weight:600;font-size:13px">${{d.nome}} <span style="color:var(--lt);font-weight:400;font-size:11px">${{d.squadra}}</span></div>
       <div style="font-size:12px;color:var(--lt);margin-top:3px">TPI: <span style="color:var(--green);font-family:var(--mono)">#${{d.tpi_rank}}</span> vs WS: <span style="font-family:var(--mono)">#${{d.ws_rank}}</span></div>
     </div>`;}});h+='</div>';}}
-  if(DIV_NEG.length){{h+='<div><div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px">&#9888; Sopravvalutati</div>';
-    DIV_NEG.forEach(d=>{{h+=`<div style="padding:10px;background:rgba(255,69,58,.05);border:1px solid rgba(255,69,58,.15);border-radius:10px;margin-bottom:6px">
+  if(DIV_NEG.length){{h+='<div><div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px">Sopravvalutati</div>';
+    DIV_NEG.forEach(d=>{{h+=`<div style="padding:9px 0 9px 12px;background:none;border:0;border-left:1px solid var(--red);border-radius:0;margin-bottom:4px">
       <div style="font-weight:600;font-size:13px">${{d.nome}} <span style="color:var(--lt);font-weight:400;font-size:11px">${{d.squadra}}</span></div>
       <div style="font-size:12px;color:var(--lt);margin-top:3px">TPI: <span style="color:var(--red);font-family:var(--mono)">#${{d.tpi_rank}}</span> vs WS: <span style="font-family:var(--mono)">#${{d.ws_rank}}</span></div>
     </div>`;}});h+='</div>';}}
@@ -3053,7 +3117,7 @@ function toggleAcc(id){{
         line:{{color:"rgba(233,240,236,.12)",width:1}}}}}},
     {{type:"scatter",mode:"lines",x:[xmn,xmx],
       y:[SL_C===null?0:SL_C*xmn+(IC_C||0),SL_C===null?0:SL_C*xmx+(IC_C||0)],
-      line:{{color:"rgba(48,209,88,.5)",width:2,dash:"dot"}},hoverinfo:"skip"}},
+      line:{{color:"rgba(255,176,32,.55)",width:2,dash:"dot"}},hoverinfo:"skip"}},
     {{type:"scatter",mode:"lines",
       x:[Math.min(xmn,Math.min(...yv)),Math.max(xmx,Math.max(...yv))],
       y:[Math.min(xmn,Math.min(...yv)),Math.max(xmx,Math.max(...yv))],
@@ -3063,7 +3127,7 @@ function toggleAcc(id){{
     margin:{{t:8,b:46,l:54,r:8}},height:300,showlegend:false,
     annotations:[{{x:.02,y:.97,xref:"paper",yref:"paper",
       text:"Spearman r = "+(R_C!==null?R_C.toFixed(3):"—"),showarrow:false,
-      font:{{color:"rgba(235,235,245,.6)",size:13}},align:"left"}}]}},PL);
+      font:{{color:"rgba(233,240,236,.66)",size:13}},align:"left"}}]}},PL);
 }})();
 
 /* ── Chart D — AII vs PRI ── */
@@ -3234,6 +3298,20 @@ def main():
             log.info(f"OK → {OUTPUT_DIR / _asset}  (accanto all'HTML)")
         except OSError as e:
             log.warning(f"Copia {_asset} fallita: {e}")
+
+    # Stesso discorso per i font: le @font-face nel CSS puntano a fonts/*.woff2
+    # relativi all'HTML, quindi senza questa copia la pagina aperta da
+    # dashboard_output ricade sui font di sistema (come fa gia' parte2).
+    _fonts_src = DEMO_DIR / "fonts"
+    if _fonts_src.is_dir():
+        try:
+            _fonts_dst = OUTPUT_DIR / "fonts"
+            _fonts_dst.mkdir(exist_ok=True)
+            for _f in _fonts_src.glob("*.woff2"):
+                (_fonts_dst / _f.name).write_bytes(_f.read_bytes())
+            log.info(f"OK → {_fonts_dst}  (font accanto all'HTML)")
+        except OSError as e:
+            log.warning(f"Copia fonts fallita: {e}")
 
     log.info("")
     log.info(f"  A — r={_sf(val_a.get('r'),3)}  n={val_a.get('n',0)}")
