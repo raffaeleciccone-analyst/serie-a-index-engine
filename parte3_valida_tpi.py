@@ -1802,9 +1802,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
   background:var(--bg);border-bottom:1px solid var(--sep);box-shadow:none;
   display:flex;align-items:center;gap:10px;
   padding-inline:max(20px,calc((100% - var(--maxw)) / 2))}
+/* Al centro, non alla base: con `baseline` l'etichetta mono da 9px veniva
+   allineata alla base dell'Oswald da 19px e il suo centro cadeva 5,6px sotto
+   quello dei link della nav. Su una fila di voci orizzontali conta
+   l'allineamento con la fila, non con la base della parola accanto. */
 .nav-brand{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.4px;
   text-transform:uppercase;white-space:nowrap;flex-shrink:0;
-  display:flex;align-items:baseline;gap:10px}
+  display:flex;align-items:center;gap:10px}
 .nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.16em;
   text-transform:uppercase;color:var(--lt);margin-left:0;
   padding-left:10px;border-left:1px solid var(--sep)}
@@ -1844,6 +1848,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 
 /* Lo switcher lingua arriva da i18n.js con la cornice della vecchia palette:
    la togliamo, restano due sigle con l'attiva in ambra. */
+/* i18n.js monta lo switcher dentro uno <span> di blocco. L'inline-flex si
+   appoggiava alla baseline del testo di quello span, lasciando sotto lo
+   spazio del discendente: IT/EN scendevano di 2px rispetto alla fila.
+   Rendendo flex il contenitore il posizionamento a baseline sparisce. */
+.nav [data-i18n-switcher]{display:flex;align-items:center}
 .nav .i18n-switch{border:0;border-radius:0;background:none;height:auto;gap:2px}
 .nav .i18n-switch button{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
   padding:3px 5px;border-radius:3px;color:var(--lt)}
