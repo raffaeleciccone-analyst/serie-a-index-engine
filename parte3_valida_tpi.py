@@ -2317,8 +2317,8 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <div class="section-hd">
     <div class="section-num">E</div>
     <div>
-      <div class="section-ttl"><span {_bi("Validazione TPI Pro — Modello a 6 Dimensioni","TPI Pro Validation — 6-Dimension Model")}>TPI Pro Validation — 6-Dimension Model</span> <span class="help" onclick="openM('tpi_pro')">?</span></div>
-      <div class="section-sub" {_bi("Confronto ranking TPI classico vs TPI Pro (6 dimensioni). Chi guadagna/perde posizioni?","Ranking comparison: classic TPI vs TPI Pro (6 dimensions). Who gains/loses positions?")}>Confronto ranking TPI classico vs TPI Pro (6 dimensioni). Chi guadagna/perde posizioni?</div>
+      <div class="section-ttl"><span {_bi("Validazione TPI Pro — 7 dimensioni + 5 modulatori","TPI Pro Validation — 7 dimensions + 5 modulators")}>TPI Pro Validation — 7 dimensions + 5 modulators</span> <span class="help" onclick="openM('tpi_pro')">?</span></div>
+      <div class="section-sub" {_bi("Confronto ranking TPI classico vs TPI Pro (TPI + 5 modulatori). Chi guadagna/perde posizioni?","Ranking comparison: classic TPI vs TPI Pro (TPI + 5 modulators). Who gains/loses positions?")}>Confronto ranking TPI classico vs TPI Pro (TPI + 5 modulatori). Chi guadagna/perde posizioni?</div>
     </div>
   </div>
   <div class="g4">
@@ -2372,8 +2372,8 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
       y:[Math.min(xmin,Math.min(...yv)),Math.max(xmax,Math.max(...yv))],
       line:{{color:"rgba(233,240,236,.07)",width:1,dash:"dot"}},hoverinfo:"skip"}},
   ],{{...BL,
-    xaxis:{{...BL.xaxis,title:T("val_ax_tpi_classic","TPI Classico (4 dim)")}},
-    yaxis:{{...BL.yaxis,title:T("val_ax_tpi_pro","TPI Pro (6 dim)")}},
+    xaxis:{{...BL.xaxis,title:T("val_ax_tpi_classic","TPI Classico (7 dim)")}},
+    yaxis:{{...BL.yaxis,title:T("val_ax_tpi_pro","TPI Pro (7 dim + 5 mod)")}},
     margin:{{t:8,b:46,l:54,r:8}},height:300,showlegend:false,
     annotations:[{{x:.02,y:.97,xref:"paper",yref:"paper",
       text:"r = {_sf(r_pro,3)}",showarrow:false,
@@ -2517,7 +2517,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     ex:"AII 0.85, PRI 0.90: veterano affidabile in picco. AII 0.42, PRI 0.88: giovane sano — scouting top.",ex_en:"AII 0.85, PRI 0.90: reliable veteran at peak. AII 0.42, PRI 0.88: healthy youngster — top scouting."},"""
     if has_pro:
         spieg_extra += """
-  tpi_pro: {icon:"✨",ttl:"TPI Pro — 6 Dimensioni",ttl_en:"TPI Pro — 6 Dimensions",sub:"TPI = 4 dim. TPI Pro = 4 + AII + PRI",sub_en:"TPI = 4 dims. TPI Pro = 4 + AII + PRI",
+  tpi_pro: {icon:"✨",ttl:"TPI Pro — 7 dimensioni + 5 modulatori",ttl_en:"TPI Pro — 7 dimensions + 5 modulators",sub:"TPI = 7 dim. TPI Pro = TPI + AII, PRI, stabilità ctx, trend forma, EMI",sub_en:"TPI = 7 dims. TPI Pro = TPI + AII, PRI, ctx stability, form trend, EMI",
     body:"Il TPI Pro aggiunge z(AII) e z(PRI) alla media dei 4 z-score classici.\\n\\nChi sale: giovani in picco con buona affidabilità fisica.\\nChi scende: veterani fragili che il TPI classico sopravvaluta.\\n\\nr(TPI,TPI Pro) ideale = 0.80–0.95.",
     body_en:"TPI Pro adds z(AII) and z(PRI) to the mean of the 4 classic z-scores.\\n\\nRisers: young players at peak with good physical reliability.\\nFallers: fragile veterans that the classic TPI overrates.\\n\\nIdeal r(TPI,TPI Pro) = 0.80–0.95.",
     ex:"r=0.88: TPI Pro è coerente ma aggiunge informazione reale. 15 giocatori salgono >2 posizioni grazie ad AII alto.",ex_en:"r=0.88: TPI Pro is consistent but adds real information. 15 players rise >2 positions thanks to high AII."},
@@ -3034,7 +3034,7 @@ document.addEventListener("i18n:changed",function(){{
   _rl("chart-a",T("val_ax_tpi_tot","TPI Totale"),T("val_ax_fanta","Voto Fantacalcio"));
   _rl("chart-c",T("val_ax_early","Output/90 — Prima fase"),T("val_ax_late","Output/90 — Seconda fase"));
   _rl("chart-d",T("val_ax_aii","AII — Età Index"),T("val_ax_pri","PRI — Affidabilità Fisica"));
-  _rl("chart-e",T("val_ax_tpi_classic","TPI Classico (4 dim)"),T("val_ax_tpi_pro","TPI Pro (6 dim)"));
+  _rl("chart-e",T("val_ax_tpi_classic","TPI Classico (7 dim)"),T("val_ax_tpi_pro","TPI Pro (7 dim + 5 mod)"));
 }});
 function closeM(){{document.getElementById("modal").classList.remove("open");}}
 

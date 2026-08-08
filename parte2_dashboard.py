@@ -365,8 +365,8 @@ window.onerror=function(m,s,l){
   <div class="hero-left">
    <h1 class="hero-ttl"><span data-it="__N_GIO__ giocatori." data-en="__N_GIO__ players.">__N_GIO__ giocatori.</span><br>
      <span data-it="__N_PUB__ stanno" data-en="__N_PUB__ are">__N_PUB__ stanno</span> <em data-it="qui" data-en="here">qui</em>.</h1>
-   <p class="hero-dek" data-it="Il TPI &egrave; uno z-score: <b>0.00 &egrave; il giocatore medio</b> della Serie A. Sei dimensioni indipendenti, corrette per la forza degli avversari e stabilizzate con shrinkage bayesiano." data-en="TPI is a z-score: <b>0.00 is the average player</b> in Serie A. Six independent dimensions, corrected for opponent strength and stabilised with Bayesian shrinkage.">Il TPI &egrave; uno z-score: <b>0.00 &egrave; il giocatore medio</b>
-     della Serie A. Sei dimensioni indipendenti, corrette per la forza degli avversari
+   <p class="hero-dek" data-it="Il TPI &egrave; uno z-score: <b>0.00 &egrave; il giocatore medio</b> della Serie A. Sette dimensioni indipendenti, corrette per la forza degli avversari e stabilizzate con shrinkage bayesiano." data-en="TPI is a z-score: <b>0.00 is the average player</b> in Serie A. Seven independent dimensions, corrected for opponent strength and stabilised with Bayesian shrinkage.">Il TPI &egrave; uno z-score: <b>0.00 &egrave; il giocatore medio</b>
+     della Serie A. Sette dimensioni indipendenti, corrette per la forza degli avversari
      e stabilizzate con shrinkage bayesiano.
      <span class="help" onclick="openM('TPI')">?</span></p>
    <div class="hero-facts">
@@ -398,15 +398,16 @@ window.onerror=function(m,s,l){
         rettangolo vuoto a destra. -->
    <div class="tpp-row">
     <div class="tpp-badge" data-i18n="dash_pro_badge">Novit&agrave; &mdash; TPI Pro</div>
-    <div class="tpp-ttl" data-i18n="dash_pro_ttl">TPI Pro: 6 Dimensioni di Analisi</div>
+    <div class="tpp-ttl" data-i18n="dash_pro_ttl">TPI Pro: TPI base + 5 modulatori scout</div>
     <button class="tpp-collapse-btn" id="tpp-toggle" onclick="toggleTppSection()"
      >&#9660; <span data-i18n="dash_show_pro">Mostra TPI Pro</span></button>
    </div>
    <div class="tpp-sub tpp-sub-collapsible" data-i18n-html="dash_pro_body">
-    Il <strong>TPI classico</strong> usa 4 dimensioni offensiva (output, centralità, boost, consistenza).
-    Il <strong>TPI Pro</strong> aggiunge <span style="color:var(--teal)">Età Index (AII)</span>
-    e <span style="color:var(--purp)">Affidabilità Fisica (PRI)</span> —
-    due indici indipendenti che cambiano la valutazione per scouting a lungo termine.
+    Il <strong>TPI classico</strong> usa 7 dimensioni offensive (output, buildup, centralità,
+    boost, consistenza, finishing, forma recente). Il <strong>TPI Pro</strong> aggiunge
+    5 modulatori scout: <span style="color:var(--teal)">Età Index (AII)</span>,
+    <span style="color:var(--purp)">Affidabilità Fisica (PRI)</span>, stabilità
+    cross-contesto, trend forma ed EMI.
    </div>
   </div>
   <!-- Nascosto di default: formula, dims, cards -->
@@ -596,7 +597,7 @@ window.onerror=function(m,s,l){
   <div style="max-width:860px;margin:0 auto">
    <h2 style="font-size:22px;font-weight:700;letter-spacing:-.5px;margin-bottom:6px" data-i18n="dash_meth_title">Metodologia e Calcoli</h2>
    <p style="font-size:14px;color:var(--ls);line-height:1.6;max-width:640px;margin-bottom:20px" data-i18n="dash_meth_intro">
-    Il TPI misura l&rsquo;impatto offensivo reale attraverso 4 dimensioni ortogonali.
+    Il TPI misura l&rsquo;impatto offensivo reale attraverso 7 dimensioni ortogonali.
     Bayesian shrinkage stabilizza le stime. SOS-weighting normalizza la difficoltà.</p>
    <div id="meth-content"></div>
   </div>
