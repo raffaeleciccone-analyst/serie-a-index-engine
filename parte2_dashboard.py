@@ -280,7 +280,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.plot.ly 'unsafe-inline'; style-src 'self' https://cdn.jsdelivr.net https://fonts.googleapis.com 'unsafe-inline'; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.workers.dev; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.plot.ly 'unsafe-inline'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://*.workers.dev; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'">
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -294,9 +294,6 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"
     integrity="sha384-Hl48Kq2HifOWdXEjMsKo6qxqvRLTYqIGbvlENBmkHAxZKIGCXv43H6W1jA671RzC"
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="i18n.js"></script>
 <script src="ai_chat.js" defer></script>
 <style>
@@ -343,7 +340,7 @@ window.onerror=function(m,s,l){
  </div>
  <div class="nav-right-group" style="display:flex;align-items:center;gap:8px">
   <span data-i18n-switcher></span>
-  <a class="nav-orng-btn" href="homepage.html" data-i18n-title="nav_back_homepage" title="Torna alla Homepage">
+  <a class="nav-orng-btn" href="index.html" data-i18n-title="nav_back_homepage" title="Torna alla Homepage">
    <span class="hp-label" data-i18n="nav_home">Homepage</span>
   </a>
   <a class="nav-purp-btn" href="validazione.html" data-i18n-title="nav_validation" title="Validazione TPI">
@@ -2007,11 +2004,6 @@ window.addEventListener("orientationchange", () => {
 }
 @media(max-width:768px){
  #wm{display:none}
- .home-hdr svg{width:44px;height:44px}
-}
-@media(max-width:480px){
- #wm{display:none}
- .home-hdr svg{display:none}
 }
 </style>
 
@@ -2125,6 +2117,20 @@ def main() -> None:
         log.info(f"✓ {_asset} → {OUTPUT_DIR / _asset}")
       except OSError as e:
         log.warning(f"Copia {_asset} fallita: {e}")
+
+    # Stesso discorso per i font: le @font-face nel CSS puntano a fonts/*.woff2
+    # con path relativo. Senza questa copia la dashboard aperta da
+    # dashboard_output ricade sui fallback di sistema.
+    _fonts_src = DEMO_DIR / "fonts"
+    if _fonts_src.is_dir():
+      try:
+        _fonts_dst = OUTPUT_DIR / "fonts"
+        _fonts_dst.mkdir(exist_ok=True)
+        for _f in _fonts_src.glob("*.woff2"):
+          (_fonts_dst / _f.name).write_bytes(_f.read_bytes())
+        log.info(f"✓ fonts/ → {_fonts_dst}")
+      except OSError as e:
+        log.warning(f"Copia fonts fallita: {e}")
 
   # Payload JSON copiati nel repo demo: necessari per dashboard_pro.html
   # che li carica via fetch (a differenza della dashboard pubblica che li

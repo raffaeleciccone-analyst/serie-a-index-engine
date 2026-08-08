@@ -1,3 +1,18 @@
+/* Font serviti dal repo, non da Google. Sono i due file variabili del subset
+   latino: un peso qualsiasi tra 200 e 700 esce dallo stesso file, quindi
+   bastano 52 KB in tutto. Entrambi sono SIL Open Font License (vedi
+   fonts/OFL.txt), che consente esplicitamente l'auto-hosting. */
+@font-face{
+  font-family:"Oswald";font-style:normal;font-weight:200 700;font-display:swap;
+  src:url("fonts/oswald-latin-var.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face{
+  font-family:"JetBrains Mono";font-style:normal;font-weight:100 800;font-display:swap;
+  src:url("fonts/jetbrainsmono-latin-var.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 /* ═══════════════════════════════════════
    DESIGN SYSTEM — notte di campo, un solo segnale
 ═══════════════════════════════════════ */
@@ -758,7 +773,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 
   /* Home header: nascondi logo SVG su mobile, lascia solo testo */
   .home-hdr{padding:14px 12px 12px}
-  .home-hdr svg{display:none}
+  /* La curva resta anche su telefono: e' il contenuto dell'eroe, non un
+     ornamento. Si accorcia e basta. */
+  #hero-curve{height:132px}
+  .hero-cap{font-size:8.5px;letter-spacing:.06em}
+  .hero-axis{font-size:7.5px}
   .home-hdr > div{flex-direction:column;gap:6px}
   .home-hdr > div > div:last-child{text-align:left;margin-top:0}
 
@@ -787,6 +806,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   .lb-prof{display:none}
   /* Qui cadono sia .lb-pct sia .lb-bar-wrap: l'auto passa al valore. */
   .lb-val{font-size:14px;width:48px;margin-left:auto}
+  /* Il percentile tiene il numero e perde la barra: 104px fissi facevano
+     sforare la riga oltre la larghezza dello schermo. */
+  .lb-pct{width:auto;margin-left:0;gap:0}
+  .lb-pct .pf-pbar{display:none}
+  /* I due pulsanti scendono su una riga loro invece di comprimere il
+     nome a una manciata di pixel. */
+  .lb-row{flex-wrap:wrap}
+  .lb-info{min-width:0}
+  .lb-actions{flex-basis:100%;justify-content:flex-end;margin-top:5px}
   .lb-actions{gap:4px}
   .lb-btn{height:26px;padding:0 7px;font-size:10px}
   /* "Confronto" → "+" su phone */
@@ -795,7 +823,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 
   /* Hero player */
   .hero{padding:10px 12px;gap:8px}
-  .hero-av{width:34px;height:34px;font-size:14px}
+  .hero-av{width:3px;height:32px;font-size:0}
   .hero-nm{font-size:15px;gap:5px}
   .hero-sub{font-size:11px}
   .hero-tags{gap:4px}

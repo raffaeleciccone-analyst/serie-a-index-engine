@@ -2709,7 +2709,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
   <div class="nav-right-group">
     <span data-i18n-switcher></span>
-    <a class="nav-orng-btn" href="homepage.html" data-i18n-title="nav_back_homepage" title="Torna alla Homepage">
+    <a class="nav-orng-btn" href="index.html" data-i18n-title="nav_back_homepage" title="Torna alla Homepage">
       &#127968; <span class="hp-label" data-i18n="nav_home">Homepage</span>
     </a>
   </div>
