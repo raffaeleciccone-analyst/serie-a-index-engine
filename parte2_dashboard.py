@@ -346,7 +346,7 @@ window.onerror=function(m,s,l){
   <a class="nav-purp-btn" href="validazione.html" data-i18n-title="nav_validation" title="Validazione TPI">
    <span class="val-label" data-i18n="nav_validation">Validazione</span>
   </a>
-  <a class="nav-pro-btn" href="dashboard_pro.html" title="TPI Pro Dashboard (richiede accesso)">
+  <a class="nav-pro-btn" href="dashboard_pro.html" title="TPI Pro — indice age-aware con i cinque modulatori scout">
    <span class="pro-label">TPI Pro</span>
   </a>
  </div>
