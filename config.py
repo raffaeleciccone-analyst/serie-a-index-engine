@@ -52,6 +52,13 @@ DB_USER: str = os.environ.get("DB_USER", "root")
 DB_NAME: str = os.environ.get("DB_NAME", "serie_a_25_26")
 DB_PASSWORD: str = _require("DB_PASSWORD")
 
+# Stagione che il sito pubblica. Da quando il DB contiene anche il backfill
+# 2024-25, "quale stagione" non e' piu' una domanda con una risposta ovvia:
+# parte1 senza filtro le aggregava tutte e produceva una classifica che
+# sembrava plausibile ma non era di nessuna stagione. Il valore sta qui perche'
+# a cambio stagione si tocca un punto solo.
+SEASON_CORRENTE: str = os.environ.get("SERIE_A_SEASON", "2025-26")
+
 
 def db_url(driver: str = "mysql+pymysql") -> str:
     """SQLAlchemy URL con password URL-encoded (gestisce '@', ':' nella pwd)."""
