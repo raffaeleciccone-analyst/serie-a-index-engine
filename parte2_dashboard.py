@@ -421,8 +421,14 @@ window.onerror=function(m,s,l){
      <span style="color:var(--teal)">z(AII)</span>
      <span class="sep">+</span>
      <span style="color:var(--purp)">z(PRI)</span>
+     <span class="sep">+</span>
+     <span>z(ctx)</span>
+     <span class="sep">+</span>
+     <span>z(forma)</span>
+     <span class="sep">+</span>
+     <span style="color:var(--orng)">z(EMI)</span>
      <span class="sep">&mdash;</span>
-     <span data-i18n="dash_pro_mean6">media 6 z-score</span>
+     <span data-i18n="dash_pro_mean6">pesi per fascia d&rsquo;et&agrave;</span>
     </div>
    </div>
    <div class="tpp-dims">

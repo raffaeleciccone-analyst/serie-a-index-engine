@@ -2518,8 +2518,8 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     if has_pro:
         spieg_extra += """
   tpi_pro: {icon:"✨",ttl:"TPI Pro — 7 dimensioni + 5 modulatori",ttl_en:"TPI Pro — 7 dimensions + 5 modulators",sub:"TPI = 7 dim. TPI Pro = TPI + AII, PRI, stabilità ctx, trend forma, EMI",sub_en:"TPI = 7 dims. TPI Pro = TPI + AII, PRI, ctx stability, form trend, EMI",
-    body:"Il TPI Pro aggiunge z(AII) e z(PRI) alla media dei 4 z-score classici.\\n\\nChi sale: giovani in picco con buona affidabilità fisica.\\nChi scende: veterani fragili che il TPI classico sopravvaluta.\\n\\nr(TPI,TPI Pro) ideale = 0.80–0.95.",
-    body_en:"TPI Pro adds z(AII) and z(PRI) to the mean of the 4 classic z-scores.\\n\\nRisers: young players at peak with good physical reliability.\\nFallers: fragile veterans that the classic TPI overrates.\\n\\nIdeal r(TPI,TPI Pro) = 0.80–0.95.",
+    body:"Il TPI Pro combina il TPI (media pesata di 7 dimensioni) con 5 modulatori scout: AII, PRI, stabilità fra contesti, trend forma ed EMI. I pesi cambiano per fascia d'età.\\n\\nChi sale: giovani in picco con buona affidabilità fisica.\\nChi scende: veterani fragili che il TPI classico sopravvaluta.\\n\\nr(TPI,TPI Pro) ideale = 0.80–0.95.",
+    body_en:"TPI Pro combines the TPI (weighted mean of 7 dimensions) with 5 scout modulators: AII, PRI, cross-context stability, form trend and EMI. Weights change by age band.\\n\\nRisers: young players at peak with good physical reliability.\\nFallers: fragile veterans that the classic TPI overrates.\\n\\nIdeal r(TPI,TPI Pro) = 0.80–0.95.",
     ex:"r=0.88: TPI Pro è coerente ma aggiunge informazione reale. 15 giocatori salgono >2 posizioni grazie ad AII alto.",ex_en:"r=0.88: TPI Pro is consistent but adds real information. 15 players rise >2 positions thanks to high AII."},
   scatter_e: {icon:"📈",ttl:"Scatter TPI vs TPI Pro",ttl_en:"Scatter TPI vs TPI Pro",sub:"X = TPI classico | Y = TPI Pro",sub_en:"X = classic TPI | Y = TPI Pro",
     body:"Punti sopra la diagonale: guadagnano con TPI Pro (AII/PRI alti).\\nPunti sotto: perdono.\\n\\nLa retta tratteggiata viola = regressione. Grigia = y=x (nessuna variazione).",
@@ -2827,6 +2827,15 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
 </div>
 
+<!-- RECAP — in cima, non in fondo.
+     L'ordine A→B→C metteva davanti il test piu' debole: r=0.401 con IC
+     bootstrap che contiene lo zero, quindi non una prova. Chi si fermava al
+     primo riquadro se ne andava con quello, senza aver visto il backtest a
+     rho=0.725 con placebo p=0.002, che e' il risultato vero della pagina.
+     Il riepilogo in apertura mostra l'esito di tutti i test insieme, poi si
+     scende nel dettaglio. -->
+{recap_html}
+
 <!-- SEZIONE A -->
 <div class="section">
   <div class="section-hd">
@@ -2948,9 +2957,6 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 {h_section}
 
 {i_section}
-
-<!-- RECAP -->
-{recap_html}
 
 </div><!-- /main -->
 
