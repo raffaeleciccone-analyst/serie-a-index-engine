@@ -52,6 +52,14 @@ TPI_ZKEYS = {
     "boost_ratio": "z_boost", "consistenza": "z_consistenza",
     "finishing":  "z_finishing", "form": "z_form",
 }
+# Il TPI pubblicato NON e' la media pesata degli z: dopo di quella parte1
+# applica tre passaggi (parte1_analisi.py:2374-2408) che vanno replicati, o
+# qualunque ricostruzione confronta due cose diverse.
+#   shrunk = media_ruolo + (0.35 + 0.65*confidence) * (media_pesata - media_ruolo)
+#   TPI    = peso_ruolo * shrunk * penalty_disponibilita
+# Specchio di Config.offensive_role_weight e Config.confidence_floor.
+ROLE_WEIGHT = {"ATT": 1.00, "CEN": 0.85, "DIF": 0.55, "POR": 0.20}
+CONFIDENCE_FLOOR = 0.35
 # codici ruolo IT → EN (per i 'movers' bilingui)
 _ROLE_EN = {"ATT": "FWD", "CEN": "MID", "DIF": "DEF", "POR": "GK"}
 
@@ -1394,12 +1402,21 @@ def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
         if tpi_full is None or real is None:
             continue
         z_vals = {k: p.get(zk) for k, zk in DIM_ZKEYS.items()}
-        rows.append({"gid": gid, "tpi_full": tpi_full, "real": real, **z_vals})
+        rows.append({"gid": gid, "tpi_full": tpi_full, "real": real,
+                     # servono per replicare i passaggi post media pesata
+                     "ruolo": p.get("ruolo"),
+                     "confidence": p.get("confidence"),
+                     "disp_penalty": p.get("disponibilita_penalty"),
+                     **z_vals})
     df = pd.DataFrame(rows)
     if len(df) < 30:
         return {"has_data": False, "msg": f"Ablation: {len(df)} pairs (servono ≥30)."}
 
-    # TPI ricostruito = weighted mean dei z disponibili. Pesi nominali da TPI_WEIGHTS.
+    # TPI ricostruito. La versione precedente si fermava alla media pesata degli
+    # z e correlava 0.79 col TPI pubblicato: confrontava due grandezze diverse,
+    # e il Delta predittivo che ne usciva era ~-0.37 per OGNI dimensione, dal
+    # peso 0.32 al peso 0.02 — la firma di un artefatto, non di un'importanza.
+    # Replicando anche i tre passaggi successivi si arriva a rho 0.96 / r 0.99.
     def reconstruct(weights: dict) -> pd.Series:
         num = pd.Series(0.0, index=df.index)
         den = pd.Series(0.0, index=df.index)
@@ -1410,7 +1427,18 @@ def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
             valid = z.notna()
             num = num + np.where(valid, z.fillna(0.0) * w, 0.0)
             den = den + np.where(valid, w, 0.0)
-        return pd.Series(np.where(den > 0, num / den, np.nan), index=df.index)
+        media_pesata = pd.Series(np.where(den > 0, num / den, np.nan), index=df.index)
+
+        # 1. shrink verso la media di ruolo, in base alla confidence
+        conf = pd.to_numeric(df.get("confidence"), errors="coerce").fillna(0.0)
+        shrink = CONFIDENCE_FLOOR + (1.0 - CONFIDENCE_FLOOR) * conf
+        media_ruolo = media_pesata.groupby(df["ruolo"]).transform("mean")
+        shrunk = media_ruolo + shrink * (media_pesata - media_ruolo)
+        # 2. scala per il peso offensivo del ruolo
+        role_w = df["ruolo"].map(ROLE_WEIGHT).fillna(0.5).astype(float)
+        # 3. penalty disponibilita'
+        pen = pd.to_numeric(df.get("disp_penalty"), errors="coerce").fillna(1.0)
+        return role_w * shrunk * pen
 
     # Baseline: full TPI ricostruito (sanity check correlazione col tpi_full di payload)
     full_recon = reconstruct(TPI_WEIGHTS)
