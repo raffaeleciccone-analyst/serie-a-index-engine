@@ -80,6 +80,44 @@ def _sf(v, d: int = 2) -> str:
     except Exception:
         return str(v)
 
+def conta_test_pubblicati(*vals) -> int:
+    """Quanti test finiscono davvero in pagina: A/B/C escono sempre, gli altri
+    solo se hanno dati. Sta qui, in un posto solo, perche' lo usano sia l'hero
+    sia il controllo sulle pagine scritte a mano."""
+    return 3 + sum(1 for v in vals if (v or {}).get("has_data"))
+
+
+def avvisa_se_conteggio_a_mano(n_test: int) -> None:
+    """Il numero dei test vive in validazione.html, dove si calcola.
+
+    `index.html`, `guida_completa.html` e `i18n.js` sono scritti a mano: se
+    qualcuno ci ricopia "15 verifiche" e poi un test perde i dati, le pagine
+    dicono due cose diverse e non se ne accorge nessuno. Questo non corregge
+    niente, avvisa e basta — ma avvisa nel momento giusto, cioe' appena il
+    numero cambia.
+    """
+    import re
+    pat = re.compile(r"(\d+)\s+(?:verifiche|verifica|test|checks|tests)\b", re.I)
+    for nome in ("index.html", "guida_completa.html", "i18n.js"):
+        f = DEMO_DIR / nome
+        if not f.is_file():
+            continue
+        try:
+            testo = f.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            log.debug(f"  Conteggio: {nome} non leggibile ({e})")
+            continue
+        for m in pat.finditer(testo):
+            trovato = int(m.group(1))
+            if trovato != n_test:
+                log.warning(f"  {nome} dice \"{m.group(0)}\" ma i test pubblicati sono "
+                            f"{n_test}: le pagine si contraddicono.")
+            else:
+                log.warning(f"  {nome} ha il conteggio dei test scritto a mano "
+                            f"(\"{m.group(0)}\"). Oggi coincide, divergera' al primo "
+                            f"test che perde i dati: meglio toglierlo.")
+
+
 def _js_num(v) -> str:
     """Serializza numero per JS: None → null, non mai la stringa 'None'."""
     if v is None:
@@ -2865,9 +2903,8 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     # Il conteggio non e' piu' scritto a mano: A/B/C escono sempre, le altre
     # solo se hanno dati, quindi il numero in apertura seguiva la pagina solo
     # per caso. "Indipendenti" e' caduto: girano tutti sugli stessi giocatori.
-    _n_test = 3 + sum(1 for _v in (val_d, val_e, val_f, val_g, val_h, val_i,
-                                   val_l, val_m, val_n, val_o, val_p, val_q)
-                      if (_v or {}).get("has_data"))
+    _n_test = conta_test_pubblicati(val_d, val_e, val_f, val_g, val_h, val_i,
+                                    val_l, val_m, val_n, val_o, val_p, val_q)
     # Cosa rivendica l'indice, in apertura e senza giri di parole. Prima diceva
     # "verifica che il TPI misuri qualita' reale" e metteva in vetrina il
     # backtest r=0.725 — che pero' e' sull'output grezzo, cioe' la componente
@@ -4157,6 +4194,9 @@ def main():
             log.info(f"OK → {demo_copy}  (copia per repo demo)")
         except OSError as e:
             log.warning(f"Copia demo fallita: {e}")
+        avvisa_se_conteggio_a_mano(
+            conta_test_pubblicati(val_d, val_e, val_f, val_g, val_h, val_i,
+                                  val_l, val_m, val_n, val_o, val_p, val_q))
 
     # i18n.js e ai_chat.js devono stare ACCANTO a ogni HTML (i loro <script src>
     # sono relativi): la fonte canonica è nel repo demo, li copio in dashboard_output
