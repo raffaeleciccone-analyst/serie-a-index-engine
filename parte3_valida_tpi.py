@@ -882,6 +882,67 @@ def valida_sensibilita(players: list) -> dict:
 
 
 # ════════════════════════════════════════════════════════════════
+# VINTAGE — helper condivisi dai test out-of-sample (I, Q)
+# ════════════════════════════════════════════════════════════════
+def _vintage_paths(min_giornata: int) -> list[tuple[int, Path]]:
+    """`payload_g{N}.json` con N >= min_giornata, ordinati per giornata.
+
+    I vintage troppo presto hanno poco dato per differenziare due segnali:
+    aggiungono rumore senza informazione. Il filtro sta qui, una volta sola,
+    così i test OOS guardano lo stesso universo e restano confrontabili.
+    """
+    import re
+    trovati: list[int] = []
+    tenuti: list[tuple[int, Path]] = []
+    for vp in OUTPUT_DIR.glob("payload_g*.json"):
+        m = re.search(r"payload_g(\d+)\.json$", vp.name)
+        if not m:
+            continue
+        N = int(m.group(1))
+        trovati.append(N)
+        if N >= min_giornata:
+            tenuti.append((N, vp))
+    tenuti.sort()
+    if trovati:
+        skipped = sorted(set(trovati) - {g for g, _ in tenuti})
+        log.info(f"  Vintage trovati: {sorted(trovati)} → uso {[g for g, _ in tenuti]}"
+                 + (f" (skip <{min_giornata}: {skipped})" if skipped else ""))
+    return tenuti
+
+
+def _realized_post_map(engine, N: int) -> dict[int, dict] | None:
+    """Minuti / npg / xa realizzati DOPO la giornata N, per giocatore.
+
+    È il criterio dei test che partono da un vintage: i predittori vengono
+    dallo snapshot a g{N}, questo dalle gare successive. Zero leakage.
+    """
+    try:
+        df = pd.read_sql(
+            "SELECT gp.giocatore_id, "
+            "       SUM(gp.minuti) AS min_post, "
+            "       SUM(COALESCE(gp.npg, gp.goal)) AS npg_post, "
+            "       SUM(COALESCE(gp.xa, 0)) AS xa_post "
+            "FROM giocatore_partita gp "
+            "JOIN calendario cal ON cal.id = gp.calendario_id "
+            f"WHERE gp.minuti > 0 AND cal.giornata > {N} "
+            "GROUP BY gp.giocatore_id",
+            engine,
+        )
+    except Exception as e:
+        log.warning(f"  Realizzato post-g{N}: query DB fallita: {e}")
+        return None
+    return {
+        int(r["giocatore_id"]): {
+            "min": float(r["min_post"]),
+            "npg": float(r["npg_post"]) if pd.notna(r["npg_post"]) else 0.0,
+            "xa":  float(r["xa_post"])  if pd.notna(r["xa_post"])  else 0.0,
+        }
+        for _, r in df.iterrows()
+        if pd.notna(r["min_post"]) and float(r["min_post"]) > 0
+    }
+
+
+# ════════════════════════════════════════════════════════════════
 # VALIDAZIONE I — Validità incrementale TPI vs TPI Pro (riformula D/E)
 # ════════════════════════════════════════════════════════════════
 def valida_incrementale_pro_oos(engine) -> dict | None:
@@ -907,26 +968,12 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
 
     Returns None se nessun vintage trovato → fallback in-sample.
     """
-    import re
     # I vintage troppo presto (< 25) hanno poco data per differenziare base vs Pro
     # → aggiungono rumore al META senza segnale. Filtriamo.
     VINTAGE_MIN_GIORNATA = 25
-    vintages_raw = list(OUTPUT_DIR.glob("payload_g*.json"))
-    vintages_all, vintages = [], []
-    for vp in vintages_raw:
-        m = re.search(r"payload_g(\d+)\.json$", vp.name)
-        if not m:
-            continue
-        N = int(m.group(1))
-        vintages_all.append(N)
-        if N >= VINTAGE_MIN_GIORNATA:
-            vintages.append((N, vp))
+    vintages = _vintage_paths(VINTAGE_MIN_GIORNATA)
     if not vintages:
         return None
-    vintages.sort()
-    _skipped = sorted(set(vintages_all) - {g for g,_ in vintages})
-    log.info(f"  Vintage trovati: {sorted(vintages_all)} → uso {[g for g,_ in vintages]}"
-             + (f" (skip <{VINTAGE_MIN_GIORNATA}: {_skipped})" if _skipped else ""))
 
     # Pool aggregato per il META-test (più potere statistico)
     pool_base, pool_pro, pool_crit, pool_v, pool_gid = [], [], [], [], []
@@ -937,31 +984,9 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
     for N, vintage_path in vintages:
         with open(vintage_path, encoding="utf-8") as fh:
             vintage = json.load(fh)
-        try:
-            realized_df = pd.read_sql(
-                "SELECT gp.giocatore_id, "
-                "       SUM(gp.minuti) AS min_post, "
-                "       SUM(COALESCE(gp.npg, gp.goal)) AS npg_post, "
-                "       SUM(COALESCE(gp.xa, 0)) AS xa_post "
-                "FROM giocatore_partita gp "
-                "JOIN calendario cal ON cal.id = gp.calendario_id "
-                f"WHERE gp.minuti > 0 AND cal.giornata > {N} "
-                "GROUP BY gp.giocatore_id",
-                engine,
-            )
-        except Exception as e:
-            log.warning(f"  Test I OOS vintage g{N}: query DB fallita: {e}")
+        realized_map = _realized_post_map(engine, N)
+        if realized_map is None:
             continue
-
-        realized_map = {
-            int(r["giocatore_id"]): {
-                "min": float(r["min_post"]),
-                "npg": float(r["npg_post"]) if pd.notna(r["npg_post"]) else 0.0,
-                "xa":  float(r["xa_post"])  if pd.notna(r["xa_post"])  else 0.0,
-            }
-            for _, r in realized_df.iterrows()
-            if pd.notna(r["min_post"]) and float(r["min_post"]) > 0
-        }
 
         v_base, v_pro, v_crit, v_gid = [], [], [], []
         v_base_s, v_pro_s, v_crit_s, v_gid_s = [], [], [], []
@@ -1098,6 +1123,224 @@ def valida_incrementale_pro(players: list) -> dict:
     log.info(f"  Incrementale: ΔRMSE(base−pro)={res['delta_rmse']} "
              f"[{res['ci_lo']},{res['ci_hi']}] pro_better={res['pro_better']}")
     return res
+
+
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE Q — Il TPI batte una baseline banale?
+# ════════════════════════════════════════════════════════════════
+# Rosa Transfermarkt del progetto heXI, che e' SOLA LETTURA: qui si legge e
+# basta. Stesso percorso e stesso paracadute di stagione di
+# set_up_tpi_pro/allinea_anagrafica_hexi.py — accanto c'e' SA_2026-2027.json,
+# e agganciarsi a quello darebbe valori plausibili ma dell'anno sbagliato.
+HEXI_ROSTER = Path(os.environ.get(
+    "SERIE_A_HEXI_ROSTER",
+    r"C:\Users\Raffaele\Desktop\heXI\data\normalized\SA_2025-2026.json"))
+HEXI_STAGIONE = "2025/2026"
+
+
+def _valore_mercato_per_giocatore(engine) -> dict[int, float]:
+    """giocatore_id → valore di mercato in euro, dalla rosa heXI.
+
+    L'aggancio e' su `giocatori.tm_id` (scritto da allinea_anagrafica_hexi.py):
+    un id, non un nome, quindi qui non serve nessun match approssimato e non
+    si puo' ripetere l'incidente dei due Martinez.
+    """
+    if not HEXI_ROSTER.is_file():
+        log.info(f"  Valore di mercato: rosa heXI assente ({HEXI_ROSTER}), baseline saltata.")
+        return {}
+    try:
+        rosa = json.loads(HEXI_ROSTER.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning(f"  Valore di mercato: rosa heXI illeggibile ({e}), baseline saltata.")
+        return {}
+    if not isinstance(rosa, list) or not rosa:
+        log.warning("  Valore di mercato: formato rosa heXI inatteso, baseline saltata.")
+        return {}
+    stagioni = {r.get("season") for r in rosa}
+    if stagioni != {HEXI_STAGIONE}:
+        log.warning(f"  Valore di mercato: stagione {stagioni}, attesa {HEXI_STAGIONE!r}. "
+                    "Baseline saltata (accanto c'e' il file dell'anno dopo).")
+        return {}
+    per_tm: dict[int, float] = {}
+    for r in rosa:
+        tm, mv = r.get("transfermarkt_id"), r.get("market_value_eur")
+        if tm is None or not mv:
+            continue
+        per_tm[int(tm)] = float(mv)
+    try:
+        df = pd.read_sql("SELECT id, tm_id FROM giocatori "
+                         "WHERE tm_id IS NOT NULL", engine)
+    except Exception as e:
+        log.warning(f"  Valore di mercato: query tm_id fallita ({e}), baseline saltata.")
+        return {}
+    out: dict[int, float] = {}
+    for _, r in df.iterrows():
+        try:
+            v = per_tm.get(int(r["tm_id"]))
+        except (TypeError, ValueError):
+            continue
+        if v:
+            out[int(r["id"])] = v
+    log.info(f"  Valore di mercato: {len(out)} giocatori agganciati per tm_id "
+             f"({len(per_tm)} valorizzati nella rosa heXI, {len(df)} tm_id nel DB)")
+    return out
+
+
+def valida_baseline(engine) -> dict | None:
+    """
+    Test Q — Il TPI batte una baseline banale?
+
+    Gli altri test chiedono "il TPI e' correlato con X?". Questo chiede
+    l'unica cosa che puo' bocciare il composito: **serviva costruirlo?**
+    Il confronto e' contro i predittori piu' stupidi a disposizione:
+
+      · output grezzo   (goal_p90 + xa_p90 allo snapshot) — l'input dominante
+      · minuti giocati  (allo snapshot) — "chi gioca, rende"
+      · valore di mercato (Transfermarkt via heXI) — il consenso del mercato
+
+    Disegno identico al test I, quindi i due numeri si leggono insieme:
+    predittori dal vintage g{N}, criterio dalle giornate successive, bootstrap
+    clusterizzato su giocatore_id (lo stesso giocatore compare in piu' vintage
+    e non e' un'osservazione indipendente).
+
+    Due criteri, perche' sono due promesse diverse:
+      · LIVELLO        = output per-90 realizzato dopo il vintage
+      · MIGLIORAMENTO  = livello post − livello pre (la promessa scout)
+
+    delta_rmse = RMSE(baseline) − RMSE(TPI): positivo con IC che esclude lo
+    zero = il TPI batte quella baseline. Se non la batte, le sette dimensioni
+    non stanno aggiungendo niente al loro stesso input.
+
+    Returns None se non c'e' nessun vintage utilizzabile.
+    """
+    VINTAGE_MIN_GIORNATA = 25   # stesso universo del test I
+    MIN_MINUTI_POST = 90        # sotto i 90' il per-90 realizzato e' rumore
+    vintages = _vintage_paths(VINTAGE_MIN_GIORNATA)
+    if not vintages:
+        return None
+
+    valore = _valore_mercato_per_giocatore(engine)
+
+    campi = ("gid", "tpi", "b_output", "b_minuti", "b_valore",
+             "crit_livello", "crit_improvement")
+    pool: dict[str, list] = {k: [] for k in campi}
+    giornate_usate: list[int] = []
+    for N, vintage_path in vintages:
+        try:
+            vintage = json.loads(vintage_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as e:
+            log.warning(f"  Vintage g{N} illeggibile ({e}), skip.")
+            continue
+        realized = _realized_post_map(engine, N)
+        if not realized:
+            continue
+        n_v = 0
+        for p in vintage.get("players", []):
+            gid = p.get("id")
+            tpi = (p.get("tpi") or {}).get("totale")
+            rz = realized.get(gid)
+            if tpi is None or rz is None or rz["min"] < MIN_MINUTI_POST:
+                continue
+            kpi  = p.get("kpi") or {}
+            conv = p.get("conv") or {}
+            goal_p90, xa_p90 = conv.get("goal_p90"), kpi.get("xa_p90")
+            minuti = p.get("minuti")
+            if goal_p90 is None or xa_p90 is None or not minuti:
+                continue
+            pre  = float(goal_p90) + float(xa_p90)
+            post = (rz["npg"] + rz["xa"]) / rz["min"] * 90.0
+            pool["gid"].append(gid)
+            pool["tpi"].append(float(tpi))
+            pool["b_output"].append(pre)
+            pool["b_minuti"].append(float(minuti))
+            pool["b_valore"].append(float(valore.get(gid, np.nan)))
+            pool["crit_livello"].append(post)
+            pool["crit_improvement"].append(post - pre)
+            n_v += 1
+        if n_v:
+            giornate_usate.append(N)
+            log.info(f"  Vintage g{N}: {n_v} coppie nel confronto con le baseline")
+
+    if len(pool["gid"]) < 30:
+        return {"has_data": False,
+                "msg": f"Test Q: {len(pool['gid'])} coppie giocatore-vintage (servono ≥30)."}
+
+    BASELINES = [
+        ("output_grezzo",  "b_output", "Output grezzo (goal + xA)/90", "Raw output (goals + xA)/90"),
+        ("minuti",         "b_minuti", "Minuti giocati",               "Minutes played"),
+        ("valore_mercato", "b_valore", "Valore di mercato",            "Market value"),
+    ]
+    CRITERI = [
+        ("livello", "crit_livello",
+         "Output per-90 realizzato dopo il vintage",
+         "Realized per-90 output after the vintage"),
+        ("improvement", "crit_improvement",
+         "Miglioramento: output post − output pre",
+         "Improvement: post-vintage output − pre-vintage output"),
+    ]
+
+    from scipy.stats import spearmanr
+    tpi_arr = np.asarray(pool["tpi"], dtype=float)
+    gid_arr = np.asarray(pool["gid"])
+    criteri_out: dict[str, dict] = {}
+    for ckey, cfield, clab_it, clab_en in CRITERI:
+        crit = np.asarray(pool[cfield], dtype=float)
+        voci = []
+        for bkey, bfield, blab_it, blab_en in BASELINES:
+            b = np.asarray(pool[bfield], dtype=float)
+            mask = np.isfinite(b) & np.isfinite(crit) & np.isfinite(tpi_arr)
+            if mask.sum() < 30:
+                log.info(f"  Q [{ckey}] {bkey}: solo {int(mask.sum())} coppie utili, skip.")
+                continue
+            res = vs.paired_rmse_bootstrap_clustered(
+                b[mask], crit[mask], tpi_arr[mask], gid_arr[mask])
+            if res is None:
+                log.info(f"  Q [{ckey}] {bkey}: bootstrap non calcolabile, skip.")
+                continue
+            rho_b, _ = spearmanr(b[mask], crit[mask])
+            rho_t, _ = spearmanr(tpi_arr[mask], crit[mask])
+            voci.append({
+                "key": bkey, "label_it": blab_it, "label_en": blab_en,
+                "n": res["n"], "n_giocatori": res["n_clusters"],
+                "rmse_baseline": res["rmse_base"], "rmse_tpi": res["rmse_pro"],
+                # delta = RMSE(baseline) − RMSE(TPI): >0 = TPI sbaglia meno
+                "delta_rmse": res["delta_rmse"],
+                "ci_lo": res["ci_lo"], "ci_hi": res["ci_hi"],
+                "tpi_better": res["pro_better"],
+                "rho_baseline": round(float(rho_b), 3),
+                "rho_tpi": round(float(rho_t), 3),
+            })
+            log.info(f"  Q [{ckey}] TPI vs {bkey:15s} n={res['n']} ({res['n_clusters']} giocatori): "
+                     f"ΔRMSE={res['delta_rmse']:+.4f} [{res['ci_lo']},{res['ci_hi']}] · "
+                     f"ρ baseline={rho_b:+.3f} ρ TPI={rho_t:+.3f} → TPI meglio: {res['pro_better']}")
+        if not voci:
+            continue
+        criteri_out[ckey] = {
+            "label_it": clab_it, "label_en": clab_en,
+            "baselines": voci,
+            "tpi_batte": [v["key"] for v in voci if v["tpi_better"]],
+            "n_baselines": len(voci),
+        }
+
+    if not criteri_out:
+        return {"has_data": False,
+                "msg": "Test Q: nessun confronto baseline calcolabile."}
+
+    n_valore = int(np.isfinite(np.asarray(pool["b_valore"], dtype=float)).sum())
+    return {
+        "has_data": True,
+        "n": len(pool["gid"]),
+        "n_giocatori": int(len(set(pool["gid"]))),
+        "n_vintage": len(giornate_usate),
+        "vintage_giornate": sorted(giornate_usate),
+        "criteri": criteri_out,
+        "valore_coverage": n_valore,
+        "valore_coverage_pct": round(100.0 * n_valore / len(pool["gid"]), 1),
+        # Il file heXI e' uno snapshot scaricato a stagione finita: come
+        # predittore "sa" gia' com'e' andata. Gioca in vantaggio, non in
+        # svantaggio, e va detto accanto al risultato.
+        "valore_snapshot": True,
+    }
 
 
 # ════════════════════════════════════════════════════════════════
@@ -2171,14 +2414,21 @@ tr:hover td{background:rgba(233,240,236,.03)}
 def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
                     val_d: dict | None = None, val_e: dict | None = None,
                     val_f: dict | None = None, val_g: dict | None = None,
-                    val_h: dict | None = None, val_i: dict | None = None) -> str:
+                    val_h: dict | None = None, val_i: dict | None = None,
+                    val_l: dict | None = None, val_m: dict | None = None,
+                    val_n: dict | None = None, val_o: dict | None = None,
+                    val_p: dict | None = None, val_q: dict | None = None) -> str:
 
     def pval(p) -> str:
+        # L'unico caso con prosa dentro e' il non significativo: restava in
+        # italiano anche in inglese (si vedeva gia' nella sezione A), quindi
+        # esce avvolto in data-it/data-en come il resto della pagina.
         if p is None: return ""
         if p < 0.001: return "p &lt; 0.001 &#10003;&#10003;&#10003;"
         if p < 0.01:  return f"p = {p:.3f} &#10003;&#10003;"
         if p < 0.05:  return f"p = {p:.3f} &#10003;"
-        return f"p = {p:.3f} (non significativo)"
+        _it, _en = f"p = {p:.3f} (non significativo)", f"p = {p:.3f} (not significant)"
+        return f'<span {_bi(_it, _en)}>{_it}</span>'
 
     def rcol(r) -> str:
         if r is None: return "var(--lt)"
@@ -2560,16 +2810,24 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     def _ci_txt(lo, hi):
         return f"[{_sf(lo,3)}, {_sf(hi,3)}]" if lo is not None and hi is not None else "&mdash;"
 
-    # Hero sottotitolo bilingue (numeri reali in entrambe le lingue)
+    # Hero sottotitolo bilingue (numeri reali in entrambe le lingue).
+    # Il conteggio non e' piu' scritto a mano: A/B/C escono sempre, le altre
+    # solo se hanno dati, quindi il numero in apertura seguiva la pagina solo
+    # per caso. "Indipendenti" e' caduto: girano tutti sugli stessi giocatori.
+    _n_test = 3 + sum(1 for _v in (val_d, val_e, val_f, val_g, val_h, val_i,
+                                   val_l, val_m, val_n, val_o, val_p, val_q)
+                      if (_v or {}).get("has_data"))
     _hsub_it = (
-        '5 test indipendenti per verificare che il TPI misuri qualit&agrave; reale — '
-        f'non rumore. Backtest predittivo <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
+        f'{_n_test} test per verificare che il TPI misuri qualit&agrave; reale — non rumore, '
+        'compreso quello che chiede se batte una baseline banale. '
+        f'Backtest predittivo <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
         f'correlazione Fantacalcio <strong style="color:var(--orng)">r = {_r2(r_a)}</strong>. '
         'Clicca <strong style="color:var(--lp)">?</strong> su ogni sezione per i dettagli metodologici.'
     )
     _hsub_en = (
-        '5 independent tests to verify that TPI measures real player quality — '
-        f'not noise. Predictive backtest <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
+        f'{_n_test} tests to verify that TPI measures real player quality — not noise, '
+        'including the one asking whether it beats a trivial baseline. '
+        f'Predictive backtest <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
         f'Fantacalcio correlation <strong style="color:var(--orng)">r = {_r2(r_a)}</strong>. '
         'Click <strong style="color:var(--lp)">?</strong> on each section for methodology details.'
     )
@@ -2776,6 +3034,425 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         i_section = f'<div class="nota-warn" style="margin-top:16px">{vi["msg"]}</div>'
     else:
         i_section = ""
+
+    # ── Sezione Q — il TPI batte una baseline banale? ─────────────
+    # Sta subito dopo la I perche' e' lo stesso disegno (vintage OOS, bootstrap
+    # clusterizzato) applicato un livello piu' in basso: la I chiede se il Pro
+    # aggiunge al TPI, la Q se il TPI aggiunge al suo stesso input.
+    vq = val_q or {}
+    if vq.get("has_data"):
+        def _q_col(v: dict) -> str:
+            if v.get("tpi_better"):
+                return "var(--green)"
+            return "var(--red)" if (v.get("ci_hi") or 0) < 0 else "var(--orng)"
+
+        def _q_esito(v: dict) -> tuple[str, str]:
+            if v.get("tpi_better"):
+                # Un IC che parte da 0.00004 si stampa "[0.0, ...]" e sembra
+                # contenere lo zero: va detto che e' un margine, non una vittoria.
+                if (v.get("ci_lo") or 0) < 0.0005:
+                    return ("TPI meglio, al limite", "TPI better, borderline")
+                return ("TPI meglio", "TPI better")
+            if (v.get("ci_hi") or 0) < 0:
+                return ("baseline meglio", "baseline better")
+            return ("pari", "tie")
+
+        def _q_ci(v: dict) -> str:
+            """IC a 4 decimali: alla terza cifra i margini del test spariscono."""
+            lo, hi = v.get("ci_lo"), v.get("ci_hi")
+            return f"[{_sf(lo,4)}, {_sf(hi,4)}]" if lo is not None and hi is not None else "&mdash;"
+
+        q_liv = vq["criteri"].get("livello", {})
+        q_boxes = ""
+        for _sb, _v in zip(("sb-blue", "sb-purp", "sb-teal"), q_liv.get("baselines", [])):
+            _e_it, _e_en = _q_esito(_v)
+            q_boxes += (
+                f'<div class="stat-box {_sb}">'
+                f'<div class="stat-val" style="color:{_q_col(_v)}">{_v["delta_rmse"]:+.4f}</div>'
+                f'<div class="stat-lbl" {_bi("vs " + _v["label_it"], "vs " + _v["label_en"])}>vs {_v["label_it"]}</div>'
+                f'<div class="stat-sub">IC95% {_q_ci(_v)} &middot; '
+                f'<span style="color:{_q_col(_v)}" {_bi(_e_it, _e_en)}>{_e_it}</span></div></div>'
+            )
+        q_rows = ""
+        for _cv in vq["criteri"].values():
+            for _v in _cv["baselines"]:
+                _e_it, _e_en = _q_esito(_v)
+                q_rows += (
+                    f'<tr><td style="color:var(--lt);font-size:12px">'
+                    f'<span {_bi(_cv["label_it"], _cv["label_en"])}>{_cv["label_it"]}</span></td>'
+                    f'<td style="color:var(--lp)"><span {_bi(_v["label_it"], _v["label_en"])}>{_v["label_it"]}</span></td>'
+                    f'<td style="font-family:var(--mono)">{_v["rho_baseline"]:+.3f}</td>'
+                    f'<td style="font-family:var(--mono)">{_v["rho_tpi"]:+.3f}</td>'
+                    f'<td style="font-family:var(--mono);color:{_q_col(_v)};font-weight:700">{_v["delta_rmse"]:+.4f}</td>'
+                    f'<td style="font-family:var(--mono);font-size:12px">{_q_ci(_v)}</td>'
+                    f'<td style="font-size:12px;color:{_q_col(_v)}">'
+                    f'<span {_bi(_e_it, _e_en)}>{_e_it}</span></td></tr>'
+                )
+        _q_dom = next((v for v in q_liv.get("baselines", []) if v["key"] == "output_grezzo"), None)
+        if _q_dom is None:
+            q_verd_it = "Confronto con l&rsquo;input dominante non calcolabile su questi vintage."
+            q_verd_en = "Comparison against the dominant input not computable on these vintages."
+            q_verd_col = "var(--orng)"
+        elif _q_dom["ci_hi"] < 0:
+            q_verd_col = "var(--red)"
+            q_verd_it = ("Sul rendimento futuro il TPI <strong>non batte il suo input dominante</strong>: "
+                         "l&rsquo;output grezzo per-90, da solo, sbaglia meno, e l&rsquo;intervallo di confidenza "
+                         "sta tutto sotto lo zero. Misurate contro questo criterio, le altre sei dimensioni "
+                         "non stanno aggiungendo potere predittivo.")
+            q_verd_en = ("On future output the TPI <strong>does not beat its own dominant input</strong>: "
+                         "raw per-90 output alone has lower error, and the confidence interval lies entirely "
+                         "below zero. Measured against this criterion, the other six dimensions are not "
+                         "adding predictive power.")
+        elif _q_dom["tpi_better"]:
+            q_verd_col = "var(--green)"
+            q_verd_it = ("Il TPI batte il suo input dominante: il composito aggiunge qualcosa che "
+                         "l&rsquo;output grezzo per-90 non ha, con IC che esclude lo zero.")
+            q_verd_en = ("The TPI beats its own dominant input: the composite adds something raw per-90 "
+                         "output does not have, with a CI that excludes zero.")
+        else:
+            q_verd_col = "var(--orng)"
+            q_verd_it = ("Pareggio con l&rsquo;input dominante: l&rsquo;IC della differenza contiene lo zero. "
+                         "Il composito non peggiora le cose, ma su questi dati non &egrave; dimostrato "
+                         "che le sette dimensioni battano la singola rate stat da cui partono.")
+            q_verd_en = ("A tie with the dominant input: the CI of the difference contains zero. The "
+                         "composite does no harm, but on this data the seven dimensions are not shown to "
+                         "beat the single rate stat they start from.")
+        _q_gior = ", ".join(f"g{g}" for g in vq.get("vintage_giornate", []))
+        q_section = f"""
+<div class="section">
+  <div class="section-hd">
+    <div class="section-num">Q</div>
+    <div>
+      <div class="section-ttl" {_bi("Il TPI batte una baseline banale?","Does the TPI beat a trivial baseline?")}>Il TPI batte una baseline banale?</div>
+      <div class="section-sub" {_bi(f"Gli altri test chiedono se il TPI &egrave; correlato con qualcosa. Questo chiede l&rsquo;unica cosa che pu&ograve; bocciarlo: serviva costruirlo? Confronto out-of-sample su {vq.get('n')} coppie giocatore-vintage ({vq.get('n_giocatori')} giocatori, {_q_gior}).", f"The other tests ask whether the TPI correlates with something. This one asks the only question that can fail it: was it worth building? Out-of-sample comparison on {vq.get('n')} player-vintage pairs ({vq.get('n_giocatori')} players, {_q_gior}).")}>Gli altri test chiedono se il TPI &egrave; correlato con qualcosa. Questo chiede l&rsquo;unica cosa che pu&ograve; bocciarlo: serviva costruirlo? Confronto out-of-sample su {vq.get("n")} coppie giocatore-vintage ({vq.get("n_giocatori")} giocatori, {_q_gior}).</div>
+    </div>
+  </div>
+  <div class="g3">{q_boxes}</div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-ttl" {_bi("Tutti i confronti","All comparisons")}>Tutti i confronti</div>
+    <div class="table-wrap"><table>
+      <tr><th {_bi("Criterio","Criterion")}>Criterio</th><th>Baseline</th>
+          <th>&rho; baseline</th><th>&rho; TPI</th>
+          <th>&Delta;RMSE</th><th>IC95%</th><th {_bi("Esito","Outcome")}>Esito</th></tr>
+      <tbody>{q_rows}</tbody>
+    </table></div>
+    <div class="interp" style="border-left-color:{q_verd_col}" {_bi(q_verd_it, q_verd_en)}>{q_verd_it}</div>
+  </div>
+  <div class="g2" style="margin-top:16px">
+    <div class="card"><div class="card-ttl" {_bi("Come si legge","How to read it")}>Come si legge</div>
+      <div class="interp" {_bi("&Delta;RMSE = errore della baseline &minus; errore del TPI, quindi <strong>positivo significa TPI migliore</strong>. Conta l&rsquo;intervallo di confidenza, non il segno: se contiene lo zero il confronto &egrave; un pareggio. I predittori sono presi allo snapshot di giornata N, il criterio dalle giornate successive, e il bootstrap &egrave; clusterizzato sul giocatore perch&eacute; lo stesso nome ricorre in pi&ugrave; vintage.", "&Delta;RMSE = baseline error &minus; TPI error, so <strong>positive means the TPI is better</strong>. What matters is the confidence interval, not the sign: if it contains zero the comparison is a tie. Predictors are taken at the matchday-N snapshot, the criterion from later matchdays, and the bootstrap is clustered by player because the same name recurs across vintages.")}>&Delta;RMSE = errore della baseline &minus; errore del TPI, quindi <strong>positivo significa TPI migliore</strong>. Conta l&rsquo;intervallo di confidenza, non il segno: se contiene lo zero il confronto &egrave; un pareggio.</div></div>
+    <div class="card"><div class="card-ttl" {_bi("Due avvertenze oneste","Two honest caveats")}>Due avvertenze oneste</div>
+      <div class="interp" {_bi(f"<strong>Il criterio favorisce la baseline.</strong> Il TPI non nasce per massimizzare l&rsquo;output offensivo futuro: pesa i ruoli (un difensore vale 0.55) ed &egrave; orientato allo scouting. Confrontarlo su (gol+xA)/90 lo penalizza per costruzione &mdash; ed &egrave; esattamente il criterio con cui il sito lo presenta.<br><br><strong>Il valore di mercato bara.</strong> Copre {vq.get('valore_coverage_pct')}% delle coppie ed &egrave; uno snapshot scaricato a stagione finita: come predittore sa gi&agrave; com&rsquo;&egrave; andata. Gioca in vantaggio, non in svantaggio.", f"<strong>The criterion favours the baseline.</strong> The TPI is not built to maximise future attacking output: it weights roles (a defender counts 0.55) and is scouting-oriented. Judging it on (goals+xA)/90 penalises it by construction &mdash; and that is exactly the criterion the site advertises.<br><br><strong>Market value cheats.</strong> It covers {vq.get('valore_coverage_pct')}% of the pairs and is a snapshot downloaded after the season ended: as a predictor it already knows how things went. It plays with an advantage, not a handicap.")}><strong>Il criterio favorisce la baseline.</strong> Il TPI non nasce per massimizzare l&rsquo;output offensivo futuro: pesa i ruoli ed &egrave; orientato allo scouting.<br><br><strong>Il valore di mercato bara</strong>: &egrave; uno snapshot scaricato a stagione finita, quindi sa gi&agrave; com&rsquo;&egrave; andata.</div></div>
+  </div>
+</div>"""
+    elif vq.get("msg"):
+        q_section = f'<div class="nota-warn" style="margin-top:16px">{vq["msg"]}</div>'
+    else:
+        q_section = ""
+
+    # ── Sezione M — calibrazione ─────────────────────────────────
+    vm = val_m or {}
+    if vm.get("has_data"):
+        m_slope = vm.get("slope")
+        m_bins = "".join(
+            f'<tr><td style="font-family:var(--mono)">{b["bin"]+1}</td>'
+            f'<td style="font-family:var(--mono);color:var(--orng)">{b["tpi_mean"]:+.3f}</td>'
+            f'<td style="font-family:var(--mono)">{b["realized_mean"]:.3f}</td>'
+            f'<td style="font-family:var(--mono);color:var(--lt)">{b["predicted"]:.3f}</td>'
+            f'<td style="font-family:var(--mono);color:{"var(--green)" if abs(b["residual"]) < 0.05 else "var(--orng)"}">{b["residual"]:+.3f}</td>'
+            f'<td style="font-family:var(--mono);font-size:12px">{b["n"]}</td></tr>'
+            for b in vm.get("bins", [])
+        )
+        # slope 1.0 = un punto di TPI vale un punto di output. Sotto 1 significa
+        # che le distanze di TPI sono piu' larghe di quelle reali.
+        _m_gonf = (1.0 / m_slope) if m_slope else None
+        if m_slope is None:
+            m_verd_it = m_verd_en = "&mdash;"; m_col = "var(--lt)"
+        elif 0.8 <= m_slope <= 1.25:
+            m_col = "var(--green)"
+            m_verd_it = "Pendenza vicina a 1: una differenza di TPI corrisponde a una differenza di rendimento della stessa taglia."
+            m_verd_en = "Slope close to 1: a TPI gap corresponds to a performance gap of the same size."
+        else:
+            m_col = "var(--orng)"
+            m_verd_it = (f"Pendenza {_sf(m_slope,3)} invece di 1: l&rsquo;ordinamento tiene (&rho; fra decili "
+                         f"= {_sf(vm.get('monotonia_rho'),3)}), ma le <strong>distanze sono gonfiate circa "
+                         f"{_sf(_m_gonf,1)}&times;</strong>. Un giocatore con TPI doppio di un altro non rende il doppio: "
+                         f"il TPI va letto come una graduatoria, non come una scala di quantit&agrave;.")
+            m_verd_en = (f"Slope {_sf(m_slope,3)} instead of 1: the ordering holds (&rho; across deciles "
+                         f"= {_sf(vm.get('monotonia_rho'),3)}), but the <strong>gaps are inflated about "
+                         f"{_sf(_m_gonf,1)}&times;</strong>. A player with twice another&rsquo;s TPI does not perform twice as well: "
+                         f"read the TPI as a ranking, not as a scale of quantities.")
+        m_section = f"""
+<div class="section">
+  <div class="section-hd">
+    <div class="section-num">M</div>
+    <div>
+      <div class="section-ttl" {_bi("Calibrazione &mdash; le differenze di TPI sono della taglia giusta?","Calibration &mdash; are TPI gaps the right size?")}>Calibrazione &mdash; le differenze di TPI sono della taglia giusta?</div>
+      <div class="section-sub" {_bi(f"Un indice pu&ograve; ordinare bene e sbagliare le distanze. Qui i {vm.get('n')} giocatori sono divisi in {vm.get('n_bins')} decili di TPI e si confronta il rendimento medio di ogni decile con quello atteso dalla retta.", f"An index can order well and still get the distances wrong. Here the {vm.get('n')} players are split into {vm.get('n_bins')} TPI deciles and each decile&rsquo;s mean output is compared with the line&rsquo;s prediction.")}>Un indice pu&ograve; ordinare bene e sbagliare le distanze. I {vm.get("n")} giocatori sono divisi in {vm.get("n_bins")} decili di TPI.</div>
+    </div>
+  </div>
+  <div class="g4">
+    <div class="stat-box sb-orng"><div class="stat-val" style="color:{m_col}">{_sf(m_slope,3)}</div><div class="stat-lbl" {_bi("Pendenza","Slope")}>Pendenza</div><div class="stat-sub" {_bi("ideale = 1.000","ideal = 1.000")}>ideale = 1.000</div></div>
+    <div class="stat-box sb-green"><div class="stat-val" style="color:{rcol(vm.get("monotonia_rho"))}">{_sf(vm.get("monotonia_rho"),3)}</div><div class="stat-lbl" {_bi("Monotonia &rho;","Monotonicity &rho;")}>Monotonia &rho;</div><div class="stat-sub" {_bi("fra decili","across deciles")}>fra decili</div></div>
+    <div class="stat-box sb-blue"><div class="stat-val">{_sf(vm.get("calibration_error"),3)}</div><div class="stat-lbl">ACE</div><div class="stat-sub" {_bi("residuo medio / range","mean residual / range")}>residuo medio / range</div></div>
+    <div class="stat-box sb-purp"><div class="stat-val">{vm.get("n",0)}</div><div class="stat-lbl" {_bi("Giocatori","Players")}>Giocatori</div><div class="stat-sub" {_bi("stagione piena","full season")}>stagione piena</div></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-ttl" {_bi("Decile per decile","Decile by decile")}>Decile per decile</div>
+    <div class="table-wrap"><table>
+      <tr><th {_bi("Decile","Decile")}>Decile</th><th {_bi("TPI medio","Mean TPI")}>TPI medio</th>
+          <th {_bi("Reso","Realized")}>Reso</th><th {_bi("Atteso","Predicted")}>Atteso</th>
+          <th {_bi("Residuo","Residual")}>Residuo</th><th>n</th></tr>
+      <tbody>{m_bins}</tbody>
+    </table></div>
+    <div class="interp" style="border-left-color:{m_col}" {_bi(m_verd_it, m_verd_en)}>{m_verd_it}</div>
+  </div>
+</div>"""
+    elif vm.get("msg"):
+        m_section = f'<div class="nota-warn" style="margin-top:16px">{vm["msg"]}</div>'
+    else:
+        m_section = ""
+
+    # ── Sezione O — ablation ─────────────────────────────────────
+    vo = val_o or {}
+    if vo.get("has_data"):
+        _o_lab = {"output_adj": ("Output", "Output"), "buildup_adj": ("Buildup", "Buildup"),
+                  "centralita": ("Centralit&agrave;", "Centrality"), "boost_ratio": ("Boost", "Boost"),
+                  "consistenza": ("Consistenza", "Consistency"), "finishing": ("Finalizzazione", "Finishing"),
+                  "form": ("Forma", "Form")}
+        o_rows = ""
+        for r in vo["results"]:
+            _lit, _len_ = _o_lab.get(r["dim"], (r["dim"], r["dim"]))
+            # Delta < 0 = togliere la dim PEGGIORA la predizione, quindi serve.
+            _c = "var(--green)" if r["delta_predict"] < -0.02 else ("var(--red)" if r["delta_predict"] > 0.02 else "var(--lt)")
+            _v_it = "serve" if r["delta_predict"] < -0.02 else ("peggiora" if r["delta_predict"] > 0.02 else "neutra")
+            _v_en = "earns it" if r["delta_predict"] < -0.02 else ("hurts" if r["delta_predict"] > 0.02 else "neutral")
+            o_rows += (
+                f'<tr><td style="color:var(--lp)"><span {_bi(_lit, _len_)}>{_lit}</span></td>'
+                f'<td style="font-family:var(--mono);color:var(--orng)">{r["peso"]:.2f}</td>'
+                f'<td style="font-family:var(--mono)">{r["rho_vs_full"]:.3f}</td>'
+                f'<td style="font-family:var(--mono)">{r["rho_vs_realized"]:.3f}</td>'
+                f'<td style="font-family:var(--mono);color:{_c};font-weight:700">{r["delta_predict"]:+.4f}</td>'
+                f'<td style="font-family:var(--mono);font-size:12px">{r["top10_overlap"]}/10</td>'
+                f'<td style="font-size:12px;color:{_c}"><span {_bi(_v_it, _v_en)}>{_v_it}</span></td></tr>'
+            )
+        _o_serve = [r for r in vo["results"] if r["delta_predict"] < -0.02]
+        _o_male  = [r for r in vo["results"] if r["delta_predict"] > 0.02]
+        if _o_serve:
+            _o_nomi = ", ".join(_o_lab.get(r["dim"], (r["dim"],))[0] for r in _o_serve)
+            o_verd_it = (f"Togliendo {_o_nomi} la predizione peggiora: quelle dimensioni si guadagnano il posto. "
+                         f"Le altre {len(vo['results']) - len(_o_serve)} no.")
+            o_verd_en = (f"Removing {_o_nomi} makes prediction worse: those dimensions earn their place. "
+                         f"The other {len(vo['results']) - len(_o_serve)} do not.")
+        else:
+            o_verd_it = "Nessuna dimensione, tolta da sola, peggiora la predizione in modo apprezzabile."
+            o_verd_en = "No single dimension, removed on its own, makes prediction appreciably worse."
+        if _o_male:
+            _o_nomi_m = ", ".join(_o_lab.get(r["dim"], (r["dim"],))[0] for r in _o_male)
+            o_verd_it += (f" Anzi, togliere {_o_nomi_m} la <strong>migliora</strong>: contro questo criterio "
+                          f"quelle dimensioni stanno togliendo segnale, non aggiungendolo.")
+            o_verd_en += (f" In fact removing {_o_nomi_m} <strong>improves</strong> it: against this criterion "
+                          f"those dimensions are removing signal rather than adding it.")
+        o_col = "var(--green)" if _o_serve and not _o_male else "var(--orng)"
+        o_section = f"""
+<div class="section">
+  <div class="section-hd">
+    <div class="section-num">O</div>
+    <div>
+      <div class="section-ttl" {_bi("Ablation &mdash; quali delle sette dimensioni si guadagnano il posto","Ablation &mdash; which of the seven dimensions earn their place")}>Ablation &mdash; quali delle sette dimensioni si guadagnano il posto</div>
+      <div class="section-sub" {_bi(f"Si azzera il peso di una dimensione alla volta e si ricostruisce il TPI (shrink, peso di ruolo e penalty inclusi: la ricostruzione completa correla 0.96 col TPI pubblicato). Poi si guarda quanto cambia il ranking e quanto cambia la predizione, su {vo.get('n')} giocatori.", f"One dimension&rsquo;s weight is zeroed at a time and the TPI rebuilt (shrink, role weight and penalty included: the full reconstruction correlates 0.96 with the published TPI). Then we measure how much the ranking and the prediction change, over {vo.get('n')} players.")}>Si azzera il peso di una dimensione alla volta e si ricostruisce il TPI, su {vo.get("n")} giocatori.</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-ttl" {_bi(f"&rho;(TPI, rendimento) di partenza = {vo.get('baseline_rho_realized')}", f"Starting &rho;(TPI, output) = {vo.get('baseline_rho_realized')}")}>&rho;(TPI, rendimento) di partenza = {vo.get("baseline_rho_realized")}</div>
+    <div class="table-wrap"><table>
+      <tr><th {_bi("Dimensione tolta","Dimension removed")}>Dimensione tolta</th><th {_bi("Peso","Weight")}>Peso</th>
+          <th {_bi("&rho; vs TPI pieno","&rho; vs full TPI")}>&rho; vs TPI pieno</th>
+          <th {_bi("&rho; vs reso","&rho; vs realized")}>&rho; vs reso</th>
+          <th {_bi("&Delta; predizione","&Delta; prediction")}>&Delta; predizione</th>
+          <th>Top 10</th><th {_bi("Verdetto","Verdict")}>Verdetto</th></tr>
+      <tbody>{o_rows}</tbody>
+    </table></div>
+    <div class="interp" style="border-left-color:{o_col}" {_bi(o_verd_it + " Il criterio &egrave; l&rsquo;output offensivo della stessa stagione, in-sample e sui 100 gi&agrave; selezionati: legge quanto ogni dimensione contribuisce a predire i gol, non quanto vale per uno scout.", o_verd_en + " The criterion is same-season attacking output, in-sample and on the already-selected 100: it reads how much each dimension helps predict goals, not how much it is worth to a scout.")}>{o_verd_it}</div>
+  </div>
+</div>"""
+    elif vo.get("msg"):
+        o_section = f'<div class="nota-warn" style="margin-top:16px">{vo["msg"]}</div>'
+    else:
+        o_section = ""
+
+    # ── Sezione N — predittività per ruolo ───────────────────────
+    vn = val_n or {}
+    if vn.get("has_data"):
+        _n_lab = {"ATT": ("Attaccanti", "Forwards"), "CEN": ("Centrocampisti", "Midfielders"),
+                  "DIF": ("Difensori", "Defenders"), "POR": ("Portieri", "Goalkeepers")}
+        n_boxes = ""
+        for _sb, (ruolo, d) in zip(("sb-orng", "sb-blue", "sb-green", "sb-purp"),
+                                   vn["per_role"].items()):
+            _lit, _len_ = _n_lab.get(ruolo, (ruolo, ruolo))
+            if d.get("rho") is None:
+                n_boxes += (f'<div class="stat-box {_sb}"><div class="stat-val" style="color:var(--lt)">&mdash;</div>'
+                            f'<div class="stat-lbl"><span {_bi(_lit, _len_)}>{_lit}</span></div>'
+                            f'<div class="stat-sub" {_bi(f"n = {d.get('n',0)}, campione insufficiente", f"n = {d.get('n',0)}, sample too small")}>n = {d.get("n",0)}</div></div>')
+            else:
+                n_boxes += (f'<div class="stat-box {_sb}"><div class="stat-val" style="color:{rcol(d["rho"])}">{d["rho"]:+.3f}</div>'
+                            f'<div class="stat-lbl"><span {_bi(_lit, _len_)}>{_lit}</span></div>'
+                            f'<div class="stat-sub">n = {d["n"]} &middot; {pval(d.get("p"))}</div></div>')
+        _n_ok = {k: v for k, v in vn["per_role"].items() if v.get("rho") is not None}
+        if _n_ok:
+            _n_best = max(_n_ok.items(), key=lambda kv: kv[1]["rho"])
+            _n_worst = min(_n_ok.items(), key=lambda kv: kv[1]["rho"])
+            n_verd_it = (f"Il TPI regge meglio su {_n_lab.get(_n_best[0], (_n_best[0],))[0].lower()} "
+                         f"(&rho; = {_n_best[1]['rho']:+.3f}) e peggio su "
+                         f"{_n_lab.get(_n_worst[0], (_n_worst[0],))[0].lower()} (&rho; = {_n_worst[1]['rho']:+.3f}).")
+            n_verd_en = (f"The TPI holds up best for {_n_lab.get(_n_best[0], (_n_best[0],))[1].lower()} "
+                         f"(&rho; = {_n_best[1]['rho']:+.3f}) and worst for "
+                         f"{_n_lab.get(_n_worst[0], (_n_worst[0],))[1].lower()} (&rho; = {_n_worst[1]['rho']:+.3f}).")
+            _n_dif = _n_ok.get("DIF") or {}
+            if _n_dif.get("rho") is not None:
+                # Il dato che sorprende non e' il numero basso ma quello alto:
+                # va spiegato, altrimenti si legge come "il TPI valuta i difensori".
+                n_verd_it += (f" Il &rho; dei difensori ({_n_dif['rho']:+.3f}) non va letto come "
+                              f"&laquo;il TPI valuta bene i difensori&raquo;: il criterio &egrave; l&rsquo;output "
+                              f"offensivo per-90, quindi dentro quel ruolo separa i terzini che attaccano dagli "
+                              f"altri, non i bravi difensori dai mediocri. Il mestiere difensivo il TPI, oggi, "
+                              f"non lo guarda proprio.")
+                n_verd_en += (f" The defenders&rsquo; &rho; ({_n_dif['rho']:+.3f}) should not be read as "
+                              f"&ldquo;the TPI rates defenders well&rdquo;: the criterion is per-90 attacking "
+                              f"output, so within that role it separates attacking full-backs from the rest, "
+                              f"not good defenders from mediocre ones. Defensive craft is something the TPI, "
+                              f"today, does not look at at all.")
+        else:
+            n_verd_it = n_verd_en = "&mdash;"
+        n_section = f"""
+<div class="section">
+  <div class="section-hd">
+    <div class="section-num">N</div>
+    <div>
+      <div class="section-ttl" {_bi("Per chi funziona &mdash; predittivit&agrave; per ruolo","Who it works for &mdash; predictivity by role")}>Per chi funziona &mdash; predittivit&agrave; per ruolo</div>
+      <div class="section-sub" {_bi("Un indice offensivo vale anche per i difensori? &rho; di Spearman fra TPI e output realizzato, calcolata dentro ogni ruolo.","Does an attacking index also hold for defenders? Spearman &rho; between TPI and realized output, computed within each role.")}>Un indice offensivo vale anche per i difensori? &rho; fra TPI e output realizzato, dentro ogni ruolo.</div>
+    </div>
+  </div>
+  <div class="g4">{n_boxes}</div>
+  <div class="card" style="margin-top:16px"><div class="interp" {_bi(n_verd_it, n_verd_en)}>{n_verd_it}</div></div>
+</div>"""
+    elif vn.get("msg"):
+        n_section = f'<div class="nota-warn" style="margin-top:16px">{vn["msg"]}</div>'
+    else:
+        n_section = ""
+
+    # ── Sezione L — convergenza del ranking ──────────────────────
+    vl = val_l or {}
+    if vl.get("has_data"):
+        l_rows = "".join(
+            f'<tr><td style="font-family:var(--mono);color:var(--orng)">g{r["vintage_giornata"]}</td>'
+            f'<td style="font-family:var(--mono);color:{rcol(r["spearman_rho"])};font-weight:700">{_sf(r["spearman_rho"],3)}</td>'
+            f'<td style="font-family:var(--mono)">{int(r["overlap_top25"]*100)}%</td>'
+            f'<td style="font-family:var(--mono);font-size:12px">{r["n_common"]}</td></tr>'
+            for r in vl.get("per_vintage", [])
+        )
+        l_cross = "".join(
+            f'<tr><td style="color:var(--lp)">{r["season"]}</td>'
+            f'<td style="color:var(--lt);font-size:12px">{r["snapshot"]}</td>'
+            f'<td style="font-family:var(--mono);color:{rcol(r["spearman_rho"])}">{_sf(r["spearman_rho"],3)}</td>'
+            f'<td style="font-family:var(--mono);font-size:12px">{r["n_common"]}</td></tr>'
+            for r in vl.get("cross_season", [])
+        )
+        _l_pv = [r for r in vl.get("per_vintage", []) if r.get("spearman_rho") is not None]
+        if _l_pv:
+            _l_first, _l_last = _l_pv[0], _l_pv[-1]
+            l_verd_it = (f"Gi&agrave; alla giornata {_l_first['vintage_giornata']} il ranking assomiglia a quello finale "
+                         f"(&rho; = {_sf(_l_first['spearman_rho'],3)}), e sale a {_sf(_l_last['spearman_rho'],3)} alla "
+                         f"{_l_last['vintage_giornata']}<sup>a</sup>. Un terzo del ranking finale, per&ograve;, si decide dopo: "
+                         f"chi usa il TPI a met&agrave; stagione deve saperlo.")
+            l_verd_en = (f"By matchday {_l_first['vintage_giornata']} the ranking already resembles the final one "
+                         f"(&rho; = {_sf(_l_first['spearman_rho'],3)}), rising to {_sf(_l_last['spearman_rho'],3)} by matchday "
+                         f"{_l_last['vintage_giornata']}. Still, a third of the final ranking is decided later: "
+                         f"anyone using the TPI mid-season should know that.")
+        else:
+            l_verd_it = l_verd_en = "&mdash;"
+        l_section = f"""
+<div class="section">
+  <div class="section-hd">
+    <div class="section-num">L</div>
+    <div>
+      <div class="section-ttl" {_bi("Quando il ranking &egrave; affidabile &mdash; convergenza per giornata","When the ranking becomes reliable &mdash; convergence by matchday")}>Quando il ranking &egrave; affidabile &mdash; convergenza per giornata</div>
+      <div class="section-sub" {_bi("Il TPI calcolato a met&agrave; stagione quanto somiglia a quello di fine stagione? Ogni riga &egrave; uno snapshot vero, salvato a quella giornata e mai ritoccato.","How closely does a mid-season TPI resemble the end-of-season one? Each row is a real snapshot, saved at that matchday and never touched again.")}>Il TPI calcolato a met&agrave; stagione quanto somiglia a quello finale? Ogni riga &egrave; uno snapshot vero.</div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="card-ttl" {_bi("Dentro la stagione","Within the season")}>Dentro la stagione</div>
+      <div class="table-wrap"><table>
+        <tr><th {_bi("Vintage","Vintage")}>Vintage</th><th>&rho;</th>
+            <th {_bi("Top 25 in comune","Top 25 shared")}>Top 25</th><th>n</th></tr>
+        <tbody>{l_rows}</tbody>
+      </table></div></div>
+    <div class="card"><div class="card-ttl" {_bi("Fra stagioni","Across seasons")}>Fra stagioni</div>
+      <div class="table-wrap"><table>
+        <tr><th {_bi("Stagione","Season")}>Stagione</th><th>Snapshot</th><th>&rho;</th><th>n</th></tr>
+        <tbody>{l_cross}</tbody>
+      </table></div>
+      <div class="interp" {_bi("Il crollo fra stagioni non &egrave; un difetto del calcolo: fra un anno e l&rsquo;altro cambiano squadra, ruolo e minutaggio. &Egrave; la misura di quanto poco il rendimento passato si trasporta.","The drop across seasons is not a computation flaw: team, role and minutes all change from one year to the next. It measures how little past output carries over.")}>Il crollo fra stagioni non &egrave; un difetto del calcolo: cambiano squadra, ruolo e minutaggio.</div></div>
+  </div>
+  <div class="card" style="margin-top:16px"><div class="interp" {_bi(l_verd_it, l_verd_en)}>{l_verd_it}</div></div>
+</div>"""
+    elif vl.get("msg"):
+        l_section = f'<div class="nota-warn" style="margin-top:16px">{vl["msg"]}</div>'
+    else:
+        l_section = ""
+
+    # ── Sezione P — persistenza ──────────────────────────────────
+    vp = val_p or {}
+    if vp.get("has_data"):
+        p_cross = vp.get("cross_2season") or {}
+        _p_d_within = vp.get("delta_within_vs_single")
+        p_section_extra = ""
+        if p_cross.get("rho_2season_mean") is not None:
+            _pc_col = "var(--green)" if p_cross.get("significativo_95") else "var(--orng)"
+            p_section_extra = f"""
+  <div class="card" style="margin-top:16px">
+    <div class="card-ttl" {_bi("E invece, mediando su due stagioni","And now, averaging across two seasons")}>E invece, mediando su due stagioni</div>
+    <div class="g3">
+      <div class="stat-box sb-blue"><div class="stat-val">{p_cross["rho_single"]:+.3f}</div><div class="stat-lbl" {_bi("TPI singolo","Single TPI")}>TPI singolo</div><div class="stat-sub">n = {p_cross["n"]}</div></div>
+      <div class="stat-box sb-green"><div class="stat-val" style="color:{_pc_col}">{p_cross["rho_2season_mean"]:+.3f}</div><div class="stat-lbl" {_bi("Media 2 stagioni","2-season mean")}>Media 2 stagioni</div><div class="stat-sub">&Delta; {p_cross["delta"]:+.3f}</div></div>
+      <div class="stat-box sb-purp"><div class="stat-val" style="font-size:20px">{_ci_txt(p_cross.get("ic95_lo"), p_cross.get("ic95_hi"))}</div><div class="stat-lbl">IC95% &Delta;</div><div class="stat-sub" {_bi("significativo" if p_cross.get("significativo_95") else "non significativo", "significant" if p_cross.get("significativo_95") else "not significant")}>{"significativo" if p_cross.get("significativo_95") else "non significativo"}</div></div>
+    </div>
+  </div>"""
+        p_verd_it = (f"Il risultato interessante &egrave; la contraddizione. Mediare il TPI su pi&ugrave; snapshot <em>della stessa "
+                     f"stagione</em> peggiora la predizione ({vp['rho_single']:+.3f} &rarr; {vp['rho_persistence_within_mean']:+.3f}): "
+                     f"gli snapshot ravvicinati condividono le stesse partite, quindi la media non toglie rumore, toglie "
+                     f"l&rsquo;informazione pi&ugrave; fresca.")
+        p_verd_en = (f"The interesting result is the contradiction. Averaging the TPI over several snapshots <em>of the same "
+                     f"season</em> makes prediction worse ({vp['rho_single']:+.3f} &rarr; {vp['rho_persistence_within_mean']:+.3f}): "
+                     f"nearby snapshots share the same matches, so averaging does not remove noise, it removes the freshest "
+                     f"information.")
+        if p_cross.get("delta") is not None and p_cross["delta"] > 0:
+            p_verd_it += (f" Mediare su <em>due stagioni diverse</em>, invece, la migliora nettamente "
+                          f"({p_cross['rho_single']:+.3f} &rarr; {p_cross['rho_2season_mean']:+.3f}). Le due cose insieme dicono "
+                          f"una cosa sola: serve pi&ugrave; tempo, non pi&ugrave; misure dello stesso tempo.")
+            p_verd_en += (f" Averaging over <em>two different seasons</em>, instead, improves it markedly "
+                          f"({p_cross['rho_single']:+.3f} &rarr; {p_cross['rho_2season_mean']:+.3f}). Together they say one thing: "
+                          f"what helps is more time, not more measurements of the same time.")
+        p_section = f"""
+<div class="section">
+  <div class="section-hd">
+    <div class="section-num">P</div>
+    <div>
+      <div class="section-ttl" {_bi("Persistenza &mdash; conviene mediare il TPI su pi&ugrave; snapshot?","Persistence &mdash; is it worth averaging the TPI over snapshots?")}>Persistenza &mdash; conviene mediare il TPI su pi&ugrave; snapshot?</div>
+      <div class="section-sub" {_bi(f"Chi tiene un TPI alto su molti snapshot dovrebbe essere pi&ugrave; affidabile di chi lo tocca una volta sola. Verificato su {vp.get('n_giocatori')} giocatori e {vp.get('n_within_vintage')} vintage, contro il rendimento delle giornate finali.", f"A player who holds a high TPI across many snapshots should be more reliable than one who touches it once. Tested on {vp.get('n_giocatori')} players and {vp.get('n_within_vintage')} vintages, against output in the closing matchdays.")}>Chi tiene un TPI alto su molti snapshot &egrave; pi&ugrave; affidabile? Su {vp.get("n_giocatori")} giocatori e {vp.get("n_within_vintage")} vintage.</div>
+    </div>
+  </div>
+  <div class="g3">
+    <div class="stat-box sb-orng"><div class="stat-val" style="color:{rcol(vp.get("rho_single"))}">{vp["rho_single"]:+.3f}</div><div class="stat-lbl" {_bi("TPI singolo","Single TPI")}>TPI singolo</div><div class="stat-sub" {_bi("snapshot corrente","current snapshot")}>snapshot corrente</div></div>
+    <div class="stat-box sb-blue"><div class="stat-val" style="color:{rcol(vp.get("rho_persistence_within_mean"))}">{vp["rho_persistence_within_mean"]:+.3f}</div><div class="stat-lbl" {_bi("Media within-season","Within-season mean")}>Media within-season</div><div class="stat-sub">&Delta; {_p_d_within:+.3f}</div></div>
+    <div class="stat-box sb-purp"><div class="stat-val" style="color:{rcol(vp.get("rho_persistence_all_mean"))}">{vp["rho_persistence_all_mean"]:+.3f}</div><div class="stat-lbl" {_bi("Media su tutti i vintage","Mean over all vintages")}>Media su tutti i vintage</div><div class="stat-sub">&Delta; {vp["delta_all_vs_single"]:+.3f}</div></div>
+  </div>{p_section_extra}
+  <div class="card" style="margin-top:16px"><div class="interp" style="border-left-color:var(--orng)" {_bi(p_verd_it, p_verd_en)}>{p_verd_it}</div></div>
+</div>"""
+    elif vp.get("msg"):
+        p_section = f'<div class="nota-warn" style="margin-top:16px">{vp["msg"]}</div>'
+    else:
+        p_section = ""
 
     return f"""<!DOCTYPE html>
 <html lang="it">
@@ -2985,6 +3662,22 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 {h_section}
 
 {i_section}
+
+<!-- Q L M N O P — i test che finivano solo nel log.
+     Ordine scelto: prima la domanda che puo' bocciare l'indice (Q), poi se
+     e' calibrato (M), cosa c'e' dentro (O), per chi vale (N), da quando ci
+     si puo' fidare (L) e come si usa nel tempo (P). -->
+{q_section}
+
+{m_section}
+
+{o_section}
+
+{n_section}
+
+{l_section}
+
+{p_section}
 
 </div><!-- /main -->
 
@@ -3286,6 +3979,13 @@ def main():
         log.info("  Fallback in-sample (ultime 6 nel payload).")
         val_i = valida_incrementale_pro(players)
 
+    log.info("[Q] Baseline: il TPI batte i predittori banali?...")
+    val_q = valida_baseline(_val_i_engine) if _val_i_engine else None
+    if val_q is None:
+        log.info("  Nessun vintage utilizzabile → test Q non calcolato.")
+    elif not val_q.get("has_data"):
+        log.info(f"  {val_q.get('msg','—')}")
+
     log.info("[O] Ablation study (rimuove una dim per volta)...")
     val_o = valida_ablation(players, df_gp)
     if not val_o.get("has_data"):
@@ -3313,7 +4013,8 @@ def main():
 
     log.info("\nGenerazione HTML...")
     html = build_dashboard(val_a, val_b, val_c, val_d, val_e,
-                           val_f, val_g, val_h, val_i)
+                           val_f, val_g, val_h, val_i,
+                           val_l, val_m, val_n, val_o, val_p, val_q)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out = OUTPUT_DIR / "validazione.html"
@@ -3379,6 +4080,11 @@ def main():
                  f"single ρ={val_p['rho_single']:+.3f}, within-mean ρ={val_p['rho_persistence_within_mean']:+.3f} "
                  f"(Δ={val_p['delta_within_vs_single']:+.3f}), all-mean ρ={val_p['rho_persistence_all_mean']:+.3f} "
                  f"(Δ={val_p['delta_all_vs_single']:+.3f}), wins={val_p['persistence_wins']}")
+    if val_q and val_q.get("has_data"):
+        for _ck, _cv in val_q["criteri"].items():
+            _batte = _cv["tpi_batte"]
+            log.info(f"  Q — Baseline [{_ck}]: il TPI batte {len(_batte)}/{_cv['n_baselines']}"
+                     + (f" ({', '.join(_batte)})" if _batte else " (nessuna)"))
     log.info("=" * 58)
 
     # Apre il file nel browser — una sola volta
