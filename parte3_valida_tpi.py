@@ -2683,26 +2683,77 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
           <div class="rc-sub">{sub}</div>
         </div>"""
 
-    recap_abcd = (
-        _badge_html("badge-a", "A &mdash; Correlazione Fantacalcio", "A &mdash; Fantacalcio correlation",
-                    r_a, 0.6, 0.4,
-                    f"r = {_sf(r_a,3)} &middot; n = {n_a}") +
-        _badge_html("badge-b", "B &mdash; Overlap Top 10 WhoScored", "B &mdash; Top 10 WhoScored overlap",
-                    (ov / 100) if ov else None, 0.7, 0.5,
-                    f'{ov}% <span {_bi("coincidenza","overlap")}>coincidenza</span>') +
-        _badge_html("badge-c", "C &mdash; Backtest Predittivo", "C &mdash; Predictive Backtest",
-                    r_c, 0.5, 0.3,
-                    f"r = {_sf(r_c,3)} &middot; n = {n_c}")
-    )
+    def _rc_card(label_it: str, label_en: str, badge_cls: str,
+                 tag_it: str, tag_en: str, sub: str, color_override: str = "") -> str:
+        """Card di riepilogo con verdetto statico (niente id: il JS non la tocca)."""
+        accent = f"border-left:3px solid {color_override};" if color_override else ""
+        return f"""<div class="rc-card" style="{accent}">
+          <div class="rc-lbl" {_bi(label_it, label_en)}>{label_it}</div>
+          <div><span class="badge {badge_cls}" {_bi(tag_it, tag_en)}>{tag_it}</span></div>
+          <div class="rc-sub">{sub}</div>
+        </div>"""
 
-    # D — solo se ha dati
+    # L'ordine del riepilogo segue quanto un risultato regge, non l'alfabeto.
+    # Q per primo: e' il test che puo' bocciare l'indice, e nasconderlo a meta'
+    # pagina sarebbe lo stesso errore dell'ordine A-B-C di prima.
+    recap_abcd = ""
+    vq_r = val_q or {}
+    if vq_r.get("has_data"):
+        _qb = next((v for v in vq_r["criteri"].get("livello", {}).get("baselines", [])
+                    if v["key"] == "output_grezzo"), None)
+        if _qb is not None:
+            if _qb["tpi_better"]:
+                _qcls, _qt_it, _qt_en = "badge-green", "La batte &#10003;", "Beats it &#10003;"
+            elif _qb["ci_hi"] < 0:
+                _qcls, _qt_it, _qt_en = "badge-red", "Non la batte", "Does not beat it"
+            else:
+                _qcls, _qt_it, _qt_en = "badge-orng", "Pari", "Tie"
+            recap_abcd += _rc_card(
+                "Q &mdash; vs output grezzo", "Q &mdash; vs raw output", _qcls, _qt_it, _qt_en,
+                f'&Delta;RMSE {_qb["delta_rmse"]:+.4f} &middot; n = {_qb["n"]}',
+                "var(--orng)")
+
+    # P — l'unico guadagno predittivo out-of-sample che sopravvive
+    vp_r = val_p or {}
+    _pc_r = (vp_r.get("cross_2season") or {}) if vp_r.get("has_data") else {}
+    if _pc_r.get("rho_2season_mean") is not None:
+        recap_abcd += _rc_card(
+            "P &mdash; Persistenza 2 stagioni", "P &mdash; 2-season persistence",
+            "badge-green" if _pc_r.get("significativo_95") else "badge-orng",
+            "Regge &#10003;" if _pc_r.get("significativo_95") else "Indicativo",
+            "Holds &#10003;" if _pc_r.get("significativo_95") else "Indicative",
+            f'&rho; {_pc_r["rho_single"]:+.2f} &rarr; {_pc_r["rho_2season_mean"]:+.2f} &middot; n = {_pc_r["n"]}')
+
+    recap_abcd += _badge_html("badge-c", "C &mdash; Backtest su output grezzo",
+                              "C &mdash; Backtest on raw output",
+                              r_c, 0.5, 0.3,
+                              f"r = {_sf(r_c,3)} &middot; n = {n_c}")
+
+    # D — solo se ha dati. Anche questa e' una descrizione, non un test: la
+    # soglia la bocciava ("Basso") per una r negativa che l'AII deve avere,
+    # visto che premia chi ENTRA nel prime invece di chi ci e' gia'.
     if has_v2:
-        recap_abcd += _badge_html(
-            "badge-d", "D &mdash; Et&agrave; &amp; Fisico", "D &mdash; Age &amp; Physical",
-            vd.get("aii_tpi_r"), 0.5, 0.3,
+        recap_abcd += _rc_card(
+            "D &mdash; Et&agrave; &amp; Fisico", "D &mdash; Age &amp; Physical",
+            "badge-blue", "Descrittivo", "Descriptive",
             f"AII:{n_aii} &middot; PRI:{n_pri} &middot; r={_sf(vd.get('aii_tpi_r'),3)}",
             "var(--teal)"
         )
+
+    # A e B chiudono, e non portano piu' un verdetto: A ha un IC che contiene
+    # lo zero su 29 voti, B e' un criterio che non puo' fallire. Restano perche'
+    # il contenuto e' interessante, non perche' dimostrino qualcosa.
+    # _ci_txt e b_hyper nascono piu' in basso nel corpo: qui servono gia' pronti.
+    _a_ci = f'[{_sf(val_a.get("ci_lo"),3)}, {_sf(val_a.get("ci_hi"),3)}]'
+    _b_p = _sf((val_b.get("hyper") or {}).get("p"), 2)
+    recap_abcd += _rc_card(
+        "A &mdash; Correlazione Fantacalcio", "A &mdash; Fantacalcio correlation",
+        "badge-blue", "Descrittivo", "Descriptive",
+        f'r = {_sf(r_a,3)} &middot; IC {_a_ci} &middot; n = {n_a}')
+    recap_abcd += _rc_card(
+        "B &mdash; Overlap WhoScored", "B &mdash; WhoScored overlap",
+        "badge-blue", "Descrittivo", "Descriptive",
+        f'{ov}% &middot; p = {_b_p}')
 
     # E — pannello separato in evidenza (sempre mostrato, anche se no dati)
     if has_pro:
@@ -2817,21 +2868,89 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     _n_test = 3 + sum(1 for _v in (val_d, val_e, val_f, val_g, val_h, val_i,
                                    val_l, val_m, val_n, val_o, val_p, val_q)
                       if (_v or {}).get("has_data"))
+    # Cosa rivendica l'indice, in apertura e senza giri di parole. Prima diceva
+    # "verifica che il TPI misuri qualita' reale" e metteva in vetrina il
+    # backtest r=0.725 — che pero' e' sull'output grezzo, cioe' la componente
+    # dominante, non sul composito. Il test Q lo ha reso insostenibile.
+    _q_hero = None
+    if (val_q or {}).get("has_data"):
+        _q_hero = next((v for v in val_q["criteri"].get("livello", {}).get("baselines", [])
+                        if v["key"] == "output_grezzo"), None)
+    if _q_hero is None:
+        _hq_it, _hq_en = "", ""
+    elif _q_hero["ci_hi"] < 0:
+        _hq_it = " Messo alla prova contro una baseline banale, l&rsquo;output grezzo per-90, <strong>ha perso</strong>."
+        _hq_en = " Tested against a trivial baseline, raw per-90 output, it <strong>lost</strong>."
+    elif _q_hero["tpi_better"]:
+        _hq_it = " Messo alla prova contro una baseline banale, l&rsquo;output grezzo per-90, <strong>l&rsquo;ha battuta</strong>."
+        _hq_en = " Tested against a trivial baseline, raw per-90 output, it <strong>won</strong>."
+    else:
+        _hq_it = " Messo alla prova contro una baseline banale, l&rsquo;output grezzo per-90, ha <strong>pareggiato</strong>."
+        _hq_en = " Tested against a trivial baseline, raw per-90 output, it <strong>tied</strong>."
+    _mono = (val_m or {}).get("monotonia_rho")
+    _hm_it = (f' Quello che regge &egrave; l&rsquo;ordinamento: &rho; fra decili '
+              f'<strong style="color:var(--orng)">{_r2(_mono)}</strong>.') if _mono is not None else ""
+    _hm_en = (f' What holds up is the ordering: &rho; across deciles '
+              f'<strong style="color:var(--orng)">{_r2(_mono)}</strong>.') if _mono is not None else ""
     _hsub_it = (
-        f'{_n_test} test per verificare che il TPI misuri qualit&agrave; reale — non rumore, '
-        'compreso quello che chiede se batte una baseline banale. '
-        f'Backtest predittivo <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
-        f'correlazione Fantacalcio <strong style="color:var(--orng)">r = {_r2(r_a)}</strong>. '
+        'Il TPI &egrave; un indice <strong style="color:var(--lp)">descrittivo</strong>: '
+        'ordina i giocatori, non predice il loro rendimento futuro.'
+        + _hq_it + _hm_it +
+        f' {_n_test} verifiche, riportate come sono uscite. '
         'Clicca <strong style="color:var(--lp)">?</strong> su ogni sezione per i dettagli metodologici.'
     )
     _hsub_en = (
-        f'{_n_test} tests to verify that TPI measures real player quality — not noise, '
-        'including the one asking whether it beats a trivial baseline. '
-        f'Predictive backtest <strong style="color:var(--orng)">r = {_r2(r_c)}</strong>, '
-        f'Fantacalcio correlation <strong style="color:var(--orng)">r = {_r2(r_a)}</strong>. '
+        'The TPI is a <strong style="color:var(--lp)">descriptive</strong> index: '
+        'it ranks players, it does not predict their future output.'
+        + _hq_en + _hm_en +
+        f' {_n_test} checks, reported exactly as they came out. '
         'Click <strong style="color:var(--lp)">?</strong> on each section for methodology details.'
     )
     hero_sub = f'<div class="hero-sub" {_bi(_hsub_it, _hsub_en)}>{_hsub_it}</div>'
+
+    # ── Cosa rivendica l'indice ──────────────────────────────────
+    # Sta subito sotto il riepilogo perche' e' la cosa che decide come si legge
+    # tutto il resto. Il terzo riquadro e' il piu' importante: distingue "non
+    # dimostrato" da "non ancora misurabile", che non sono la stessa cosa.
+    _cl_rho = (val_m or {}).get("monotonia_rho")
+    _cl_conv = None
+    if (val_l or {}).get("has_data"):
+        _cl_pv = [r for r in val_l.get("per_vintage", []) if r.get("spearman_rho") is not None]
+        # Il vintage PIU' PRESTO, non l'ultimo: la rivendicazione e' "quanto
+        # presto il ranking si assesta". Citare g36 non direbbe niente.
+        _cl_conv = _cl_pv[0] if _cl_pv else None
+    _cl_ordina_it = ("Ordinare i giocatori dentro una stagione. I decili di TPI salgono "
+                     f"insieme al rendimento (&rho; = {_sf(_cl_rho,3)})"
+                     + (f", e il ranking di giornata {_cl_conv['vintage_giornata']} vale gi&agrave; "
+                        f"&rho; = {_sf(_cl_conv['spearman_rho'],3)} contro quello finale." if _cl_conv else "."))
+    _cl_ordina_en = ("Ranking players within a season. TPI deciles rise together with output "
+                     f"(&rho; = {_sf(_cl_rho,3)})"
+                     + (f", and the matchday-{_cl_conv['vintage_giornata']} ranking already scores "
+                        f"&rho; = {_sf(_cl_conv['spearman_rho'],3)} against the final one." if _cl_conv else "."))
+    claim_html = f"""
+<div class="section" style="margin-bottom:34px">
+  <div class="section-hd">
+    <div class="section-num">&#9679;</div>
+    <div>
+      <div class="section-ttl" {_bi("Cosa rivendica questo indice","What this index claims")}>Cosa rivendica questo indice</div>
+      <div class="section-sub" {_bi("Scritto qui in alto perch&eacute; decide come va letto tutto il resto della pagina.","Stated up here because it decides how the rest of this page should be read.")}>Scritto qui in alto perch&eacute; decide come va letto tutto il resto della pagina.</div>
+    </div>
+  </div>
+  <div class="g3">
+    <div class="card" style="border-left:2px solid var(--green)">
+      <div class="card-ttl" {_bi("Lo fa","It does")}>Lo fa</div>
+      <div class="interp" style="border-left:0;padding-left:0" {_bi(_cl_ordina_it, _cl_ordina_en)}>{_cl_ordina_it}</div>
+    </div>
+    <div class="card" style="border-left:2px solid var(--red)">
+      <div class="card-ttl" {_bi("Non lo fa","It does not")}>Non lo fa</div>
+      <div class="interp" style="border-left:0;padding-left:0" {_bi("Predire il rendimento futuro. Messo a confronto con l&rsquo;output grezzo per-90 &mdash; il suo stesso input dominante &mdash; su dati che non aveva visto, il TPI non lo batte (sezione Q). Chi vuole prevedere i gol della prossima met&agrave; di stagione usi quella rate stat, non questo indice.", "Predicting future output. Compared with raw per-90 output &mdash; its own dominant input &mdash; on data it had not seen, the TPI does not beat it (section Q). If you want to forecast next half-season goals, use that rate stat, not this index.")}>Predire il rendimento futuro: contro l&rsquo;output grezzo per-90, su dati mai visti, il TPI non lo batte (sezione Q).</div>
+    </div>
+    <div class="card" style="border-left:2px solid var(--orng)">
+      <div class="card-ttl" {_bi("Non &egrave; ancora misurabile","Not yet measurable")}>Non &egrave; ancora misurabile</div>
+      <div class="interp" style="border-left:0;padding-left:0" {_bi("L&rsquo;ipotesi per cui l&rsquo;indice &egrave; nato: riconoscere chi <em>sta entrando</em> nel prime, non chi ci &egrave; gi&agrave;. Per giudicarla servirebbe seguire gli stessi giocatori per anni; qui ci sono due stagioni. Non &egrave; smentita, &egrave; non testata &mdash; e le due cose non vanno confuse.", "The hypothesis the index was built on: spotting who is <em>entering</em> their prime rather than who is already in it. Judging it would mean following the same players for years; there are two seasons here. It is not disproved, it is untested &mdash; and the two are not the same thing.")}>L&rsquo;ipotesi per cui l&rsquo;indice &egrave; nato: riconoscere chi <em>sta entrando</em> nel prime. Servirebbero anni di dati, qui ce ne sono due. Non &egrave; smentita, &egrave; non testata.</div>
+    </div>
+  </div>
+</div>"""
 
     a_loo = val_a.get("loo") or {}
     if val_a.get("r") is not None:
@@ -2859,6 +2978,9 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     _bfair = val_b.get("fair_overlap_pct", "&mdash;")
     _bp = _sf(b_hyper.get("p"), 4)
     _bexp = _sf(b_hyper.get("expected"), 2)
+    # Il p ipergeometrico esce dalla nota di rigore e va accanto al 40%: e' il
+    # numero che impedisce di leggere l'overlap come una conferma.
+    _bp2 = _sf(b_hyper.get("p"), 2)
     _b_it = (f'<strong>Rigore:</strong> sul set comune (~{_bnc} giocatori) '
              f'Kendall &tau; = <strong>{_bk}</strong>, Spearman &rho; = {_bsp} IC95% {_bci}. '
              f'Overlap fair (stesso bacino) = {_bfair}% &middot; p(ipergeometrico) = {_bp} '
@@ -3498,10 +3620,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <div class="hero-eyebrow">Serie A Scout Index &middot; TPI System</div>
   <div class="hero-ttl" data-i18n="val_title">Model Validation</div>
   {hero_sub}
+  <!-- Sotto i 480px resta visibile solo la prima pill: qui c'era il test piu'
+       debole (Pearson vs Fantacalcio, IC che contiene lo zero). Ora c'e' quello
+       che la pagina rivendica davvero. -->
   <div class="hero-pills">
-    <span class="hero-pill">Pearson r vs Fantacalcio</span>
-    <span class="hero-pill"><span {_bi("Sovrapposizione Top 10 WhoScored","Top 10 Overlap WhoScored")}>Top 10 Overlap WhoScored</span></span>
-    <span class="hero-pill"><span {_bi(f"Backtest predittivo r={_r2(r_c)}", f"Predictive Backtest r={_r2(r_c)}")}>Predictive Backtest r={_r2(r_c)}</span></span>
+    <span class="hero-pill"><span {_bi("Indice descrittivo","Descriptive index")}>Indice descrittivo</span></span>
+    <span class="hero-pill"><span {_bi("Confronto con baseline banali","Compared to trivial baselines")}>Confronto con baseline banali</span></span>
+    <span class="hero-pill"><span {_bi("Persistenza su due stagioni","Two-season persistence")}>Persistenza su due stagioni</span></span>
+    <span class="hero-pill"><span {_bi(f"Backtest su output grezzo r={_r2(r_c)}", f"Backtest on raw output r={_r2(r_c)}")}>Backtest su output grezzo r={_r2(r_c)}</span></span>
     <span class="hero-pill"><span {_bi("Indice Et&agrave; &amp; Fisico","Age &amp; Physical Index")}>Age &amp; Physical Index</span></span>
     <span class="hero-pill">TPI Pro</span>
   </div>
@@ -3520,10 +3646,10 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         <div class="guide-body" {_bi('<strong style="color:var(--green)">r&gt;0.6</strong> forte &middot; <strong style="color:var(--orng)">0.4–0.6</strong> moderata &middot; <strong style="color:var(--red)">&lt;0.4</strong> debole. Per sport r=0.5 con fonti esterne &egrave; ottimo.', '<strong style="color:var(--green)">r&gt;0.6</strong> strong &middot; <strong style="color:var(--orng)">0.4–0.6</strong> moderate &middot; <strong style="color:var(--red)">&lt;0.4</strong> weak. For sport, r=0.5 against external sources is excellent.')}><strong style="color:var(--green)">r&gt;0.6</strong> forte &middot; <strong style="color:var(--orng)">0.4–0.6</strong> moderata &middot; <strong style="color:var(--red)">&lt;0.4</strong> debole. Per sport r=0.5 con fonti esterne &egrave; ottimo.</div></div>
       <div class="guide-card"><div class="guide-ttl">p-value</div>
         <div class="guide-body" {_bi('<strong style="color:var(--green)">p&lt;0.05</strong> = significativo. Senza p basso anche r alto potrebbe essere fortuna.', '<strong style="color:var(--green)">p&lt;0.05</strong> = significant. Without a low p, even a high r could be luck.')}><strong style="color:var(--green)">p&lt;0.05</strong> = significativo. Senza p basso anche r alto potrebbe essere fortuna.</div></div>
-      <div class="guide-card"><div class="guide-ttl" {_bi("Overlap basso = forza","Low overlap = strength")}>Overlap basso = forza</div>
-        <div class="guide-body" {_bi("Overlap basso = il TPI trova giocatori non valorizzati dalla stampa. 100% = non aggiunge nulla.","Low overlap = the TPI finds players the press undervalues. 100% = it adds nothing.")}>Overlap basso = il TPI trova giocatori non valorizzati dalla stampa. 100% = non aggiunge nulla.</div></div>
+      <div class="guide-card"><div class="guide-ttl" {_bi("Overlap: nessuna soglia","Overlap: no threshold")}>Overlap: nessuna soglia</div>
+        <div class="guide-body" {_bi("Non c&rsquo;&egrave; un valore che promuove e uno che boccia: alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. Per questo la sezione B &egrave; descrittiva e non un test.","There is no value that passes and one that fails: high would mean &ldquo;confirmed&rdquo;, low &ldquo;finds gems&rdquo;. That is why section B is descriptive and not a test.")}>Non c&rsquo;&egrave; un valore che promuove e uno che boccia: alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. Per questo la sezione B &egrave; descrittiva.</div></div>
       <div class="guide-card"><div class="guide-ttl">Backtest</div>
-        <div class="guide-body" {_bi("Prima met&agrave; stagione predice la seconda? Un indice senza potere predittivo misura solo la fortuna del momento.","Does the first half of the season predict the second? An index with no predictive power only measures momentary luck.")}>Prima met&agrave; stagione predice la seconda? Un indice senza potere predittivo misura solo la fortuna del momento.</div></div>
+        <div class="guide-body" {_bi("Misura se l&rsquo;output offensivo si conferma fra le due met&agrave; della stagione. Riguarda quella rate stat, non il composito: per il composito c&rsquo;&egrave; la sezione Q.","It measures whether attacking output repeats across the two halves of the season. It is about that rate stat, not the composite: for the composite see section Q.")}>Misura se l&rsquo;output offensivo si conferma fra le due met&agrave; della stagione. Riguarda quella rate stat, non il composito: per il composito c&rsquo;&egrave; la sezione Q.</div></div>
       <div class="guide-card"><div class="guide-ttl">TPI Pro</div>
         <div class="guide-body" {_bi("Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. r(TPI,TPI Pro) ideale = 0.80–0.95.","Adds AII (age) and PRI (physical reliability) to the classic TPI. Ideal r(TPI,TPI Pro) = 0.80–0.95.")}>Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. r(TPI,TPI Pro) ideale = 0.80–0.95.</div></div>
       <div class="guide-card"><div class="guide-ttl" {_bi("Limiti","Limits")}>Limiti</div>
@@ -3541,13 +3667,15 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
      scende nel dettaglio. -->
 {recap_html}
 
+{claim_html}
+
 <!-- SEZIONE A -->
 <div class="section">
   <div class="section-hd">
     <div class="section-num">A</div>
     <div>
-      <div class="section-ttl"><span {_bi("TPI vs Voti Fantacalcio","TPI vs Fantacalcio Ratings")}>TPI vs Fantacalcio Ratings</span> <span class="help" onclick="openM('pearson')">?</span></div>
-      <div class="section-sub" {_bi("Il TPI correla col consenso degli esperti? r=0.4–0.7 &egrave; l'ideale — abbastanza alto da confermare la qualit&agrave;, abbastanza basso da aggiungere informazione indipendente.","Does TPI correlate with expert consensus? r=0.4–0.7 is ideal — high enough to confirm quality, low enough to add independent insight.")}>Does TPI correlate with expert consensus? r=0.4–0.7 is ideal — high enough to confirm quality, low enough to add independent insight.</div>
+      <div class="section-ttl"><span {_bi("TPI vs Voti Fantacalcio &mdash; descrittivo","TPI vs Fantacalcio Ratings &mdash; descriptive")}>TPI vs Voti Fantacalcio &mdash; descrittivo</span> <span class="help" onclick="openM('pearson')">?</span></div>
+      <div class="section-sub" {_bi(f"Confronto col consenso degli esperti su {n_a} voti inseriti a mano. <strong>Non &egrave; una prova</strong>: con questo campione l&rsquo;intervallo di confidenza di r contiene lo zero, quindi il dato descrive una somiglianza, non la dimostra.", f"Comparison with expert consensus over {n_a} hand-entered ratings. <strong>This is not proof</strong>: at this sample size the confidence interval for r contains zero, so the figure describes a resemblance rather than establishing one.")}>Confronto col consenso degli esperti su {n_a} voti inseriti a mano. <strong>Non &egrave; una prova</strong>: con questo campione l&rsquo;intervallo di confidenza di r contiene lo zero.</div>
     </div>
   </div>
   <div class="g3">
@@ -3587,12 +3715,12 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <div class="section-hd">
     <div class="section-num">B</div>
     <div>
-      <div class="section-ttl"><span {_bi("Top 10 TPI vs Classifiche WhoScored","Top 10 TPI vs WhoScored Rankings")}>Top 10 TPI vs WhoScored Rankings</span> <span class="help" onclick="openM('overlap')">?</span></div>
-      <div class="section-sub" {_bi("Overlap basso = informazione indipendente. Il TPI individua giocatori sottovalutati che le classifiche popolari mancano.","Low overlap = independent insight. TPI identifies undervalued players that popular rankings miss.")}>Low overlap = independent insight. TPI identifies undervalued players that popular rankings miss.</div>
+      <div class="section-ttl"><span {_bi("Confronto con WhoScored &mdash; descrittivo","Comparison with WhoScored &mdash; descriptive")}>Confronto con WhoScored &mdash; descrittivo</span> <span class="help" onclick="openM('overlap')">?</span></div>
+      <div class="section-sub" {_bi(f"Qui non c&rsquo;&egrave; un test: come criterio di validazione, l&rsquo;overlap <strong>non pu&ograve; fallire</strong> &mdash; alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. E il {ov}% osservato ha p = {_bp2} sull&rsquo;ipergeometrica: &egrave; compatibile col caso. Resta interessante <em>dove</em> i due non sono d&rsquo;accordo.", f"There is no test here: as a validation criterion, overlap <strong>cannot fail</strong> &mdash; high would mean &ldquo;confirmed&rdquo;, low &ldquo;finds gems&rdquo;. And the observed {ov}% has p = {_bp2} under the hypergeometric: it is consistent with chance. What stays interesting is <em>where</em> the two disagree.")}>Qui non c&rsquo;&egrave; un test: come criterio di validazione l&rsquo;overlap <strong>non pu&ograve; fallire</strong>, e il {ov}% osservato &egrave; compatibile col caso. Resta interessante <em>dove</em> i due non sono d&rsquo;accordo.</div>
     </div>
   </div>
   <div class="g3">
-    <div class="stat-box sb-orng"><div class="stat-val">{ov}%</div><div class="stat-lbl" {_bi("Overlap Top 10","Top 10 Overlap")}>Overlap Top 10</div><div class="stat-sub" {_bi("in comune con WhoScored","in common with WhoScored")}>in comune con WhoScored</div></div>
+    <div class="stat-box sb-orng"><div class="stat-val">{ov}%</div><div class="stat-lbl" {_bi("Overlap Top 10","Top 10 Overlap")}>Overlap Top 10</div><div class="stat-sub" {_bi(f"p ipergeometrica = {_bp2} &middot; atteso per caso {_bexp}/10", f"hypergeometric p = {_bp2} &middot; expected by chance {_bexp}/10")}>p ipergeometrica = {_bp2}</div></div>
     <div class="stat-box sb-green"><div class="stat-val">{len(val_b.get("divergenze_pos",[]))}</div><div class="stat-lbl" {_bi("Sottovalutati","Undervalued")}>Sottovalutati</div><div class="stat-sub" {_bi("TPI alto, WhoScored basso","high TPI, low WhoScored")}>TPI alto, WhoScored basso</div></div>
     <div class="stat-box"><div class="stat-val">{len(val_b.get("divergenze_neg",[]))}</div><div class="stat-lbl" {_bi("Sopravvalutati","Overvalued")}>Sopravvalutati</div><div class="stat-sub" {_bi("TPI basso, WhoScored alto","low TPI, high WhoScored")}>TPI basso, WhoScored alto</div></div>
   </div>
@@ -3604,7 +3732,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
   <div class="card"><div class="card-ttl"><span {_bi("Divergenze notevoli","Notable divergences")}>Divergenze notevoli</span> <span class="help" onclick="openM('divergenze')">?</span></div>
     <div id="div-content"></div>
-    <div class="interp" {_bi("Divergenze = insight, non errori. Identificano giocatori con impatto reale non riconosciuto.","Divergences = insight, not errors. They identify players with real impact that goes unrecognized.")}>Divergenze = insight, non errori. Identificano giocatori con impatto reale non riconosciuto.</div>
+    <div class="interp" {_bi("Le divergenze sono la parte utile di questo confronto, ma sono un&rsquo;<strong>ipotesi</strong>: che il TPI veda un impatto non riconosciuto &egrave; da verificare giocatore per giocatore, non dimostrato dal fatto che i due elenchi differiscano.","The divergences are the useful part of this comparison, but they are a <strong>hypothesis</strong>: that the TPI sees unrecognised impact has to be checked player by player &mdash; the two lists differing does not establish it.")}>Le divergenze sono la parte utile di questo confronto, ma sono un&rsquo;<strong>ipotesi</strong>: che il TPI veda un impatto non riconosciuto &egrave; da verificare giocatore per giocatore.</div>
     {b_rigor}
   </div>
 </div>
@@ -3614,8 +3742,8 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <div class="section-hd">
     <div class="section-num">C</div>
     <div>
-      <div class="section-ttl"><span {_bi(f"Backtest Predittivo — r = {_r2(r_c)}", f"Predictive Backtest — r = {_r2(r_c)}")}>Predictive Backtest — r = {_r2(r_c)}</span> <span class="help" onclick="openM('backtest')">?</span></div>
-      <div class="section-sub" {_bi(f"Il TPI di inizio stagione predice il rendimento di fine stagione? {val_c.get('early_range','First half')} &rarr; {val_c.get('late_range','Second half')}", f"Can early-season TPI predict late-season performance? {val_c.get('early_range','First half')} &rarr; {val_c.get('late_range','Second half')}")}>Can early-season TPI predict late-season performance? {val_c.get("early_range","First half")} &rarr; {val_c.get("late_range","Second half")}</div>
+      <div class="section-ttl"><span {_bi(f"Backtest sull&rsquo;output grezzo — r = {_r2(r_c)}", f"Backtest on raw output — r = {_r2(r_c)}")}>Backtest sull&rsquo;output grezzo — r = {_r2(r_c)}</span> <span class="help" onclick="openM('backtest')">?</span></div>
+      <div class="section-sub" {_bi(f"Il rendimento della prima met&agrave; predice quello della seconda? {val_c.get('early_range','First half')} &rarr; {val_c.get('late_range','Second half')}. Il titolo dice &laquo;output grezzo&raquo; e non &laquo;TPI&raquo; perch&eacute; la misura &egrave; (xG+xA)/90, la componente dominante: buona parte di questa r &egrave; l&rsquo;autocorrelazione di una rate stat fra due met&agrave; di stagione, non una prova sul composito.", f"Does first-half output predict second-half output? {val_c.get('early_range','First half')} &rarr; {val_c.get('late_range','Second half')}. The title says &ldquo;raw output&rdquo; and not &ldquo;TPI&rdquo; because the measure is (xG+xA)/90, the dominant component: much of this r is the autocorrelation of a rate stat across two halves of a season, not evidence about the composite.")}>Il rendimento della prima met&agrave; predice quello della seconda? La misura &egrave; (xG+xA)/90, la componente dominante: buona parte di questa r &egrave; autocorrelazione, non una prova sul composito.</div>
     </div>
   </div>
   {nota_html}
@@ -3639,10 +3767,10 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   <div class="g2">
     <div class="card"><div class="card-ttl"><span {_bi("Scatter prima &rarr; seconda fase","Scatter first &rarr; second half")}>Scatter prima &rarr; seconda fase</span> <span class="help" onclick="openM('scatter_c')">?</span></div>
       <div id="chart-c" class="chart-h" style="height:300px"></div></div>
-    <div class="card"><div class="card-ttl" {_bi("Perch&eacute; &egrave; importante","Why it matters")}>Perch&eacute; &egrave; importante</div>
-      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi('<p style="margin-bottom:10px">Un indice senza predittivit&agrave; misura solo la fortuna passata.</p><p style="margin-bottom:10px"><strong style="color:var(--green)">r&gt;0.5</strong> = qualit&agrave; stabile &middot; <strong style="color:var(--orng)">r=0.3–0.5</strong> = segnale parziale &middot; <strong style="color:var(--red)">r&lt;0.3</strong> = troppo volatile.</p><p><strong style="color:var(--lp)">Spearman</strong> &egrave; robusto agli outlier &mdash; ideale per dati sportivi.</p>', '<p style="margin-bottom:10px">An index with no predictivity only measures past luck.</p><p style="margin-bottom:10px"><strong style="color:var(--green)">r&gt;0.5</strong> = stable quality &middot; <strong style="color:var(--orng)">r=0.3–0.5</strong> = partial signal &middot; <strong style="color:var(--red)">r&lt;0.3</strong> = too volatile.</p><p><strong style="color:var(--lp)">Spearman</strong> is robust to outliers &mdash; ideal for sports data.</p>')}>
-        <p style="margin-bottom:10px">Un indice senza predittivit&agrave; misura solo la fortuna passata.</p>
-        <p style="margin-bottom:10px"><strong style="color:var(--green)">r&gt;0.5</strong> = qualit&agrave; stabile &middot; <strong style="color:var(--orng)">r=0.3–0.5</strong> = segnale parziale &middot; <strong style="color:var(--red)">r&lt;0.3</strong> = troppo volatile.</p>
+    <div class="card"><div class="card-ttl" {_bi("Come va letta questa r","How to read this r")}>Come va letta questa r</div>
+      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi('<p style="margin-bottom:10px">Una rate stat che si conferma fra due met&agrave; di stagione dice che il rendimento offensivo &egrave; <strong>stabile</strong>, e serve a saperlo. Non dice che il TPI predice: dice che (xG+xA)/90 predice s&eacute; stesso.</p><p style="margin-bottom:10px">La domanda &laquo;il composito aggiunge a questo?&raquo; ha una sezione sua, la <strong>Q</strong>, e una risposta diversa.</p><p><strong style="color:var(--lp)">Spearman</strong> &egrave; robusto agli outlier &mdash; ideale per dati sportivi.</p>', '<p style="margin-bottom:10px">A rate stat that repeats across two halves of a season shows attacking output is <strong>stable</strong>, which is worth knowing. It does not show that the TPI predicts: it shows that (xG+xA)/90 predicts itself.</p><p style="margin-bottom:10px">The question &ldquo;does the composite add to this?&rdquo; has its own section, <strong>Q</strong>, and a different answer.</p><p><strong style="color:var(--lp)">Spearman</strong> is robust to outliers &mdash; ideal for sports data.</p>')}>
+        <p style="margin-bottom:10px">Una rate stat che si conferma fra due met&agrave; di stagione dice che il rendimento offensivo &egrave; <strong>stabile</strong>, e serve a saperlo. Non dice che il TPI predice: dice che (xG+xA)/90 predice s&eacute; stesso.</p>
+        <p style="margin-bottom:10px">La domanda &laquo;il composito aggiunge a questo?&raquo; ha una sezione sua, la <strong>Q</strong>, e una risposta diversa.</p>
         <p><strong style="color:var(--lp)">Spearman</strong> &egrave; robusto agli outlier &mdash; ideale per dati sportivi.</p>
       </div>
       <div class="interp"><span {_bi(val_c.get("interpretazione","&mdash;"), val_c.get("interpretazione_en","&mdash;"))}>{val_c.get("interpretazione","&mdash;")}</span></div>
@@ -3897,9 +4025,10 @@ function toggleAcc(id){{
     else{{cls="badge-red";lbl="Basso";}}
     el.innerHTML='<span class="badge '+cls+'">'+lbl+'</span>';
   }}
-  setBadge("badge-a", R_A, 0.6, 0.4);
-  setBadge("badge-b", OV/100, 0.7, 0.5);
   setBadge("badge-c", R_C, 0.5, 0.3);
+  // A e B non hanno piu' un verdetto da calcolare: sono descrittivi e la loro
+  // etichetta e' statica lato Python. Lasciare qui setBadge la riscriveva in
+  // "Basso"/"Moderato" a pagina caricata.
   // badge-d e badge-e sono già generati lato Python con valori statici
 }})();
 
