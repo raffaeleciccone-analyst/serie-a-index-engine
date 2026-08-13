@@ -87,6 +87,36 @@ def conta_test_pubblicati(*vals) -> int:
     return 3 + sum(1 for v in vals if (v or {}).get("has_data"))
 
 
+def copia_pagine_nav(escludi: str) -> None:
+    """Porta accanto all'HTML le pagine a cui punta la nav.
+
+    Le voci Homepage / Metodo / TPI Pro / Classifica sono href relativi a file
+    vicini. In `dashboard_output` quei file non ci sono, quindi la pagina
+    aperta da qui — che e' proprio quella che gli script aprono a fine run —
+    manda in 404 ogni voce della nav. Stessa ragione per cui si copiano gia'
+    i18n.js, ai_chat.js e i font.
+
+    `escludi` e' la pagina che questo script ha appena scritto: quella e' la
+    versione buona e non va sovrascritta con la copia del repo demo.
+    """
+    for nome in ("index.html", "guida_completa.html", "dashboard_pro.html",
+                 "dashboard_serie_a.html", "validazione.html"):
+        if nome == escludi:
+            continue
+        src = DEMO_DIR / nome
+        if not src.is_file():
+            continue
+        dst = OUTPUT_DIR / nome
+        try:
+            # non downgradare una pagina piu' fresca gia' presente qui
+            if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
+                continue
+            dst.write_bytes(src.read_bytes())
+            log.info(f"OK → {dst}  (pagina della nav)")
+        except OSError as e:
+            log.warning(f"Copia {nome} fallita: {e}")
+
+
 def avvisa_se_conteggio_a_mano(n_test: int) -> None:
     """Il numero dei test vive in validazione.html, dove si calcola.
 
@@ -4225,6 +4255,8 @@ def main():
             log.info(f"OK → {_fonts_dst}  (font accanto all'HTML)")
         except OSError as e:
             log.warning(f"Copia fonts fallita: {e}")
+
+    copia_pagine_nav(escludi=out.name)
 
     log.info("")
     log.info(f"  A — r={_sf(val_a.get('r'),3)}  n={val_a.get('n',0)}")

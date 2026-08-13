@@ -2137,6 +2137,25 @@ def main() -> None:
       except OSError as e:
         log.warning(f"Copia fonts fallita: {e}")
 
+    # Le voci Homepage / Validazione / TPI Pro / Metodo sono href relativi a
+    # file vicini. In dashboard_output quei file non ci sono, quindi la nav
+    # della pagina aperta da qui — proprio quella che questo script apre a
+    # fine run — va in 404. Stessa ragione delle copie qui sopra.
+    for _pag in ("index.html", "guida_completa.html", "dashboard_pro.html",
+                 "validazione.html"):
+      _psrc = DEMO_DIR / _pag
+      if not _psrc.is_file():
+        continue
+      _pdst = OUTPUT_DIR / _pag
+      try:
+        # non downgradare una pagina piu' fresca gia' presente qui
+        if _pdst.exists() and _pdst.stat().st_mtime >= _psrc.stat().st_mtime:
+          continue
+        _pdst.write_bytes(_psrc.read_bytes())
+        log.info(f"✓ {_pag} → {_pdst}  (pagina della nav)")
+      except OSError as e:
+        log.warning(f"Copia {_pag} fallita: {e}")
+
   # Payload JSON copiati nel repo demo: necessari per dashboard_pro.html
   # che li carica via fetch (a differenza della dashboard pubblica che li
   # embedda nell'HTML). Copio sia il payload corrente che eventuali backfill.
