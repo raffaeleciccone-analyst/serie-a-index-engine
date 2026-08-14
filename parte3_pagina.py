@@ -64,6 +64,28 @@ def evidenza(fig: str, lab_it: str, lab_en: str, it: str, en: str) -> str:
 </div>"""
 
 
+def elenco_nomi(righe: list, intestazione: bool = False) -> str:
+    """Nomi e posizioni nelle due classifiche.
+
+    E' l'unico posto della pagina dove compaiono dei giocatori: senza, chi non
+    fa statistica per mestiere non ha nessun appiglio concreto in tutta la
+    lettura, e il disaccordo fra due classifiche e' proprio la cosa che si
+    guarda volentieri.
+    """
+    voci = []
+    if intestazione:
+        # Due numeri di fila senza etichetta si leggono male: la didascalia
+        # sotto li spiega, ma arriva dopo dieci righe.
+        voci.append('<li class="hd"><span></span>'
+                    f'<span class="pos" {bi("TPI &middot; WhoScored", "TPI &middot; WhoScored")}>'
+                    'TPI &middot; WhoScored</span></li>')
+    for r in righe:
+        voci.append(
+            f'<li><span><b>{r["nome"]}</b><small>{r["squadra"]}</small></span>'
+            f'<span class="pos">{r["tpi_rank"]}&ordm; &middot; {r["ws_rank"]}&ordm;</span></li>')
+    return f'<ul class="nomi">{"".join(voci)}</ul>'
+
+
 def riga_tab(lettera: str, dom_it: str, dom_en: str, mis: str,
              es_it: str, es_en: str) -> str:
     return (f'<tr><td class="t-let">{lettera}</td>'
@@ -270,6 +292,20 @@ h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
   color:var(--lp);line-height:1.45;padding-top:3px}
 .ev-txt strong{color:var(--lp);font-weight:600}
 .ev.muta .ev-fig{color:var(--ls)}
+
+/* L'unico elenco di giocatori della pagina: nome a sinistra, le due posizioni
+   a destra, una riga sottile a separarli. */
+.nomi{list-style:none;margin:2px 0 0;max-width:36em}
+.nomi li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 18px;align-items:baseline;
+  padding:9px 0;border-bottom:1px solid var(--sep);font-size:14.5px;color:var(--ls)}
+.nomi li:last-child{border-bottom:0}
+.nomi li.hd{padding:0 0 6px;border-bottom:1px solid var(--sep2)}
+.nomi li.hd .pos{font-family:var(--font);font-size:9.5px;letter-spacing:.12em;
+  text-transform:uppercase}
+.nomi b{font-weight:600;color:var(--lp)}
+.nomi small{margin-left:9px;font-size:11.5px;color:var(--lt)}
+.nomi .pos{font-family:var(--mono);font-size:12.5px;color:var(--lt);white-space:nowrap}
+.nomi+.didascalia{margin-top:12px}
 
 .graf{display:block;width:100%;height:auto;margin:26px 0 4px;overflow:visible}
 .sv-ax{font-family:var(--mono);font-size:9.5px;fill:var(--lt)}
@@ -643,14 +679,8 @@ def _cap_contesto(d: dict) -> str:
             f"not call it proof: I collected those ratings by hand over a chosen subset, not a "
             f"random sample."))
     if b.get("overlap_pct") is not None:
-        dv = (b.get("divergenze_pos") or [])[:1]
+        # L'esempio singolo che stava qui e' diventato l'elenco qui sotto.
         esempio_it = esempio_en = ""
-        if dv:
-            g = dv[0]
-            esempio_it = (f" Il caso pi&ugrave; netto &egrave; {g['nome']}: {g['tpi_rank']}&ordm; "
-                          f"per TPI, {g['ws_rank']}&ordm; per WhoScored.")
-            esempio_en = (f" The sharpest case is {g['nome']}: {g['tpi_rank']}th by TPI, "
-                          f"{g['ws_rank']}th by WhoScored.")
         ev.append(evidenza(
             f"{b['overlap_pct']}%", "Top 10 in comune", "Top 10 in common",
             f"Con la classifica di WhoScored condivido {b['overlap_pct']}% dei primi dieci, quanto "
@@ -662,6 +692,18 @@ def _cap_contesto(d: dict) -> str:
             f"chance would give (p = {_f((b.get('hyper') or {}).get('p'), 2)}). It is not a test "
             f"&mdash; high agreement would say &laquo;confirmed&raquo;, low agreement &laquo;it "
             f"finds bargains&raquo; &mdash; but disagreement is where to look." + esempio_en))
+        pos, neg = b.get("divergenze_pos") or [], b.get("divergenze_neg") or []
+        if pos or neg:
+            ev.append(f"""<div class="ev riga">
+  <div class="ev-fig ev-txtfig" {bi("Il TPI li mette pi&ugrave; in alto", "The TPI ranks them higher")}>Il TPI li mette pi&ugrave; in alto</div>
+  <div class="ev-txt">{elenco_nomi(pos, intestazione=True)}</div>
+</div>
+<div class="ev riga">
+  <div class="ev-fig ev-txtfig" {bi("WhoScored li mette pi&ugrave; in alto", "WhoScored ranks them higher")}>WhoScored li mette pi&ugrave; in alto</div>
+  <div class="ev-txt">{elenco_nomi(neg)}
+    <p class="didascalia" {bi("Posizione per TPI e posizione per voto WhoScored, sui giocatori presenti in entrambe le classifiche. Le divergenze sono il contenuto vero di questo confronto: chi sale grazie a quello che produce e chi grazie a come viene giudicato.", "Rank by TPI and rank by WhoScored rating, among players present in both lists. The disagreements are the real content of this comparison: who rises for what they produce, and who rises for how they are judged.")}>Posizione per TPI e posizione per voto WhoScored, sui giocatori presenti in entrambe le classifiche. Le divergenze sono il contenuto vero di questo confronto: chi sale grazie a quello che produce e chi grazie a come viene giudicato.</p>
+  </div>
+</div>""")
     if dd.get("has_data"):
         ev.append(evidenza(
             _f(dd.get("aii_tpi_r"), 3), "Et&agrave; contro qualit&agrave;", "Age against quality",
