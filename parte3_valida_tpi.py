@@ -2828,8 +2828,12 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
                 _qcls, _qt_it, _qt_en = "badge-red", "Non la batte", "Does not beat it"
             else:
                 _qcls, _qt_it, _qt_en = "badge-orng", "Pari", "Tie"
+            # Il titolo dice cosa fa il test, non solo contro chi gira: "vs
+            # output grezzo" letto da fuori sembrava una sconfitta e basta,
+            # mentre il punto e' che questo test esiste e sta in prima riga.
             recap_abcd += _rc_card(
-                "Q &mdash; vs output grezzo", "Q &mdash; vs raw output", _qcls, _qt_it, _qt_en,
+                "Q &mdash; il test che pu&ograve; bocciare l&rsquo;indice",
+                "Q &mdash; the test that can fail the index", _qcls, _qt_it, _qt_en,
                 f'&Delta;RMSE {_qb["delta_rmse"]:+.4f} &middot; n = {_qb["n"]}',
                 "var(--orng)")
 
@@ -2859,7 +2863,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     if has_v2:
         recap_abcd += _rc_card(
             "D &mdash; Et&agrave; &amp; Fisico", "D &mdash; Age &amp; Physical",
-            "badge-blue", "Descrittivo", "Descriptive",
+            "badge-blue", "Contesto", "Context",
             f"AII:{n_aii} &middot; PRI:{n_pri} &middot; r={_sf(vd.get('aii_tpi_r'),3)}",
             "var(--teal)"
         )
@@ -2874,11 +2878,11 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     _b_p = _sf((val_b.get("hyper") or {}).get("p"), 2)
     recap_abcd += _rc_card(
         "A &mdash; Correlazione Fantacalcio", "A &mdash; Fantacalcio correlation",
-        "badge-blue", "Descrittivo", "Descriptive",
+        "badge-blue", "Contesto", "Context",
         f'r = {_sf(r_a,3)} &middot; IC {_a_ci} &middot; n = {n_a}')
     recap_abcd += _rc_card(
         "B &mdash; Overlap WhoScored", "B &mdash; WhoScored overlap",
-        "badge-blue", "Descrittivo", "Descriptive",
+        "badge-blue", "Contesto", "Context",
         f'{ov}% &middot; p = {_b_p}')
 
     # E — pannello separato in evidenza (sempre mostrato, anche se no dati)
@@ -2889,7 +2893,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         # Stesso trattamento di A, B e D.
         e_recap_inner = f"""
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span class="badge badge-blue" {_bi("Descrittivo","Descriptive")}>Descrittivo</span>
+            <span class="badge badge-blue" {_bi("Contesto","Context")}>Contesto</span>
             <span style="font-size:11px;color:var(--lt)">r(TPI, TPI Pro)</span>
           </div>
           <div style="font-size:26px;font-weight:500;letter-spacing:-.03em;
@@ -2950,10 +2954,10 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         <span {_bi("Nuovo indice","New index")}>Nuovo indice</span>
       </span>
     </div>
-    <div style="font-size:12px;color:var(--ls);line-height:1.6;margin-bottom:14px" {_bi('Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;) e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico. La r qui sotto misura quanto il Pro somiglia al TPI, non se funziona: lo contiene.', 'Adds <strong style="color:var(--lp)">AII</strong> (age) and <strong style="color:var(--lp)">PRI</strong> (physical) to the classic TPI. The r below measures how much the Pro resembles the TPI, not whether it works: it contains it.')}>
+    <div style="font-size:12px;color:var(--ls);line-height:1.6;margin-bottom:14px" {_bi('Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;) e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico, e mostra chi ne guadagna e chi ci perde. Se quei modulatori servano davvero lo misura il test I, fuori campione.', 'Adds <strong style="color:var(--lp)">AII</strong> (age) and <strong style="color:var(--lp)">PRI</strong> (physical) to the classic TPI, and shows who gains and who loses from them. Whether those modulators actually help is measured by test I, out-of-sample.')}>
       Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;)
-      e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico.
-      La r qui sotto misura quanto il Pro somiglia al TPI, non se funziona: lo contiene.
+      e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico, e mostra chi ne
+      guadagna e chi ci perde. Se quei modulatori servano davvero lo misura il test I, fuori campione.
     </div>
     {e_recap_inner}
   </div>
@@ -2994,6 +2998,16 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     # per caso. "Indipendenti" e' caduto: girano tutti sugli stessi giocatori.
     _n_test = conta_test_pubblicati(val_d, val_e, val_f, val_g, val_h, val_i,
                                     val_l, val_m, val_n, val_o, val_p, val_q)
+
+    # Monotonia (M) e vintage piu' presto (L): li usano sia l'hero sia il
+    # riquadro "cosa rivendica", quindi si calcolano una volta sola qui sopra.
+    _cl_rho = (val_m or {}).get("monotonia_rho")
+    _cl_conv = None
+    if (val_l or {}).get("has_data"):
+        _cl_pv = [r for r in val_l.get("per_vintage", []) if r.get("spearman_rho") is not None]
+        # Il vintage PIU' PRESTO, non l'ultimo: la rivendicazione e' "quanto
+        # presto il ranking si assesta". Citare g36 non direbbe niente.
+        _cl_conv = _cl_pv[0] if _cl_pv else None
     # Cosa rivendica l'indice, in apertura e senza giri di parole. Prima diceva
     # "verifica che il TPI misuri qualita' reale" e metteva in vetrina il
     # backtest r=0.725 — che pero' e' sull'output grezzo, cioe' la componente
@@ -3005,46 +3019,51 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     if _q_hero is None:
         _hq_it, _hq_en = "", ""
     elif _q_hero["ci_hi"] < 0:
-        _hq_it = " Messo alla prova contro una baseline banale, l&rsquo;output grezzo per-90, <strong>ha perso</strong>."
-        _hq_en = " Tested against a trivial baseline, raw per-90 output, it <strong>lost</strong>."
+        _hq_it = (" Non predice il rendimento futuro: contro l&rsquo;output grezzo per-90 "
+                  "<strong>non lo batte</strong>, ed &egrave; scritto nella sezione Q.")
+        _hq_en = (" It does not predict future output: against raw per-90 output it "
+                  "<strong>does not win</strong>, and section Q says so.")
     elif _q_hero["tpi_better"]:
-        _hq_it = " Messo alla prova contro una baseline banale, l&rsquo;output grezzo per-90, <strong>l&rsquo;ha battuta</strong>."
-        _hq_en = " Tested against a trivial baseline, raw per-90 output, it <strong>won</strong>."
+        _hq_it = (" Sul rendimento futuro <strong>batte</strong> l&rsquo;output grezzo per-90, "
+                  "la baseline banale che gli somiglia di piu&rsquo; (sezione Q).")
+        _hq_en = (" On future output it <strong>beats</strong> raw per-90 output, the trivial "
+                  "baseline closest to it (section Q).")
     else:
-        _hq_it = " Messo alla prova contro una baseline banale, l&rsquo;output grezzo per-90, ha <strong>pareggiato</strong>."
-        _hq_en = " Tested against a trivial baseline, raw per-90 output, it <strong>tied</strong>."
-    _mono = (val_m or {}).get("monotonia_rho")
-    _hm_it = (f' Quello che regge &egrave; l&rsquo;ordinamento: &rho; fra decili '
-              f'<strong style="color:var(--orng)">{_r2(_mono)}</strong>.') if _mono is not None else ""
-    _hm_en = (f' What holds up is the ordering: &rho; across deciles '
-              f'<strong style="color:var(--orng)">{_r2(_mono)}</strong>.') if _mono is not None else ""
+        _hq_it = (" Sul rendimento futuro <strong>pareggia</strong> con l&rsquo;output grezzo "
+                  "per-90, la baseline banale che gli somiglia di piu&rsquo; (sezione Q).")
+        _hq_en = (" On future output it <strong>ties</strong> with raw per-90 output, the trivial "
+                  "baseline closest to it (section Q).")
+    # Apre con cosa fa e con i numeri che lo reggono, non con il test che perde:
+    # il limite viene subito dopo e per intero, ma chi legge trenta secondi deve
+    # capire prima di tutto a cosa serve l'indice.
+    _hm_it = (f'<strong>ordina i giocatori dentro la stagione</strong>: i decili salgono insieme '
+              f'al rendimento (&rho; <strong style="color:var(--orng)">{_r2(_cl_rho)}</strong>)'
+              if _cl_rho is not None else '<strong>ordina i giocatori dentro la stagione</strong>')
+    _hm_en = (f'<strong>ranks players within the season</strong>: deciles rise together with output '
+              f'(&rho; <strong style="color:var(--orng)">{_r2(_cl_rho)}</strong>)'
+              if _cl_rho is not None else '<strong>ranks players within the season</strong>')
+    if _cl_conv:
+        _hm_it += (f', e la graduatoria di giornata {_cl_conv["vintage_giornata"]} vale gi&agrave; '
+                   f'&rho; {_r2(_cl_conv["spearman_rho"])} contro quella di fine stagione')
+        _hm_en += (f', and the matchday-{_cl_conv["vintage_giornata"]} ranking already scores '
+                   f'&rho; {_r2(_cl_conv["spearman_rho"])} against the end-of-season one')
     _hsub_it = (
-        'Il TPI &egrave; un indice <strong style="color:var(--lp)">descrittivo</strong>: '
-        'ordina i giocatori, non predice il loro rendimento futuro.'
-        + _hq_it + _hm_it +
-        f' {_n_test} verifiche, riportate come sono uscite. '
-        'Clicca <strong style="color:var(--lp)">?</strong> su ogni sezione per i dettagli metodologici.'
+        f'Il TPI {_hm_it}.' + _hq_it +
+        f' {_n_test} verifiche con intervalli di confidenza bootstrap, compresa quella che '
+        'poteva bocciare l&rsquo;indice, riportate come sono uscite. '
+        'Clicca <strong style="color:var(--lp)">?</strong> su ogni sezione per il metodo.'
     )
     _hsub_en = (
-        'The TPI is a <strong style="color:var(--lp)">descriptive</strong> index: '
-        'it ranks players, it does not predict their future output.'
-        + _hq_en + _hm_en +
-        f' {_n_test} checks, reported exactly as they came out. '
-        'Click <strong style="color:var(--lp)">?</strong> on each section for methodology details.'
+        f'The TPI {_hm_en}.' + _hq_en +
+        f' {_n_test} checks with bootstrap confidence intervals, including the one that could '
+        'have failed the index, reported exactly as they came out. '
+        'Click <strong style="color:var(--lp)">?</strong> on each section for the method.'
     )
     hero_sub = f'<div class="hero-sub" {_bi(_hsub_it, _hsub_en)}>{_hsub_it}</div>'
 
     # ── Cosa rivendica l'indice ──────────────────────────────────
-    # Sta subito sotto il riepilogo perche' e' la cosa che decide come si legge
-    # tutto il resto. Il terzo riquadro e' il piu' importante: distingue "non
-    # dimostrato" da "non ancora misurabile", che non sono la stessa cosa.
-    _cl_rho = (val_m or {}).get("monotonia_rho")
-    _cl_conv = None
-    if (val_l or {}).get("has_data"):
-        _cl_pv = [r for r in val_l.get("per_vintage", []) if r.get("spearman_rho") is not None]
-        # Il vintage PIU' PRESTO, non l'ultimo: la rivendicazione e' "quanto
-        # presto il ranking si assesta". Citare g36 non direbbe niente.
-        _cl_conv = _cl_pv[0] if _cl_pv else None
+    # Il terzo riquadro e' il piu' importante: distingue "non dimostrato" da
+    # "non ancora misurabile", che non sono la stessa cosa.
     _cl_ordina_it = ("Ordinare i giocatori dentro una stagione. I decili di TPI salgono "
                      f"insieme al rendimento (&rho; = {_sf(_cl_rho,3)})"
                      + (f", e il ranking di giornata {_cl_conv['vintage_giornata']} vale gi&agrave; "
@@ -3059,7 +3078,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     <div class="section-num">&#9679;</div>
     <div>
       <div class="section-ttl" {_bi("Cosa rivendica questo indice","What this index claims")}>Cosa rivendica questo indice</div>
-      <div class="section-sub" {_bi("Scritto qui in alto perch&eacute; decide come va letto tutto il resto della pagina.","Stated up here because it decides how the rest of this page should be read.")}>Scritto qui in alto perch&eacute; decide come va letto tutto il resto della pagina.</div>
+      <div class="section-sub" {_bi("Tre cose separate: quello che l&rsquo;indice fa, quello che non fa, e quello che con due stagioni di dati non si pu&ograve; ancora misurare.","Three separate things: what the index does, what it does not do, and what two seasons of data cannot measure yet.")}>Tre cose separate: quello che l&rsquo;indice fa, quello che non fa, e quello che con due stagioni di dati non si pu&ograve; ancora misurare.</div>
     </div>
   </div>
   <div class="g3">
@@ -3179,16 +3198,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         _a_par_en = (f"With {n_a} ratings the margin of error is as wide as the result, and the CI "
                      f"{_a_ci_txt} contains zero: look at the comparison, do not use it as proof.")
     else:
-        _a_sub_it = (f"Confronto col consenso degli esperti su {n_a} voti inseriti a mano. "
-                     f"L&rsquo;IC {_a_ci_txt} non contiene lo zero, ma <strong>resta una "
-                     f"descrizione</strong>: i voti coprono un sottoinsieme scelto a mano dei "
-                     f"qualificati, non un campione estratto a caso, quindi il numero vale per questi "
-                     f"giocatori e non si estende agli altri.")
-        _a_sub_en = (f"Comparison with expert consensus over {n_a} hand-entered ratings. The CI "
-                     f"{_a_ci_txt} no longer contains zero, but this <strong>remains a "
-                     f"description</strong>: the ratings cover a hand-picked subset of the qualified "
-                     f"players rather than a random sample, so the figure holds for these players and "
-                     f"does not generalise to the rest.")
+        _a_sub_it = (f"Il TPI e il consenso degli esperti vanno d&rsquo;accordo su {n_a} voti "
+                     f"raccolti a mano: IC {_a_ci_txt}, che non contiene lo zero. Resta "
+                     f"<strong>contesto e non prova</strong>, perch&eacute; quei voti coprono un "
+                     f"sottoinsieme scelto e non un campione estratto a caso.")
+        _a_sub_en = (f"The TPI and expert consensus agree across {n_a} hand-collected ratings: CI "
+                     f"{_a_ci_txt}, which does not contain zero. It stays <strong>context, not "
+                     f"proof</strong>, because those ratings cover a chosen subset rather than a "
+                     f"random sample.")
         _a_par_it = (f"L&rsquo;IC {_a_ci_txt} non contiene lo zero: su questi {n_a} giocatori la "
                      f"somiglianza c&rsquo;&egrave;. Non diventa una prova sull&rsquo;indice, perch&eacute; "
                      f"chi entra in questa lista lo decide chi inserisce i voti.")
@@ -3876,7 +3893,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
       <div class="guide-card"><div class="guide-ttl">p-value</div>
         <div class="guide-body" {_bi('<strong style="color:var(--green)">p&lt;0.05</strong> = significativo. Senza p basso anche r alto potrebbe essere fortuna.', '<strong style="color:var(--green)">p&lt;0.05</strong> = significant. Without a low p, even a high r could be luck.')}><strong style="color:var(--green)">p&lt;0.05</strong> = significativo. Senza p basso anche r alto potrebbe essere fortuna.</div></div>
       <div class="guide-card"><div class="guide-ttl" {_bi("Overlap: nessuna soglia","Overlap: no threshold")}>Overlap: nessuna soglia</div>
-        <div class="guide-body" {_bi("Non c&rsquo;&egrave; un valore che promuove e uno che boccia: alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. Per questo la sezione B &egrave; descrittiva e non un test.","There is no value that passes and one that fails: high would mean &ldquo;confirmed&rdquo;, low &ldquo;finds gems&rdquo;. That is why section B is descriptive and not a test.")}>Non c&rsquo;&egrave; un valore che promuove e uno che boccia: alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. Per questo la sezione B &egrave; descrittiva.</div></div>
+        <div class="guide-body" {_bi("Non c&rsquo;&egrave; un valore che promuove e uno che boccia: alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. Per questo la sezione B &egrave; contesto e non un test.","There is no value that passes and one that fails: high would mean &ldquo;confirmed&rdquo;, low &ldquo;finds gems&rdquo;. That is why section B is context and not a test.")}>Non c&rsquo;&egrave; un valore che promuove e uno che boccia: alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. Per questo la sezione B &egrave; contesto.</div></div>
       <div class="guide-card"><div class="guide-ttl">Backtest</div>
         <div class="guide-body" {_bi("Misura se l&rsquo;output offensivo si conferma fra le due met&agrave; della stagione. Riguarda quella rate stat, non il composito: per il composito c&rsquo;&egrave; la sezione Q.","It measures whether attacking output repeats across the two halves of the season. It is about that rate stat, not the composite: for the composite see section Q.")}>Misura se l&rsquo;output offensivo si conferma fra le due met&agrave; della stagione. Riguarda quella rate stat, non il composito: per il composito c&rsquo;&egrave; la sezione Q.</div></div>
       <div class="guide-card"><div class="guide-ttl">TPI Pro</div>
@@ -3949,7 +3966,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     <div class="section-num">B</div>
     <div>
       <div class="section-ttl"><span {_bi("Confronto con WhoScored &mdash; descrittivo","Comparison with WhoScored &mdash; descriptive")}>Confronto con WhoScored &mdash; descrittivo</span> <span class="help" onclick="openM('overlap')">?</span></div>
-      <div class="section-sub" {_bi(f"Qui non c&rsquo;&egrave; un test: come criterio di validazione, l&rsquo;overlap <strong>non pu&ograve; fallire</strong> &mdash; alto direbbe &laquo;confermato&raquo;, basso &laquo;trova gemme&raquo;. E il {ov}% osservato ha p = {_bp2} sull&rsquo;ipergeometrica: &egrave; compatibile col caso. Resta interessante <em>dove</em> i due non sono d&rsquo;accordo.", f"There is no test here: as a validation criterion, overlap <strong>cannot fail</strong> &mdash; high would mean &ldquo;confirmed&rdquo;, low &ldquo;finds gems&rdquo;. And the observed {ov}% has p = {_bp2} under the hypergeometric: it is consistent with chance. What stays interesting is <em>where</em> the two disagree.")}>Qui non c&rsquo;&egrave; un test: come criterio di validazione l&rsquo;overlap <strong>non pu&ograve; fallire</strong>, e il {ov}% osservato &egrave; compatibile col caso. Resta interessante <em>dove</em> i due non sono d&rsquo;accordo.</div>
+      <div class="section-sub" {_bi(f"Il TPI e la classifica di WhoScored condividono {ov}% dei primi dieci: quello che interessa &egrave; <em>dove</em> non sono d&rsquo;accordo, ed &egrave; l&rsquo;elenco qui sotto. Non &egrave; un test &mdash; un overlap alto direbbe &laquo;confermato&raquo;, uno basso &laquo;trova gemme&raquo;, e nessuno dei due potrebbe bocciare l&rsquo;indice (p = {_bp2}).", f"The TPI and the WhoScored ranking share {ov}% of their top ten: what matters is <em>where</em> they disagree, and that is the list below. It is not a test &mdash; high overlap would mean &ldquo;confirmed&rdquo;, low overlap &ldquo;finds gems&rdquo;, and neither could fail the index (p = {_bp2}).")}>Il TPI e la classifica di WhoScored condividono {ov}% dei primi dieci: quello che interessa &egrave; <em>dove</em> non sono d&rsquo;accordo. Non &egrave; un test: nessun valore potrebbe bocciare l&rsquo;indice (p = {_bp2}).</div>
     </div>
   </div>
   <div class="g3">
