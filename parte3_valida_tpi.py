@@ -33,6 +33,7 @@ log = logging.getLogger("valida_tpi")
 BASE_DIR   = Path(__file__).parent
 OUTPUT_DIR = BASE_DIR / "dashboard_output"
 PAYLOAD    = OUTPUT_DIR / "payload.json"
+PAYLOAD_FULL = OUTPUT_DIR / "payload_full.json"
 # Repo demo pubblicato (stesso default di parte2_dashboard.py): override con SERIE_A_DEMO_DIR.
 DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-scout-demo"))
 
@@ -62,6 +63,25 @@ ROLE_WEIGHT = {"ATT": 1.00, "CEN": 0.85, "DIF": 0.55, "POR": 0.20}
 CONFIDENCE_FLOOR = 0.35
 # codici ruolo IT → EN (per i 'movers' bilingui)
 _ROLE_EN = {"ATT": "FWD", "CEN": "MID", "DIF": "DEF", "POR": "GK"}
+
+# ── Soglie dichiarate PRIMA di guardare i risultati ──────────────
+# Fissate il 14 agosto 2026, prima di rigirare i test sui 381 qualificati
+# invece che sui primi 100. Servono a impedire una cosa sola: scegliere il
+# taglio dopo, sul valore che e' uscito. Se un risultato le attraversa
+# cambia l'etichetta, non la soglia; se una soglia va cambiata davvero si
+# cambia qui, si scrive perche', e si rigira tutto da capo.
+#
+# Stanno in un posto solo perche' il taglio del backtest era scritto due
+# volte — qui e nel setBadge lato JS — e due copie di un numero prima o poi
+# dicono cose diverse. Il JS ora lo riceve da qui.
+#
+# Dove non c'e' un numero e' perche' non serve: Q e P si decidono dal segno
+# dell'IC 95% bootstrap, che e' una regola e non una scelta.
+SOGLIE = {
+    "c_hi":  0.50,   # backtest C: |r| >= 0.50 → "Buono"
+    "c_mid": 0.30,   # 0.30 <= |r| < 0.50 → "Moderato", sotto → "Basso"
+}
+SOGLIE_FISSATE_IL = ("14 agosto 2026", "14 August 2026")
 
 DB_URL   = _cfg_db_url()
 DB_RETRY = 3
@@ -164,13 +184,30 @@ def _js_num(v) -> str:
 # ════════════════════════════════════════════════════════════════
 # CARICAMENTO
 # ════════════════════════════════════════════════════════════════
+def payload_corrente() -> Path:
+    """Il payload della stagione corrente su cui girano i test.
+
+    `payload.json` si ferma ai primi 100 perche' e' la dashboard pubblicata,
+    e quel taglio non e' neutro: confrontare fra loro solo i migliori comprime
+    la varianza e attenua ogni correlazione, quindi i test finirebbero per
+    misurare la selezione invece dell'indice. Se c'e' `payload_full.json`
+    (parte1 --top-n 0) i test usano quello — stessa stagione, stesso motore,
+    senza il taglio in alto — e il sito resta quello di prima.
+    """
+    return PAYLOAD_FULL if PAYLOAD_FULL.is_file() else PAYLOAD
+
+
 def load_payload() -> dict:
-    if not PAYLOAD.exists():
+    src = payload_corrente()
+    if not src.exists():
         raise FileNotFoundError(
             f"payload.json non trovato in {PAYLOAD}\n"
             "Esegui prima: python parte1_analisi.py"
         )
-    with open(PAYLOAD, encoding="utf-8") as f:
+    log.info(f"  Campione: {src.name}"
+             + ("" if src is PAYLOAD_FULL else " (primi 100 — genera payload_full.json"
+                                               " con `parte1_analisi.py --top-n 0`)"))
+    with open(src, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -264,19 +301,25 @@ WHOSCORED = {
 # VALIDAZIONE A — Correlazione Fantacalcio
 # ════════════════════════════════════════════════════════════════
 def _interp_corr(r: float) -> tuple[str, str]:
-    """Restituisce (IT, EN)."""
+    """Restituisce (IT, EN).
+
+    Descrive l'entita' della correlazione e basta. La versione precedente
+    chiamava "risultato ideale" la fascia centrale: una scala in cui r alta
+    conferma, r media e' ideale e r bassa "misura altro" non puo' dare un
+    esito negativo, quindi non stava interpretando niente.
+    """
     ar = abs(r)
     if ar >= 0.70:
-        return ("Correlazione forte (r≥0.7) — il TPI è molto coerente con la percezione fantasy.",
-                "Strong correlation (r≥0.7) — TPI is highly consistent with fantasy perception.")
+        return ("Correlazione forte (r≥0.7) — TPI e voto Fantacalcio ordinano i giocatori quasi allo stesso modo.",
+                "Strong correlation (r≥0.7) — TPI and the Fantacalcio rating order players in nearly the same way.")
     if ar >= 0.50:
-        return ("Correlazione moderata (r=0.5–0.7) — risultato ideale: misura qualità reale con prospettiva diversa.",
-                "Moderate correlation (r=0.5–0.7) — ideal result: it measures real quality from a different angle.")
+        return ("Correlazione moderata (r=0.5–0.7) — accordo parziale col voto Fantacalcio.",
+                "Moderate correlation (r=0.5–0.7) — partial agreement with the Fantacalcio rating.")
     if ar >= 0.30:
-        return ("Correlazione debole (r=0.3–0.5) — il TPI identifica aspetti diversi dal voto Fantacalcio.",
-                "Weak correlation (r=0.3–0.5) — TPI captures aspects different from the Fantacalcio rating.")
-    return ("Correlazione bassa (r<0.3) — quasi ortogonale al voto fantasy. Valuta componenti difensive.",
-            "Low correlation (r<0.3) — nearly orthogonal to the fantasy rating. Consider defensive components.")
+        return ("Correlazione debole (r=0.3–0.5) — l'accordo col voto Fantacalcio è limitato.",
+                "Weak correlation (r=0.3–0.5) — agreement with the Fantacalcio rating is limited.")
+    return ("Correlazione bassa (r<0.3) — quasi nessun accordo col voto Fantacalcio.",
+            "Low correlation (r<0.3) — almost no agreement with the Fantacalcio rating.")
 
 
 def _load_fanta_voti_from_db(player_ids: list[int],
@@ -1959,7 +2002,7 @@ def valida_convergenza() -> dict:
                         "`python parte1_analisi.py --max-giornata N` o popola "
                         "`snapshots/<season>/giornata_NN/payload.json`.")}
 
-    cur_path = OUTPUT_DIR / "payload.json"
+    cur_path = payload_corrente()
     if not cur_path.exists():
         return {"has_data": False, "msg": "payload.json corrente assente."}
     with open(cur_path, encoding="utf-8") as fh:
@@ -2677,12 +2720,12 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     <div class="card"><div class="card-ttl"><span {_bi("Scatter TPI vs TPI Pro","Scatter TPI vs TPI Pro")}>Scatter TPI vs TPI Pro</span> <span class="help" onclick="openM('scatter_e')">?</span></div>
       <div id="chart-e" class="chart-h" style="height:300px"></div></div>
     <div class="card"><div class="card-ttl" {_bi("Interpretazione","Interpretation")}>Interpretazione</div>
-      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi('<p style="margin-bottom:10px">Un <strong style="color:var(--lp)">r elevato</strong> (es. 0.85+) indica che TPI Pro &egrave; coerente con TPI classico — aggiunge informazione senza stravolgere la classifica.</p><p style="margin-bottom:10px">Le <strong style="color:var(--green)">salite</strong> identificano giocatori giovani e fisicamente affidabili che il TPI classico sottovaluta.</p><p>Le <strong style="color:var(--red)">discese</strong> segnalano veterani o giocatori fragili che il TPI classico sovrastima.</p>', '<p style="margin-bottom:10px">A <strong style="color:var(--lp)">high r</strong> (e.g. 0.85+) means TPI Pro is consistent with the classic TPI — it adds information without upending the ranking.</p><p style="margin-bottom:10px">The <strong style="color:var(--green)">risers</strong> are young, physically reliable players that the classic TPI undervalues.</p><p>The <strong style="color:var(--red)">fallers</strong> flag veterans or fragile players that the classic TPI overrates.</p>')}>
-        <p style="margin-bottom:10px">Un <strong style="color:var(--lp)">r elevato</strong> (es. 0.85+) indica che TPI Pro &egrave; coerente con TPI classico — aggiunge informazione senza stravolgere la classifica.</p>
-        <p style="margin-bottom:10px">Le <strong style="color:var(--green)">salite</strong> identificano giocatori giovani e fisicamente affidabili che il TPI classico sottovaluta.</p>
-        <p>Le <strong style="color:var(--red)">discese</strong> segnalano veterani o giocatori fragili che il TPI classico sovrastima.</p>
+      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi('<p style="margin-bottom:10px">Questa <strong style="color:var(--lp)">r non &egrave; un risultato</strong>: il TPI Pro contiene il TPI, quindi &egrave; alta per costruzione. Dice solo che il Pro non ha stravolto la classifica, non che i modulatori funzionino &mdash; quella domanda &egrave; la sezione <strong>I</strong>, e la risposta &egrave; che non aggiungono.</p><p style="margin-bottom:10px">Le <strong style="color:var(--green)">salite</strong> sono giocatori giovani e fisicamente affidabili che il TPI classico posiziona pi&ugrave; in basso.</p><p>Le <strong style="color:var(--red)">discese</strong> sono veterani o giocatori fragili che il TPI classico posiziona pi&ugrave; in alto.</p>', '<p style="margin-bottom:10px">This <strong style="color:var(--lp)">r is not a result</strong>: TPI Pro contains the TPI, so it is high by construction. It only says the Pro did not upend the ranking, not that the modulators work &mdash; that question is section <strong>I</strong>, and the answer is that they do not add.</p><p style="margin-bottom:10px">The <strong style="color:var(--green)">risers</strong> are young, physically reliable players the classic TPI places lower.</p><p>The <strong style="color:var(--red)">fallers</strong> are veterans or fragile players the classic TPI places higher.</p>')}>
+        <p style="margin-bottom:10px">Questa <strong style="color:var(--lp)">r non &egrave; un risultato</strong>: il TPI Pro contiene il TPI, quindi &egrave; alta per costruzione. Dice solo che il Pro non ha stravolto la classifica &mdash; se i modulatori servano lo chiede la sezione <strong>I</strong>, e la risposta &egrave; che non aggiungono.</p>
+        <p style="margin-bottom:10px">Le <strong style="color:var(--green)">salite</strong> sono giocatori giovani e fisicamente affidabili che il TPI classico posiziona pi&ugrave; in basso.</p>
+        <p>Le <strong style="color:var(--red)">discese</strong> sono veterani o giocatori fragili che il TPI classico posiziona pi&ugrave; in alto.</p>
       </div>
-      <div class="interp" {_bi("r(TPI,TPI Pro) ideale: 0.80&ndash;0.95. Troppo basso = AII/PRI distorcono. Troppo alto = non aggiungono nulla di nuovo.","Ideal r(TPI,TPI Pro): 0.80&ndash;0.95. Too low = AII/PRI distort. Too high = they add nothing new.")}>r(TPI,TPI Pro) ideale: 0.80&ndash;0.95. Troppo basso = AII/PRI distorcono. Troppo alto = non aggiungono nulla di nuovo.</div>
+      <div class="interp" {_bi("Non esiste un valore &laquo;giusto&raquo; per r(TPI, TPI Pro): un indice correlato col proprio sovrainsieme lo sar&agrave; sempre. L&rsquo;unico modo di sapere se i modulatori servono &egrave; misurarli fuori campione, e lo fa la sezione I.","There is no &ldquo;right&rdquo; value for r(TPI, TPI Pro): an index correlated with its own superset always will be. The only way to know whether the modulators help is to measure them out-of-sample, which is what section I does.")}>Non esiste un valore &laquo;giusto&raquo; per r(TPI, TPI Pro): un indice correlato col proprio sovrainsieme lo sar&agrave; sempre. Se i modulatori servano lo misura la sezione I, fuori campione.</div>
     </div>
   </div>
   <div class="g2">
@@ -2781,7 +2824,16 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
                 f'&Delta;RMSE {_qb["delta_rmse"]:+.4f} &middot; n = {_qb["n"]}',
                 "var(--orng)")
 
-    # P — l'unico guadagno predittivo out-of-sample che sopravvive
+    recap_abcd += _badge_html("badge-c", "C &mdash; Backtest su output grezzo",
+                              "C &mdash; Backtest on raw output",
+                              r_c, SOGLIE["c_hi"], SOGLIE["c_mid"],
+                              f"r = {_sf(r_c,3)} &middot; n = {n_c}")
+
+    # P — stava secondo quando il guadagno a due stagioni era significativo su
+    # 35 giocatori. Sul campione intero l'IC si e' allargato fino a contenere lo
+    # zero, e la regola dichiarata dice che in quel caso non regge: quindi
+    # scende sotto C. Il badge si calcola da significativo_95, non a mano, per
+    # cui segue il dato anche la prossima volta.
     vp_r = val_p or {}
     _pc_r = (vp_r.get("cross_2season") or {}) if vp_r.get("has_data") else {}
     if _pc_r.get("rho_2season_mean") is not None:
@@ -2791,11 +2843,6 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
             "Regge &#10003;" if _pc_r.get("significativo_95") else "Indicativo",
             "Holds &#10003;" if _pc_r.get("significativo_95") else "Indicative",
             f'&rho; {_pc_r["rho_single"]:+.2f} &rarr; {_pc_r["rho_2season_mean"]:+.2f} &middot; n = {_pc_r["n"]}')
-
-    recap_abcd += _badge_html("badge-c", "C &mdash; Backtest su output grezzo",
-                              "C &mdash; Backtest on raw output",
-                              r_c, 0.5, 0.3,
-                              f"r = {_sf(r_c,3)} &middot; n = {n_c}")
 
     # D — solo se ha dati. Anche questa e' una descrizione, non un test: la
     # soglia la bocciava ("Basso") per una r negativa che l'AII deve avere,
@@ -2808,9 +2855,11 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
             "var(--teal)"
         )
 
-    # A e B chiudono, e non portano piu' un verdetto: A ha un IC che contiene
-    # lo zero su 29 voti, B e' un criterio che non puo' fallire. Restano perche'
-    # il contenuto e' interessante, non perche' dimostrino qualcosa.
+    # A e B chiudono, e non portano un verdetto: i voti di A sono inseriti a
+    # mano su un sottoinsieme scelto — l'IC puo' anche smettere di contenere lo
+    # zero, resta un campione di comodo — e B e' un criterio che non puo'
+    # fallire. Restano perche' il contenuto e' interessante, non perche'
+    # dimostrino qualcosa.
     # _ci_txt e b_hyper nascono piu' in basso nel corpo: qui servono gia' pronti.
     _a_ci = f'[{_sf(val_a.get("ci_lo"),3)}, {_sf(val_a.get("ci_hi"),3)}]'
     _b_p = _sf((val_b.get("hyper") or {}).get("p"), 2)
@@ -2826,11 +2875,12 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     # E — pannello separato in evidenza (sempre mostrato, anche se no dati)
     if has_pro:
         r_pro_v   = ve.get("r_corr")
-        pro_cls   = "badge-green" if (r_pro_v or 0) >= 0.80 else "badge-orng" if (r_pro_v or 0) >= 0.70 else "badge-red"
-        pro_lbl   = "Ottimo &#10003;" if (r_pro_v or 0) >= 0.80 else "Buono" if (r_pro_v or 0) >= 0.70 else "Coerente"
+        # Niente verdetto qui: il TPI Pro contiene il TPI, quindi questa r e'
+        # alta per costruzione e un badge "Ottimo" premierebbe la circolarita'.
+        # Stesso trattamento di A, B e D.
         e_recap_inner = f"""
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-            <span class="badge {pro_cls}">{pro_lbl}</span>
+            <span class="badge badge-blue" {_bi("Descrittivo","Descriptive")}>Descrittivo</span>
             <span style="font-size:11px;color:var(--lt)">r(TPI, TPI Pro)</span>
           </div>
           <div style="font-size:26px;font-weight:500;letter-spacing:-.03em;
@@ -2891,10 +2941,10 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
         <span {_bi("Nuovo indice","New index")}>Nuovo indice</span>
       </span>
     </div>
-    <div style="font-size:12px;color:var(--ls);line-height:1.6;margin-bottom:14px" {_bi('Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;) e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico. r ideale = 0.80&ndash;0.95.', 'Adds <strong style="color:var(--lp)">AII</strong> (age) and <strong style="color:var(--lp)">PRI</strong> (physical) to the classic TPI. Ideal r = 0.80&ndash;0.95.')}>
+    <div style="font-size:12px;color:var(--ls);line-height:1.6;margin-bottom:14px" {_bi('Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;) e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico. La r qui sotto misura quanto il Pro somiglia al TPI, non se funziona: lo contiene.', 'Adds <strong style="color:var(--lp)">AII</strong> (age) and <strong style="color:var(--lp)">PRI</strong> (physical) to the classic TPI. The r below measures how much the Pro resembles the TPI, not whether it works: it contains it.')}>
       Aggiunge <strong style="color:var(--lp)">AII</strong> (et&agrave;)
       e <strong style="color:var(--lp)">PRI</strong> (fisico) al TPI classico.
-      r ideale = 0.80&ndash;0.95.
+      La r qui sotto misura quanto il Pro somiglia al TPI, non se funziona: lo contiene.
     </div>
     {e_recap_inner}
   </div>
@@ -2905,9 +2955,9 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     if has_v2:
         spieg_extra += """
   v2: {icon:"🧬",ttl:"Età Index & Affidabilità Fisica",ttl_en:"Age Index & Physical Reliability",sub:"AII e PRI — indici v2 del sistema",sub_en:"AII and PRI — system v2 indices",
-    body:"AII (Age Impact Index) misura il valore nel ciclo di carriera: picco a 27 anni (gaussiana σ=4.5). Un 22enne ha AII basso ma potenziale massimo.\\n\\nPRI (Physical Reliability Index) misura l'affidabilità fisica storica: disponibilità, numero infortuni, gravità.",
-    body_en:"AII (Age Impact Index) measures value in the career cycle: peak at 27 (Gaussian σ=4.5). A 22-year-old has low AII but maximum potential.\\n\\nPRI (Physical Reliability Index) measures historical physical reliability: availability, number of injuries, severity.",
-    ex:"AII 0.90 + TPI +1.5 = giocatore al picco con qualità reale. AII 0.45 + TPI +1.2 = giovane di prospettiva (scouting a 3 anni).",ex_en:"AII 0.90 + TPI +1.5 = player at peak with real quality. AII 0.45 + TPI +1.2 = prospect (3-year scouting)."},
+    body:"AII (Age Impact Index) è orientato allo scouting: premia chi STA ENTRANDO nel prime, non chi ci è già. La gaussiana ScoutPeak è centrata sui 23 anni (σ=3.5), ma il composito — 0.55 ScoutPeak + 0.25 GrowthPotential + 0.20 Freshness — ha il massimo intorno ai 21.8 anni, perché il bonus di crescita lo sposta a sinistra.\\n\\nValori reali della curva: 18 anni → 0.65 · 22 → 0.78 · 25 → 0.67 · 27 → 0.49 · 30 → 0.24.\\n\\nPRI (Physical Reliability Index) misura l'affidabilità fisica storica: disponibilità, numero infortuni, gravità.",
+    body_en:"AII (Age Impact Index) is scouting-oriented: it rewards players who are ENTERING their prime, not those already in it. The ScoutPeak Gaussian is centred on 23 (σ=3.5), but the composite — 0.55 ScoutPeak + 0.25 GrowthPotential + 0.20 Freshness — peaks around 21.8, because the growth bonus pulls it left.\\n\\nActual curve values: 18 → 0.65 · 22 → 0.78 · 25 → 0.67 · 27 → 0.49 · 30 → 0.24.\\n\\nPRI (Physical Reliability Index) measures historical physical reliability: availability, injury count, severity.",
+    ex:"AII 0.78 + TPI +1.2 = ventiduenne che sta entrando nel prime con rendimento già alto. AII 0.24 + TPI +1.5 = trentenne forte adesso, ma la curva dice che il margine di crescita non c'è più.",ex_en:"AII 0.78 + TPI +1.2 = a 22-year-old entering their prime who already performs. AII 0.24 + TPI +1.5 = a 30-year-old strong now, but the curve says the room to grow is gone."},
   scatter_d: {icon:"🔵",ttl:"Scatter AII vs PRI",ttl_en:"Scatter AII vs PRI",sub:"X = AII (età), Y = PRI (fisico)",sub_en:"X = AII (age), Y = PRI (physical)",
     body:"Ogni punto è un giocatore. Colore = ruolo.\\n\\nIn alto a destra: giocatore al picco dell'età E affidabile fisicamente = profilo ideale.\\nIn basso a sinistra: giovane e fragile = alto potenziale, alto rischio.",
     body_en:"Each dot is a player. Colour = role.\\n\\nTop-right: player at peak age AND physically reliable = ideal profile.\\nBottom-left: young and fragile = high potential, high risk.",
@@ -2915,9 +2965,9 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     if has_pro:
         spieg_extra += """
   tpi_pro: {icon:"✨",ttl:"TPI Pro — 7 dimensioni + 5 modulatori",ttl_en:"TPI Pro — 7 dimensions + 5 modulators",sub:"TPI = 7 dim. TPI Pro = TPI + AII, PRI, stabilità ctx, trend forma, EMI",sub_en:"TPI = 7 dims. TPI Pro = TPI + AII, PRI, ctx stability, form trend, EMI",
-    body:"Il TPI Pro combina il TPI (media pesata di 7 dimensioni) con 5 modulatori scout: AII, PRI, stabilità fra contesti, trend forma ed EMI. I pesi cambiano per fascia d'età.\\n\\nChi sale: giovani in picco con buona affidabilità fisica.\\nChi scende: veterani fragili che il TPI classico sopravvaluta.\\n\\nr(TPI,TPI Pro) ideale = 0.80–0.95.",
-    body_en:"TPI Pro combines the TPI (weighted mean of 7 dimensions) with 5 scout modulators: AII, PRI, cross-context stability, form trend and EMI. Weights change by age band.\\n\\nRisers: young players at peak with good physical reliability.\\nFallers: fragile veterans that the classic TPI overrates.\\n\\nIdeal r(TPI,TPI Pro) = 0.80–0.95.",
-    ex:"r=0.88: TPI Pro è coerente ma aggiunge informazione reale. 15 giocatori salgono >2 posizioni grazie ad AII alto.",ex_en:"r=0.88: TPI Pro is consistent but adds real information. 15 players rise >2 positions thanks to high AII."},
+    body:"Il TPI Pro combina il TPI (media pesata di 7 dimensioni) con 5 modulatori scout: AII, PRI, stabilità fra contesti, trend forma ed EMI. I pesi cambiano per fascia d'età.\\n\\nChi sale: giovani in ascesa con buona affidabilità fisica.\\nChi scende: veterani fragili che il TPI classico sopravvaluta.\\n\\nAttenzione a r(TPI, TPI Pro): il Pro CONTIENE il TPI, quindi quella correlazione è alta per costruzione e non può dire se i modulatori servono. La domanda vera la fa il test I, out-of-sample.",
+    body_en:"TPI Pro combines the TPI (weighted mean of 7 dimensions) with 5 scout modulators: AII, PRI, cross-context stability, form trend and EMI. Weights change by age band.\\n\\nRisers: young players on the way up with good physical reliability.\\nFallers: fragile veterans the classic TPI overrates.\\n\\nBe careful with r(TPI, TPI Pro): the Pro CONTAINS the TPI, so that correlation is high by construction and cannot tell you whether the modulators help. The real question is asked by test I, out-of-sample.",
+    ex:"E la risposta del test I è che sul rendimento futuro il Pro non batte il TPI base: la differenza di RMSE è indistinguibile da zero. Va usato per leggere il profilo di un giocatore, non per prevedere.",ex_en:"And test I answers that on future output the Pro does not beat the base TPI: the RMSE difference is indistinguishable from zero. Use it to read a player's profile, not to forecast."},
   scatter_e: {icon:"📈",ttl:"Scatter TPI vs TPI Pro",ttl_en:"Scatter TPI vs TPI Pro",sub:"X = TPI classico | Y = TPI Pro",sub_en:"X = classic TPI | Y = TPI Pro",
     body:"Punti sopra la diagonale: guadagnano con TPI Pro (AII/PRI alti).\\nPunti sotto: perdono.\\n\\nLa retta tratteggiata viola = regressione. Grigia = y=x (nessuna variazione).",
     body_en:"Dots above the diagonal: gain with TPI Pro (high AII/PRI).\\nDots below: lose.\\n\\nThe purple dashed line = regression. Grey = y=x (no change).",
@@ -3019,6 +3069,66 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   </div>
 </div>"""
 
+    # Su quanti giocatori sta girando questa pagina. Non e' un dettaglio: col
+    # taglio ai primi 100 si confrontano fra loro solo i migliori, e ogni
+    # correlazione esce piu' bassa di quanto sia. Chi legge deve saperlo dalla
+    # prima schermata, quindi la pill lo dice da sola a seconda del file letto.
+    _camp_full = payload_corrente().name == PAYLOAD_FULL.name
+    _pill_camp_it = ("Test su tutti i qualificati" if _camp_full
+                     else "Test sui primi 100")
+    _pill_camp_en = ("Tested on all qualified players" if _camp_full
+                     else "Tested on the top 100")
+    _n_camp = f"{n_aii} " if (_camp_full and n_aii) else ""
+    _camp_it = (f"I test girano su tutti i {_n_camp}giocatori qualificati, non sui primi 100 "
+                f"della dashboard: confrontare fra loro solo i migliori restringe la varianza "
+                f"e abbassa da solo ogni correlazione."
+                if _camp_full else
+                "I test girano sui primi 100 della dashboard: confrontare fra loro solo i "
+                "migliori restringe la varianza e abbassa da solo ogni correlazione, quindi i "
+                "valori qui sotto sono se mai sottostimati.")
+    _camp_en = (f"The tests run on all {_n_camp}qualified players, not on the dashboard&rsquo;s top "
+                f"100: comparing only the best against each other narrows the variance and lowers "
+                f"every correlation by itself."
+                if _camp_full else
+                "The tests run on the dashboard&rsquo;s top 100: comparing only the best against "
+                "each other narrows the variance and lowers every correlation by itself, so the "
+                "figures below are if anything understated.")
+
+    # ── Soglie dichiarate prima ──────────────────────────────────
+    # Sta sotto "cosa rivendica" e sopra i test: chi legge deve sapere che il
+    # taglio esisteva gia' quando il numero e' uscito. I valori arrivano da
+    # SOGLIE, quindi la pagina non puo' dichiarare un taglio e applicarne un
+    # altro. Q, P e i descrittivi non hanno un numero e la pagina lo dice.
+    _sg_it, _sg_en = SOGLIE_FISSATE_IL
+    _sg_c_it = (f'<strong>C &mdash; backtest.</strong> |r| &ge; {SOGLIE["c_hi"]:.2f} &rarr; Buono &middot; '
+                f'&ge; {SOGLIE["c_mid"]:.2f} &rarr; Moderato &middot; sotto &rarr; Basso.')
+    _sg_c_en = (f'<strong>C &mdash; backtest.</strong> |r| &ge; {SOGLIE["c_hi"]:.2f} &rarr; Good &middot; '
+                f'&ge; {SOGLIE["c_mid"]:.2f} &rarr; Moderate &middot; below &rarr; Low.')
+    soglie_html = f"""
+<div class="section" style="margin-bottom:34px">
+  <div class="section-hd">
+    <div class="section-num">&#9678;</div>
+    <div>
+      <div class="section-ttl" {_bi("Soglie dichiarate prima","Thresholds declared in advance")}>Soglie dichiarate prima</div>
+      <div class="section-sub" {_bi(f"Fissate il {_sg_it}, prima di rigirare i test sul campione allargato. Se un risultato le attraversa cambia l&rsquo;etichetta, non la soglia.", f"Fixed on {_sg_en}, before re-running the tests on the wider sample. If a result crosses one, the label changes &mdash; not the threshold.")}>Fissate il {_sg_it}, prima di rigirare i test sul campione allargato. Se un risultato le attraversa cambia l&rsquo;etichetta, non la soglia.</div>
+    </div>
+  </div>
+  <div class="g3">
+    <div class="card">
+      <div class="card-ttl" {_bi("Con un numero","With a number")}>Con un numero</div>
+      <div class="interp" style="border-left:0;padding-left:0" {_bi(_sg_c_it, _sg_c_en)}>{_sg_c_it}</div>
+    </div>
+    <div class="card">
+      <div class="card-ttl" {_bi("Con una regola","With a rule")}>Con una regola</div>
+      <div class="interp" style="border-left:0;padding-left:0" {_bi("<strong>Q e P</strong> non hanno una soglia scelta a mano: decide il segno dell&rsquo;IC 95% bootstrap. Tutto sopra lo zero &rarr; regge; tutto sotto &rarr; non regge; a cavallo dello zero &rarr; pari. &Egrave; una regola fissata dal disegno del test, non un taglio da tarare.", "<strong>Q and P</strong> have no hand-picked threshold: the sign of the 95% bootstrap CI decides. Entirely above zero &rarr; it holds; entirely below &rarr; it does not; straddling zero &rarr; a tie. That is a rule set by the test design, not a cut-off to tune.")}><strong>Q e P</strong> non hanno una soglia scelta a mano: decide il segno dell&rsquo;IC 95% bootstrap.</div>
+    </div>
+    <div class="card">
+      <div class="card-ttl" {_bi("Senza soglia","No threshold")}>Senza soglia</div>
+      <div class="interp" style="border-left:0;padding-left:0" {_bi("<strong>A, B, D, E</strong> non portano un verdetto e quindi non hanno niente da superare: sono descrizioni. Dare loro una soglia significherebbe far passare per prova un numero che, con questi campioni, non lo &egrave;.", "<strong>A, B, D, E</strong> carry no verdict and so have nothing to clear: they are descriptions. Giving them a threshold would dress up as proof a number that, at these sample sizes, is not.")}><strong>A, B, D, E</strong> non portano un verdetto e quindi non hanno niente da superare: sono descrizioni.</div>
+    </div>
+  </div>
+</div>"""
+
     a_loo = val_a.get("loo") or {}
     if val_a.get("r") is not None:
         _aci = _ci_txt(val_a.get("sp_ci_lo"), val_a.get("sp_ci_hi"))
@@ -3036,6 +3146,46 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
                    f'{_bi(_a_it, _a_en)}>{_a_it}</div>')
     else:
         a_rigor = ""
+
+    # A resta descrittivo per il campione, non per il numero che esce: i voti
+    # sono inseriti a mano su un sottoinsieme scelto, non estratti a caso fra i
+    # qualificati. L'IC pero' e' un fatto e si muove col campione — quando
+    # smette di contenere lo zero la pagina non puo' continuare a dire che lo
+    # contiene, o mente per inerzia. Quindi la frase segue il dato, il verdetto no.
+    _a_ci_txt = _ci_txt(val_a.get("ci_lo"), val_a.get("ci_hi"))
+    _a_zero = (val_a.get("ci_lo") is not None and val_a.get("ci_hi") is not None
+               and float(val_a["ci_lo"]) <= 0 <= float(val_a["ci_hi"]))
+    if _a_zero:
+        _a_sub_it = (f"Confronto col consenso degli esperti su {n_a} voti inseriti a mano. "
+                     f"<strong>Non &egrave; una prova</strong>: con questo campione l&rsquo;intervallo "
+                     f"di confidenza di r contiene lo zero, quindi il dato descrive una somiglianza, "
+                     f"non la dimostra.")
+        _a_sub_en = (f"Comparison with expert consensus over {n_a} hand-entered ratings. "
+                     f"<strong>This is not proof</strong>: at this sample size the confidence interval "
+                     f"for r contains zero, so the figure describes a resemblance rather than "
+                     f"establishing one.")
+        _a_par_it = (f"Con {n_a} voti il margine d&rsquo;errore &egrave; largo quanto il risultato, e "
+                     f"l&rsquo;IC {_a_ci_txt} contiene lo zero: il confronto va guardato, non usato "
+                     f"come prova.")
+        _a_par_en = (f"With {n_a} ratings the margin of error is as wide as the result, and the CI "
+                     f"{_a_ci_txt} contains zero: look at the comparison, do not use it as proof.")
+    else:
+        _a_sub_it = (f"Confronto col consenso degli esperti su {n_a} voti inseriti a mano. "
+                     f"L&rsquo;IC {_a_ci_txt} non contiene lo zero, ma <strong>resta una "
+                     f"descrizione</strong>: i voti coprono un sottoinsieme scelto a mano dei "
+                     f"qualificati, non un campione estratto a caso, quindi il numero vale per questi "
+                     f"giocatori e non si estende agli altri.")
+        _a_sub_en = (f"Comparison with expert consensus over {n_a} hand-entered ratings. The CI "
+                     f"{_a_ci_txt} no longer contains zero, but this <strong>remains a "
+                     f"description</strong>: the ratings cover a hand-picked subset of the qualified "
+                     f"players rather than a random sample, so the figure holds for these players and "
+                     f"does not generalise to the rest.")
+        _a_par_it = (f"L&rsquo;IC {_a_ci_txt} non contiene lo zero: su questi {n_a} giocatori la "
+                     f"somiglianza c&rsquo;&egrave;. Non diventa una prova sull&rsquo;indice, perch&eacute; "
+                     f"chi entra in questa lista lo decide chi inserisce i voti.")
+        _a_par_en = (f"The CI {_a_ci_txt} does not contain zero: across these {n_a} players the "
+                     f"resemblance is there. It does not become proof about the index, because who "
+                     f"ends up in this list is decided by whoever enters the ratings.")
 
     b_hyper = val_b.get("hyper") or {}
     _bnc = val_b.get("n_common", "?")
@@ -3689,11 +3839,14 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
   {hero_sub}
   <!-- Sotto i 480px resta visibile solo la prima pill: qui c'era il test piu'
        debole (Pearson vs Fantacalcio, IC che contiene lo zero). Ora c'e' quello
-       che la pagina rivendica davvero. -->
+       che la pagina rivendica davvero.
+       La terza diceva "persistenza su due stagioni": era un risultato, ed e'
+       poi diventato non significativo sul campione intero. Ora dice su quanti
+       giocatori girano i test, che e' un fatto e non un esito. -->
   <div class="hero-pills">
     <span class="hero-pill"><span {_bi("Indice descrittivo","Descriptive index")}>Indice descrittivo</span></span>
     <span class="hero-pill"><span {_bi("Confronto con baseline banali","Compared to trivial baselines")}>Confronto con baseline banali</span></span>
-    <span class="hero-pill"><span {_bi("Persistenza su due stagioni","Two-season persistence")}>Persistenza su due stagioni</span></span>
+    <span class="hero-pill"><span {_bi(_pill_camp_it, _pill_camp_en)}>{_pill_camp_it}</span></span>
     <span class="hero-pill"><span {_bi(f"Backtest su output grezzo r={_r2(r_c)}", f"Backtest on raw output r={_r2(r_c)}")}>Backtest su output grezzo r={_r2(r_c)}</span></span>
     <span class="hero-pill"><span {_bi("Indice Et&agrave; &amp; Fisico","Age &amp; Physical Index")}>Age &amp; Physical Index</span></span>
     <span class="hero-pill">TPI Pro</span>
@@ -3718,7 +3871,9 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
       <div class="guide-card"><div class="guide-ttl">Backtest</div>
         <div class="guide-body" {_bi("Misura se l&rsquo;output offensivo si conferma fra le due met&agrave; della stagione. Riguarda quella rate stat, non il composito: per il composito c&rsquo;&egrave; la sezione Q.","It measures whether attacking output repeats across the two halves of the season. It is about that rate stat, not the composite: for the composite see section Q.")}>Misura se l&rsquo;output offensivo si conferma fra le due met&agrave; della stagione. Riguarda quella rate stat, non il composito: per il composito c&rsquo;&egrave; la sezione Q.</div></div>
       <div class="guide-card"><div class="guide-ttl">TPI Pro</div>
-        <div class="guide-body" {_bi("Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. r(TPI,TPI Pro) ideale = 0.80–0.95.","Adds AII (age) and PRI (physical reliability) to the classic TPI. Ideal r(TPI,TPI Pro) = 0.80–0.95.")}>Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. r(TPI,TPI Pro) ideale = 0.80–0.95.</div></div>
+        <div class="guide-body" {_bi("Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. Se quei modulatori servano davvero non lo dice r(TPI,TPI Pro) &mdash; il Pro contiene il TPI &mdash; ma il test I, fuori campione.","Adds AII (age) and PRI (physical reliability) to the classic TPI. Whether those modulators actually help is not answered by r(TPI,TPI Pro) &mdash; the Pro contains the TPI &mdash; but by test I, out-of-sample.")}>Aggiunge AII (et&agrave;) e PRI (affidabilit&agrave; fisica) al TPI classico. Se servano davvero lo dice il test I, non r(TPI,TPI Pro).</div></div>
+      <div class="guide-card"><div class="guide-ttl" {_bi("Campione","Sample")}>Campione</div>
+        <div class="guide-body" {_bi(_camp_it, _camp_en)}>{_camp_it}</div></div>
       <div class="guide-card"><div class="guide-ttl" {_bi("Limiti","Limits")}>Limiti</div>
         <div class="guide-body" {_bi("Voti Fantacalcio e WhoScored sono inseriti manualmente. Backtest payload = Output Adj vs EWMA come proxy.","Fantacalcio and WhoScored ratings are entered manually. Payload backtest = Output Adj vs EWMA as a proxy.")}>Voti Fantacalcio e WhoScored sono inseriti manualmente. Backtest payload = Output Adj vs EWMA come proxy.</div></div>
     </div>
@@ -3726,7 +3881,7 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 </div>
 
 <!-- RECAP — in cima, non in fondo.
-     L'ordine A→B→C metteva davanti il test piu' debole: r=0.401 con IC
+     L'ordine A→B→C metteva davanti il test piu' debole: una r bassa con IC
      bootstrap che contiene lo zero, quindi non una prova. Chi si fermava al
      primo riquadro se ne andava con quello, senza aver visto il backtest a
      rho=0.725 con placebo p=0.002, che e' il risultato vero della pagina.
@@ -3736,13 +3891,15 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
 
 {claim_html}
 
+{soglie_html}
+
 <!-- SEZIONE A -->
 <div class="section">
   <div class="section-hd">
     <div class="section-num">A</div>
     <div>
       <div class="section-ttl"><span {_bi("TPI vs Voti Fantacalcio &mdash; descrittivo","TPI vs Fantacalcio Ratings &mdash; descriptive")}>TPI vs Voti Fantacalcio &mdash; descrittivo</span> <span class="help" onclick="openM('pearson')">?</span></div>
-      <div class="section-sub" {_bi(f"Confronto col consenso degli esperti su {n_a} voti inseriti a mano. <strong>Non &egrave; una prova</strong>: con questo campione l&rsquo;intervallo di confidenza di r contiene lo zero, quindi il dato descrive una somiglianza, non la dimostra.", f"Comparison with expert consensus over {n_a} hand-entered ratings. <strong>This is not proof</strong>: at this sample size the confidence interval for r contains zero, so the figure describes a resemblance rather than establishing one.")}>Confronto col consenso degli esperti su {n_a} voti inseriti a mano. <strong>Non &egrave; una prova</strong>: con questo campione l&rsquo;intervallo di confidenza di r contiene lo zero.</div>
+      <div class="section-sub" {_bi(_a_sub_it, _a_sub_en)}>{_a_sub_it}</div>
     </div>
   </div>
   <div class="g3">
@@ -3766,10 +3923,10 @@ def build_dashboard(val_a: dict, val_b: dict, val_c: dict,
     <div class="card"><div class="card-ttl">Scatter TPI vs Fantacalcio <span class="help" onclick="openM('scatter')">?</span></div>
       <div id="chart-a" class="chart-h" style="height:300px"></div></div>
     <div class="card"><div class="card-ttl" {_bi("Interpretazione","Interpretation")}>Interpretazione</div>
-      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi('<p style="margin-bottom:10px">I <strong style="color:var(--lp)">voti Fantacalcio</strong> rappresentano la percezione collettiva della qualit&agrave;.</p><p style="margin-bottom:10px">r=0.4–0.7 &egrave; il risultato ideale: il TPI conferma e arricchisce.</p><p>r&gt;0.9 = il TPI non aggiunge nulla. r&lt;0.3 = troppo distante dalla qualit&agrave; percepita.</p>', '<p style="margin-bottom:10px">The <strong style="color:var(--lp)">Fantacalcio ratings</strong> represent the collective perception of quality.</p><p style="margin-bottom:10px">r=0.4–0.7 is the ideal result: TPI confirms and enriches.</p><p>r&gt;0.9 = TPI adds nothing. r&lt;0.3 = too far from perceived quality.</p>')}>
+      <div style="font-size:13px;color:var(--ls);line-height:1.75" {_bi(f'<p style="margin-bottom:10px">I <strong style="color:var(--lp)">voti Fantacalcio</strong> rappresentano la percezione collettiva della qualit&agrave;.</p><p style="margin-bottom:10px">Non c&rsquo;&egrave; una fascia di r che promuove il TPI: qui non si sta verificando niente, si sta misurando quanto due graduatorie si somigliano.</p><p>{_a_par_it}</p>', f'<p style="margin-bottom:10px">The <strong style="color:var(--lp)">Fantacalcio ratings</strong> represent the collective perception of quality.</p><p style="margin-bottom:10px">There is no band of r that vindicates the TPI: nothing is being verified here, we are measuring how much two rankings resemble each other.</p><p>{_a_par_en}</p>')}>
         <p style="margin-bottom:10px">I <strong style="color:var(--lp)">voti Fantacalcio</strong> rappresentano la percezione collettiva della qualit&agrave;.</p>
-        <p style="margin-bottom:10px">r=0.4–0.7 &egrave; il risultato ideale: il TPI conferma e arricchisce.</p>
-        <p>r&gt;0.9 = il TPI non aggiunge nulla. r&lt;0.3 = troppo distante dalla qualit&agrave; percepita.</p>
+        <p style="margin-bottom:10px">Non c&rsquo;&egrave; una fascia di r che promuove il TPI: qui non si sta verificando niente, si sta misurando quanto due graduatorie si somigliano.</p>
+        <p>{_a_par_it}</p>
       </div>
       <div class="interp"><span {_bi(val_a.get("interpretazione","&mdash;"), val_a.get("interpretazione_en","&mdash;"))}>{val_a.get("interpretazione","&mdash;")}</span></div>
       {a_rigor}
@@ -3906,9 +4063,9 @@ function T(k,fb){{ return (window.SerieAi18n ? window.SerieAi18n.t(k) : (fb!=nul
 const SPIEG={{
   pearson:{{icon:"📊",ttl:"Correlazione di Pearson",ttl_en:"Pearson correlation",
     sub:"r = Σ[(xi−x̄)(yi−ȳ)] / [n·σx·σy]",sub_en:"r = Σ[(xi−x̄)(yi−ȳ)] / [n·σx·σy]",
-    body:"Misura la relazione lineare (–1 a +1).\\nr=+1: diretta perfetta.\\nr=0: nessuna relazione.\\nr=–1: inversa.\\n\\nr=0.4–0.7 è ideale: conferma qualità reale con punto di vista diverso.",
-    body_en:"Measures the linear relationship (–1 to +1).\\nr=+1: perfect direct.\\nr=0: no relationship.\\nr=–1: inverse.\\n\\nr=0.4–0.7 is ideal: confirms real quality from a different angle.",
-    ex:"r=0.53, p=0.004 → moderata, significativa. R²=0.28.",ex_en:"r=0.53, p=0.004 → moderate, significant. R²=0.28."}},
+    body:"Misura la relazione lineare (–1 a +1).\\nr=+1: diretta perfetta.\\nr=0: nessuna relazione.\\nr=–1: inversa.\\n\\nDa sola r non dice quasi niente: conta insieme all'intervallo di confidenza e al numero di osservazioni. Su campioni piccoli una r apparentemente buona può essere compatibile con lo zero.",
+    body_en:"Measures the linear relationship (–1 to +1).\\nr=+1: perfect direct.\\nr=0: no relationship.\\nr=–1: inverse.\\n\\nOn its own r says almost nothing: it counts together with the confidence interval and the number of observations. On small samples an apparently good r can still be consistent with zero.",
+    ex:"È il caso di questa pagina: r = {_sf(r_a,2)} su {n_a} voti, con IC {_ci_txt(val_a.get('ci_lo'), val_a.get('ci_hi'))}. Lo zero è dentro, quindi il dato descrive, non dimostra.",ex_en:"That is the case on this page: r = {_sf(r_a,2)} over {n_a} ratings, CI {_ci_txt(val_a.get('ci_lo'), val_a.get('ci_hi'))}. Zero is inside it, so the figure describes rather than proves."}},
   scatter:{{icon:"🔵",ttl:"Come leggere lo Scatter",ttl_en:"How to read the Scatter",
     sub:"X = TPI | Y = Voto Fantacalcio",sub_en:"X = TPI | Y = Fantacalcio rating",
     body:"Ogni punto = un giocatore. Colore = ruolo.\\n\\nLontano dalla retta = sottovalutato o sopravvalutato.",
@@ -3916,19 +4073,19 @@ const SPIEG={{
     ex:"Alto a sx: voto alto ma TPI basso → sopravvalutato. Basso a dx: TPI alto, voto basso → da valorizzare.",ex_en:"Top-left: high rating but low TPI → overvalued. Bottom-right: high TPI, low rating → to be valued."}},
   overlap:{{icon:"🎯",ttl:"Overlap Top 10",ttl_en:"Top 10 Overlap",
     sub:"% giocatori in entrambe le classifiche",sub_en:"% players in both rankings",
-    body:"Overlap basso non è negativo: il TPI trova talenti che i sistemi tradizionali ignorano.",
-    body_en:"Low overlap is not negative: the TPI finds talents that traditional systems ignore.",
-    ex:"Overlap 30% = 3/10 in comune. I 7 diversi nella lista TPI sono potenziali 'hidden gems'.",ex_en:"Overlap 30% = 3/10 in common. The 7 different ones in the TPI list are potential 'hidden gems'."}},
+    body:"Attenzione a come si legge: non esiste un valore che promuove il TPI e uno che lo boccia. Overlap alto direbbe «confermato», overlap basso «trova gemme» — così il confronto non può fallire, e un criterio che non può fallire non verifica niente.\\n\\nPer questo qui è una descrizione, non un test. Il numero da guardare accanto è la p ipergeometrica: dice quanta di quella sovrapposizione è compatibile col caso.",
+    body_en:"Careful how you read this: there is no value that vindicates the TPI and none that fails it. High overlap would mean “confirmed”, low overlap “finds gems” — so the comparison cannot fail, and a criterion that cannot fail verifies nothing.\\n\\nThat is why this is a description, not a test. The number to read next to it is the hypergeometric p: it says how much of that overlap is consistent with chance.",
+    ex:"Con p = {_bp2} la sovrapposizione osservata è compatibile col caso: la parte utile del confronto non è il numero, sono i nomi su cui i due sistemi non vanno d'accordo.",ex_en:"With p = {_bp2} the observed overlap is consistent with chance: the useful part is not the number but the names the two systems disagree on."}},
   divergenze:{{icon:"🔍",ttl:"Divergenze TPI vs WhoScored",ttl_en:"TPI vs WhoScored divergences",
     sub:"Gap ≥4 posizioni tra i due sistemi",sub_en:"Gap ≥4 positions between the two systems",
     body:"Sottovalutati: TPI rank >> WhoScored → impatto offensivo non catturato.\\n\\nSopravvalutati: WhoScored >> TPI → percezione influenzata da aspetti non offensivi.",
     body_en:"Undervalued: TPI rank >> WhoScored → offensive impact not captured.\\n\\nOvervalued: WhoScored >> TPI → perception influenced by non-offensive aspects.",
     ex:"TPI #3, WhoScored #12: impatto offensivo reale non visibile nei voti generali.",ex_en:"TPI #3, WhoScored #12: real offensive impact not visible in the general ratings."}},
-  backtest:{{icon:"⏱️",ttl:"Backtest Predittivo",ttl_en:"Predictive Backtest",
+  backtest:{{icon:"⏱️",ttl:"Backtest sull'output grezzo",ttl_en:"Backtest on raw output",
     sub:"Spearman r tra prima e seconda fase",sub_en:"Spearman r between first and second half",
-    body:"Verifica se la classifica della prima fase predice quella della seconda.\\n\\nSpearman (rank-based) è robusto agli outlier.",
-    body_en:"Checks whether the first-half ranking predicts the second-half one.\\n\\nSpearman (rank-based) is robust to outliers.",
-    ex:"r=0.58: chi era top10 nella prima fase tende a restare top10.",ex_en:"r=0.58: those in the top 10 in the first half tend to stay top 10."}},
+    body:"Misura se l'output offensivo per-90 della prima metà si ritrova nella seconda.\\n\\nLa misura è (xG+xA)/90, cioè la componente dominante del TPI, non il composito: buona parte di questa correlazione è una rate stat che predice sé stessa fra due metà della stessa stagione.\\n\\nSpearman (rank-based) è robusto agli outlier.",
+    body_en:"It measures whether first-half per-90 attacking output shows up again in the second half.\\n\\nThe measure is (xG+xA)/90, the dominant TPI component, not the composite: much of this correlation is a rate stat predicting itself across two halves of the same season.\\n\\nSpearman (rank-based) is robust to outliers.",
+    ex:"Dice che il rendimento offensivo è stabile, e serve saperlo. Non dice che il TPI predice: quella domanda è la sezione Q, e lì la risposta è diversa.",ex_en:"It shows attacking output is stable, which is worth knowing. It does not show the TPI predicts: that question is section Q, and there the answer is different."}},
   scatter_c:{{icon:"📈",ttl:"Scatter Backtest",ttl_en:"Backtest Scatter",
     sub:"X = prima fase | Y = seconda fase",sub_en:"X = first half | Y = second half",
     body:"Sopra la diagonale: migliorati. Sotto: peggiorati. Vicino alla retta: coerenti.",
@@ -4092,7 +4249,8 @@ function toggleAcc(id){{
     else{{cls="badge-red";lbl="Basso";}}
     el.innerHTML='<span class="badge '+cls+'">'+lbl+'</span>';
   }}
-  setBadge("badge-c", R_C, 0.5, 0.3);
+  // soglie da SOGLIE in parte3_valida_tpi.py: qui non si scrivono a mano
+  setBadge("badge-c", R_C, {SOGLIE['c_hi']}, {SOGLIE['c_mid']});
   // A e B non hanno piu' un verdetto da calcolare: sono descrittivi e la loro
   // etichetta e' statica lato Python. Lasciare qui setBadge la riscriveva in
   // "Basso"/"Moderato" a pagina caricata.

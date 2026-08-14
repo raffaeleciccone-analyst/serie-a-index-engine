@@ -40,6 +40,7 @@ try:
 except Exception:
     pass
 
+from config import SEASON_CORRENTE  # stagione pubblicata dal sito
 from config import db_url as _cfg_db_url  # carica .env + fail-fast su DB_PASSWORD
 from dataclasses import dataclass, field
 from typing import Any
@@ -97,17 +98,28 @@ class Config:
     # di ruolo. floor=0.35 → anche a confidence 0 si tiene il 35% del segnale.
     confidence_floor: float = 0.35
 
-    # Pesi del TPI: la QUALITÀ (output_adj, xG+xA/90 SOS-adj) domina; uso/contesto
-    # squadra (centralità, boost) pesano meno perché gonfiabili su squadre deboli;
-    # la finalizzazione (gol vs xG) entra con peso piccolo così chi non converte
-    # scende. Somma = 1.0. Re-normalizzati sui dim effettivamente disponibili.
+    # Pesi del TPI (rev 2026-06-01): rebilanciati su feedback utente "diamo
+    # più peso ai gol sul numero di gol di squadra" + ablation study (Test O).
+    #
+    # Cambiamenti chiave:
+    #   - centralita 0.09 → 0.18 (raddoppiata): premia chi pesa nella produzione
+    #     della sua squadra. Misura (xG_giocatore + xA_giocatore) / xG_squadra,
+    #     con Bayesian shrinkage. Usa xA (expected) quindi un giocatore che fa
+    #     un ottimo passaggio non viene penalizzato se il compagno sbaglia.
+    #   - boost_ratio 0.05 → 0.02 (ridotto): ablation l'ha indicato come
+    #     dimensione meno impattante (Δ predittivo minore). Mantenuto > 0
+    #     per non perdere segnale "team con/senza" sui giocatori con campione adeguato.
+    #   - output_adj 0.34 → 0.32, buildup 0.11 → 0.10, consistenza 0.09 → 0.07,
+    #     form 0.12 → 0.11: leggera riduzione per compensare l'aumento centralità.
+    # Somma = 1.0. Re-normalizzati sui dim effettivamente disponibili.
     tpi_weights: dict[str, float] = field(default_factory=lambda: {
-        "output_adj":  0.40,   # qualità: xG+xA/90 SOS-adj — segnale dominante (corr 0.87)
-        "buildup_adj": 0.13,   # coinvolgimento nella manovra (xGBuildup, no tiro/assist)
-        "centralita":  0.10,   # quota produzione squadra — ridotta (collineare con output 0.46)
-        "boost_ratio": 0.05,   # team con/senza — ridotto (debole+copertura 59%)
-        "consistenza": 0.12,   # regolarità (riparata: mean/(mean+std))
-        "finishing":   0.20,   # gol vs npxG (conversione) — alzata
+        "output_adj":  0.32,   # qualità: xG+xA/90 SOS-adj — segnale dominante
+        "buildup_adj": 0.10,   # coinvolgimento nella manovra (xGBuildup, no tiro/assist)
+        "centralita":  0.18,   # quota produzione squadra (RADDOPPIATA — feedback utente)
+        "boost_ratio": 0.02,   # team con/senza (ridotto su ablation)
+        "consistenza": 0.07,   # regolarità intra-stagione
+        "finishing":   0.20,   # gol vs npxG (conversione)
+        "form":        0.11,   # EWMA xG+xA/90 (trend recente)
     })
 
     # Contesti & soglie
@@ -130,10 +142,12 @@ class Config:
     recent_window: int = 6
 
     # ── Nuovi indici v2 ──────────────────────────────────────
-    # Age Impact Index (AII)
-    age_peak: float = 27.0          # età di picco prestativo
-    age_sigma: float = 4.5          # dispersione curva gaussiana
-    age_exp_cap: float = 10.0       # anni carriera per experience = 1.0
+    # Age Impact Index (AII) v3 — scout-oriented: premia chi sta ENTRANDO nel prime
+    age_peak: float = 23.0          # picco scout: entrata nel prime, non prime consolidato
+    age_sigma: float = 3.5          # dispersione gaussiana (più stretta = picco più definito)
+    age_freshness_start: float = 27.0  # età oltre la quale freshness inizia a calare
+    age_growth_start: float = 18.0  # età sotto la quale growth potential = 1.0
+    age_exp_cap: float = 10.0       # mantenuto per retrocompatibilità (non usato in v3)
 
     # Physical Reliability Index (PRI)
     pri_min_partite: int = 8        # min partite disponibili per calcolare PRI
@@ -144,7 +158,64 @@ class Config:
     include_age_in_tpi_ext: bool = True
     include_physical_in_tpi_ext: bool = True
 
+    # Pesi del TPI Pro (TPI_ext) — versione AGE-AWARE (rev 2026-06-01).
+    #
+    # Risposta al feedback "se hai pochi infortuni e hai determinati numeri
+    # prima del prime sei un potenziale; nel prime sei buono ma più normale;
+    # oltre il prime sei un veterano affidabile". I pesi del Pro cambiano per
+    # categoria età così le 3 categorie sono valutate per quello che sono:
+    #
+    # PROSPETTO (<23): EMI boostato (skill vs età), AII alto (scout peak 23)
+    # PRIME (23-29): pesi standard, equilibrio tra qualità e modulatori
+    # VETERANO (≥29): PRI boostato (premia affidabilità), AII ridotto (non
+    #   penalizza chi è oltre il peak se è affidabile). Mkhitaryan PRI 0.85
+    #   con questi pesi recupera il segnale "veterano affidabile".
+    #
+    # Ogni profilo somma a 1.0. Re-normalizzati sui modulatori disponibili.
+    tpi_pro_weights_age: dict[str, dict[str, float]] = field(default_factory=lambda: {
+        "prospetto": {  # <23 anni
+            "tpi":                    0.55,
+            "z_eta_index":            0.15,
+            "z_affidabilita_fisica":  0.05,
+            "z_ctx_stability":        0.07,
+            "z_form_trend":           0.05,
+            "z_early_momentum":       0.13,  # boost: skill vs età
+        },
+        "prime": {  # 23-28 anni
+            "tpi":                    0.65,
+            "z_eta_index":            0.10,
+            "z_affidabilita_fisica":  0.07,
+            "z_ctx_stability":        0.07,
+            "z_form_trend":           0.05,
+            "z_early_momentum":       0.06,
+        },
+        "veterano": {  # ≥29 anni
+            "tpi":                    0.60,
+            "z_eta_index":            0.04,  # ridotto: non penalizza il veterano oltre peak
+            "z_affidabilita_fisica":  0.18,  # boostato: premia affidabilità
+            "z_ctx_stability":        0.08,
+            "z_form_trend":           0.05,
+            "z_early_momentum":       0.05,
+        },
+    })
+    # Pesi backward-compat (default = pesi PRIME, usati se eta mancante)
+    tpi_pro_weights: dict[str, float] = field(default_factory=lambda: {
+        "tpi":                    0.65,
+        "z_eta_index":            0.10,
+        "z_affidabilita_fisica":  0.07,
+        "z_ctx_stability":        0.07,
+        "z_form_trend":           0.05,
+        "z_early_momentum":       0.06,
+    })
+    # Soglie età per le 3 categorie
+    prospetto_max_age: float = 23.0  # <23 = prospetto
+    veterano_min_age: float = 29.0   # ≥29 = veterano
+
     # Output
+    # 100 e' la dimensione della dashboard pubblicata, non una scelta
+    # statistica: con 0 il payload contiene TUTTI i qualificati. Serve ai
+    # vintage della validazione, dove tagliare in alto attenua da solo le
+    # correlazioni (si confrontano solo i migliori fra loro). Vedi --top-n.
     top_n_payload: int = 100
     top_n_ai: int = 20
     output_dir: str = ""
@@ -380,9 +451,48 @@ class DatabaseLayer:
     Espone metodi tipizzati invece di query sparse nel codice.
     """
 
-    def __init__(self, engine: Engine):
+    def __init__(self, engine: Engine, season: str | None = None):
+        """Costruisce il layer DB.
+        season: se valorizzato (es. "2024-25"), tutte le query temporali
+        filtrano per `calendario.season=season`. Se None, comportamento
+        legacy (nessun filtro — assume DB monostagione o default '2025-26').
+        """
         self.engine = engine
+        self.season = season
         self._verify_schema()
+        if season:
+            self._verify_season_column()
+
+    def _verify_season_column(self) -> None:
+        """Verifica che il DDL multi-stagione sia stato applicato."""
+        with self.engine.connect() as conn:
+            r = conn.execute(text(
+                "SHOW COLUMNS FROM calendario LIKE 'season'"
+            )).fetchone()
+        if not r:
+            raise RuntimeError(
+                f"Filtro season='{self.season}' richiesto ma colonna `calendario.season` "
+                "non esiste. Esegui prima setup_multi_season.sql."
+            )
+        # Verifica che esistano dati per quella stagione (interpolazione safe:
+        # self.season è valore controllato dal CLI, non input utente arbitrario)
+        with self.engine.connect() as conn:
+            n = conn.execute(text(
+                f"SELECT COUNT(*) FROM calendario WHERE season = '{self.season}'"
+            )).fetchone()[0]
+        if n == 0:
+            raise RuntimeError(
+                f"Nessuna partita in DB per season='{self.season}'. "
+                f"Esegui prima il backfill: python backfill_24_25_completo.py"
+            )
+        log.info(f"Season filter attivo: '{self.season}' ({n} partite in calendario)")
+
+    def _season_where(self, alias: str = "cal") -> str:
+        """Restituisce frammento SQL `AND <alias>.season = '<season>'` o stringa vuota.
+        L'alias deve riferirsi a `calendario`. Usa string interpolation perché
+        season è validata in _verify_season_column (no SQL injection risk).
+        """
+        return f" AND {alias}.season = '{self.season}'" if self.season else ""
 
     def _verify_schema(self) -> None:
         required = [
@@ -406,19 +516,19 @@ class DatabaseLayer:
     def load_sos_map(self) -> dict[int, float]:
         # SOS = solidità difensiva dell'avversario = xG REALMENTE concessi a
         # stagione (media su tutte le gare), normalizzata a media-lega = 1.0.
-        # NB: NON usiamo più t_sos_squadre — conteneva l'xG OFFENSIVO mislabeled
-        # come "subiti" (corr +0.98 con xG fatti), che invertiva l'aggiustamento:
-        # gonfiava l'output contro le difese deboli e marcava come "difese solide"
-        # le PEGGIORI. Qui ricostruiamo il dato corretto dai match.
         try:
+            sw = self._season_where("cal")
             df = pd.read_sql(
-                """
+                f"""
                 SELECT a.squadra_id        AS squadra_id,
                        AVG(b.xg)           AS xg_concessi
                 FROM   squadra_calendario a
                 JOIN   squadra_calendario b
                        ON b.calendario_id = a.calendario_id
                       AND b.squadra_id   <> a.squadra_id
+                JOIN   calendario cal
+                       ON cal.id = a.calendario_id
+                WHERE  1=1{sw}
                 GROUP BY a.squadra_id
                 """,
                 self.engine,
@@ -450,11 +560,14 @@ class DatabaseLayer:
 
     def load_players_analytics(self) -> pd.DataFrame:
         # Base costruita direttamente da `giocatori` + aggregati freschi di
-        # `giocatore_partita` (NON da t_player_analytics, che era uno snapshot
-        # stantio: minuti sbagliati e ~15 titolari mancanti dal ranking).
-        # Così ogni giocatore con minuti reali è incluso, con minutaggio corretto.
+        # `giocatore_partita`. Per multi-stagione: aggregato filtrato per
+        # calendario.season; il JOIN con `squadre` usa la squadra ATTUALE
+        # del giocatore (anagrafica), che può differire da quella della stagione
+        # storica — ma è solo per displaying. La logica di squadra-per-partita
+        # è gestita via load_player_games e squadra_calendario filtrati.
+        sw = self._season_where("cal")
         df = pd.read_sql(
-            """
+            f"""
             SELECT
                 g.id                       AS giocatore_id,
                 g.ruolo,
@@ -478,15 +591,16 @@ class DatabaseLayer:
             FROM giocatori g
             LEFT JOIN squadre sq ON sq.id = g.squadra_id
             JOIN (
-                SELECT giocatore_id,
-                       SUM(minuti)               AS minuti,
-                       COUNT(DISTINCT calendario_id) AS partite,
-                       SUM(goal)                 AS goal,
-                       SUM(xg)                   AS xg,
-                       SUM(xa)                   AS xa
-                FROM giocatore_partita
-                WHERE minuti > 0
-                GROUP BY giocatore_id
+                SELECT gp.giocatore_id,
+                       SUM(gp.minuti)               AS minuti,
+                       COUNT(DISTINCT gp.calendario_id) AS partite,
+                       SUM(gp.goal)                 AS goal,
+                       SUM(gp.xg)                   AS xg,
+                       SUM(gp.xa)                   AS xa
+                FROM giocatore_partita gp
+                JOIN calendario cal ON cal.id = gp.calendario_id
+                WHERE gp.minuti > 0{sw}
+                GROUP BY gp.giocatore_id
             ) agg ON agg.giocatore_id = g.id
             """,
             self.engine,
@@ -496,13 +610,15 @@ class DatabaseLayer:
         return df
 
     def load_squad_game_log(self) -> pd.DataFrame:
+        sw = self._season_where("cal")
         df = pd.read_sql(
-            """
+            f"""
             SELECT
                 sgl.*,
                 cal.giornata
             FROM t_squadra_game_log sgl
             JOIN calendario cal ON cal.id = sgl.calendario_id
+            WHERE 1=1{sw}
             """,
             self.engine,
         )
@@ -512,6 +628,7 @@ class DatabaseLayer:
         return df
 
     def load_player_games(self, xg_col: str, xg_avv_col: str) -> pd.DataFrame:
+        sw = self._season_where("cal")
         df = pd.read_sql(
             f"""
             SELECT
@@ -537,6 +654,7 @@ class DatabaseLayer:
                                               AND sc.calendario_id  = gp.calendario_id
             LEFT JOIN t_squadra_game_log  sgl ON  sgl.squadra_id   = g.squadra_id
                                               AND sgl.calendario_id = gp.calendario_id
+            WHERE 1=1{sw}
             """,
             self.engine,
         )
@@ -1339,31 +1457,55 @@ import math as _math
 
 def compute_age_index(eta: float | None, cfg: Config) -> float | None:
     """
-    Age Impact Index (AII) — indice composito [0, 1].
+    Age Impact Index (AII) v3 — scout-oriented [0, 1].
+
+    Premia chi sta ENTRANDO nel prime (22–25), non chi è già nel prime consolidato
+    (26–29). Risposta diretta a feedback scout: "il giocatore già nel prime ha
+    valore minore — quello in ascesa ha più upside".
 
     Componenti:
-      50% PeakProximity  — Gaussiana centrata a peak_age (default 27)
-      30% ExperienceFactor — cresce con gli anni di carriera, satura a 1.0
-      20% Freshness      — 1.0 fino a peak_age, poi declina del 5%/anno
+      55% ScoutPeak       — Gaussiana centrata a age_peak=23, σ=3.5
+      25% GrowthPotential — bonus 1.0 a 18 → 0 a peak, decay lineare
+      20% Freshness       — 1.0 fino a age_freshness_start=27, poi −6%/anno
+
+    Pattern AII v3 con i parametri attuali (peak=23, sigma=3.5, growth_start=18,
+    freshness_start=27, pesi 0.55/0.25/0.20):
+      18→0.65 · 20→0.73 · 22→0.78 · 23→0.75 · 24→0.73 · 25→0.67 · 27→0.49 ·
+      30→0.24 · 35→0.11
+
+    Il massimo del composito NON cade a 23 ma a ~21.8 (0.779): a 23 il bonus
+    GrowthPotential si è già azzerato, quindi la somma perde prima di quanto la
+    sola gaussiana farebbe pensare. È il comportamento voluto — l'indice premia
+    chi sta entrando nel prime — ma va detto, perché age_peak=23 si legge come
+    se il picco fosse lì.
+
+    Questi valori sono calcolati dalla funzione, non scritti a mano: il
+    docstring dichiarava 18→0.58 · 22→0.75 · 27→0.58 e un confronto con una v2
+    che il codice non contiene più. La curva pubblicata nella guida usa i valori
+    veri, quindi era il commento a essere rimasto indietro.
 
     Returns None se età non disponibile o fuori range [15, 45].
     """
     if eta is None or not (15 <= eta <= 45):
         return None
 
-    # 1. Peak proximity (Gaussian)
-    peak_score = _math.exp(-0.5 * ((eta - cfg.age_peak) / cfg.age_sigma) ** 2)
+    # 1. Scout peak: gaussiana centrata su age_peak (23) con σ stretto (3.5)
+    scout_peak = _math.exp(-0.5 * ((eta - cfg.age_peak) / cfg.age_sigma) ** 2)
 
-    # 2. Experience factor (proxy: anni da inizio carriera professionale ~17)
-    experience = min(1.0, max(0.0, (eta - 17.0) / cfg.age_exp_cap))
+    # 2. Growth potential: bonus lineare per i giovani in ascesa, 0 dopo peak
+    if eta >= cfg.age_peak:
+        growth = 0.0
+    else:
+        span = max(1.0, cfg.age_peak - cfg.age_growth_start)
+        growth = max(0.0, min(1.0, (cfg.age_peak - eta) / span))
 
-    # 3. Physical freshness (declina dopo peak_age)
-    if eta <= cfg.age_peak:
+    # 3. Physical freshness: 1.0 fino a freshness_start (27), poi declina del 6%/anno
+    if eta <= cfg.age_freshness_start:
         freshness = 1.0
     else:
-        freshness = max(0.0, 1.0 - (eta - cfg.age_peak) * 0.05)
+        freshness = max(0.0, 1.0 - (eta - cfg.age_freshness_start) * 0.06)
 
-    return round(0.50 * peak_score + 0.30 * experience + 0.20 * freshness, 4)
+    return round(0.55 * scout_peak + 0.25 * growth + 0.20 * freshness, 4)
 
 
 def compute_physical_reliability(
@@ -1598,6 +1740,18 @@ Solo italiano. Solo testo."""
 # ════════════════════════════════════════════════════════════════
 # 15. BUILD PAYLOAD JSON
 # ════════════════════════════════════════════════════════════════
+def righe_payload(df_pa, cfg: Config):
+    """Le righe che entrano nel payload: le prime N, o tutte se top_n_payload <= 0.
+
+    Il taglio in alto e' una scelta di prodotto — quanti giocatori mostra la
+    dashboard — non un criterio statistico. Nei vintage che alimentano la
+    validazione va tolto: confrontare fra loro solo i primi 100 restringe la
+    varianza e attenua ogni correlazione, cosi' i test misurano la selezione
+    invece dell'indice.
+    """
+    return df_pa if cfg.top_n_payload <= 0 else df_pa.head(cfg.top_n_payload)
+
+
 def build_payload(
     df_pa: pd.DataFrame,
     all_ctx: dict[int, dict],
@@ -1610,7 +1764,7 @@ def build_payload(
     n_total = len(df_pa)
     payload: list[dict] = []
 
-    for _, row in df_pa.head(cfg.top_n_payload).iterrows():
+    for _, row in righe_payload(df_pa, cfg).iterrows():
         gid = int(row["giocatore_id"])
         fd = form_detail.get(gid, {"form_g": [], "form_out": [], "form_ewma_s": []})
         cd = conv_detail.get(gid, {
@@ -1648,6 +1802,10 @@ def build_payload(
             "squadra": clean_str(row["squadra"]),
             "ruolo": clean_str(row.get("ruolo") or ""),
             "minuti": safe_json(row["minuti"]),
+            "avg_min_partita": safe_json(row.get("avg_min_per_partita")),
+            "k_subst_mult": safe_json(row.get("k_subst_mult")),
+            "disponibilita_rel": safe_json(row.get("disponibilita_rel")),
+            "disponibilita_penalty": safe_json(row.get("disponibilita_penalty")),
             "is_winter": bool(row.get("is_winter", False)),
             "first_giornata": int(row.get("first_giornata", 1)),
             "tpi": {ctx: safe_json(row.get(f"TPI_{ctx}")) for ctx in CONTESTI},
@@ -1702,6 +1860,7 @@ def build_payload(
             "tpi_ext": {ctx: safe_json(row.get(f"TPI_ext_{ctx}")) for ctx in CONTESTI},
             "physical": {
                 "eta":               safe_json(row.get("eta")),
+                "eta_cat":           row.get("eta_cat", "prime"),
                 "eta_index":         safe_json(row.get("eta_index")),
                 "z_eta":             safe_json(row.get("z_eta_index")),
                 "partite_disp":      safe_json(row.get("partite_disponibili")),
@@ -1718,8 +1877,15 @@ def build_payload(
             "z_centralita":  safe_json(row.get("z_totale_centralita")),
             "z_boost":       safe_json(row.get("z_totale_boost_ratio")),
             "z_consistenza": safe_json(row.get("z_totale_consistenza")),
+            "z_finishing":   safe_json(row.get("z_finishing")),
+            "z_form":        safe_json(row.get("z_form")),
             "z_aii":         safe_json(row.get("z_eta_index")),
             "z_pri":         safe_json(row.get("z_affidabilita_fisica")),
+            "z_ctx_stab":    safe_json(row.get("z_ctx_stability")),
+            "z_form_trend":  safe_json(row.get("z_form_trend")),
+            "z_early_momentum": safe_json(row.get("z_early_momentum")),
+            "early_momentum": safe_json(row.get("early_momentum")),
+            "ctx_stability": safe_json(row.get("ctx_stability")),
             # ── Confidence score (0-1) ──────────────────────
             "confidence":    safe_json(row.get("tpi_confidence")),
         }
@@ -1749,13 +1915,39 @@ class SafeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-def main() -> None:
+def _compute_sos_from_sgl(df_sgl: pd.DataFrame, xg_col: str = "xg") -> dict[int, float]:
+    """SOS = xG concessi medi (normalizzato lega=1.0) calcolato da df_sgl filtrato.
+    Replica di DatabaseLayer.load_sos_map() ma agnostico al DB (per snapshot vintage).
+    """
+    a = df_sgl[["squadra_id", "calendario_id", "avversario_id"]].copy()
+    b = df_sgl[["squadra_id", "calendario_id", xg_col]].rename(
+        columns={"squadra_id": "avversario_id", xg_col: "_xg_avv_fatto"})
+    merged = a.merge(b, on=["calendario_id", "avversario_id"], how="inner")
+    by_sq = merged.groupby("squadra_id")["_xg_avv_fatto"].mean()
+    league_avg = float(by_sq.mean())
+    if league_avg <= 0 or pd.isna(league_avg):
+        return {int(sid): 1.0 for sid in df_sgl["squadra_id"].dropna().unique()}
+    return {int(k): float(v) / league_avg for k, v in by_sq.items()
+            if not pd.isna(v)}
+
+
+def main(max_giornata: int | None = None,
+         season: str | None = SEASON_CORRENTE) -> None:
+    """season=None significa NESSUN filtro, cioe' tutte le stagioni aggregate.
+    Non e' piu' il default: con due stagioni in DB produceva una classifica
+    che non era di nessuna delle due, e finiva in payload.json senza che
+    niente lo segnalasse."""
     log.info("=" * 58)
-    log.info("PARTE 1 — Analisi dati Serie A 25/26  v4.2")
+    label = f"Serie A v4.2"
+    if season:
+        label += f"  [season={season}]"
+    if max_giornata is not None:
+        label += f"  [vintage g≤{max_giornata}]"
+    log.info(f"PARTE 1 — Analisi {label}")
     log.info("=" * 58)
 
     engine = create_engine(CFG.db_url)
-    db = DatabaseLayer(engine)
+    db = DatabaseLayer(engine, season=season)
 
     # ── Caricamento dati base ──────────────────────────────────
     sos_map = db.load_sos_map()
@@ -1768,6 +1960,32 @@ def main() -> None:
     df_pa = db.load_players_analytics()
     df_sgl = db.load_squad_game_log()
     df_gp_raw = db.load_player_games(xg_col, xg_avv_col)
+
+    # ── Vintage filter: limita ai dati ≤ max_giornata (per backtest OOS) ──
+    if max_giornata is not None:
+        _before = (len(df_gp_raw), len(df_sgl))
+        df_gp_raw = df_gp_raw[df_gp_raw["giornata"] <= max_giornata].copy()
+        df_sgl = df_sgl[df_sgl["giornata"] <= max_giornata].copy()
+        log.info(f"Vintage g≤{max_giornata}: gp {_before[0]}→{len(df_gp_raw)}, "
+                 f"sgl {_before[1]}→{len(df_sgl)}")
+        # Ricalcola SOS dai dati filtrati (era stagionale)
+        sos_map = _compute_sos_from_sgl(df_sgl, xg_col=xg_avv_col)
+        sos_per_sq = pd.Series(sos_map)
+        # Ricalcola aggregati df_pa (erano stagionali da load_players_analytics)
+        _aggr = (df_gp_raw[df_gp_raw["minuti"] > 0]
+                 .groupby("giocatore_id")
+                 .agg(minuti=("minuti", "sum"),
+                      partite=("calendario_id", "nunique"),
+                      goal=("goal", "sum"),
+                      xg=("xg_ind", "sum"),
+                      xa=("xa_ind", "sum"))
+                 .reset_index())
+        _keep = [c for c in ["giocatore_id", "ruolo", "squadra_id", "squadra",
+                             "nome_anagrafico", "giocatore"] if c in df_pa.columns]
+        df_pa = df_pa[_keep].drop(columns=[c for c in ("minuti","partite","goal","xg","xa")
+                                            if c in df_pa.columns], errors="ignore")
+        df_pa = df_pa.merge(_aggr, on="giocatore_id", how="inner")
+        log.info(f"Vintage g≤{max_giornata}: df_pa ricalcolato su {len(df_pa)} giocatori")
 
     # ── Ruoli: gerarchia di precedenza ─────────────────────────
     #   1) DB (base)  2) posizione reale Understat (default oggettivo)
@@ -1852,7 +2070,16 @@ def main() -> None:
     )
 
     # ── Classifica e top6 ─────────────────────────────────────
-    df_class = db.load_classification()
+    if max_giornata is not None or season is not None:
+        # Vintage o multi-stagione: ricostruisci classifica da df_sgl filtrato
+        # (bypass v_classifica che non ha colonna season)
+        _pts = df_sgl.groupby("squadra_id")["punti"].sum().reset_index()
+        _pts = _pts.sort_values("punti", ascending=False).reset_index(drop=True)
+        _pts["posizione"] = range(1, len(_pts) + 1)
+        _pts["squadra_id"] = pd.to_numeric(_pts["squadra_id"], errors="coerce").astype("Int64")
+        df_class = _pts[["squadra_id", "punti", "posizione"]]
+    else:
+        df_class = db.load_classification()
     top6_ids = compute_top6(df_class, df_sgl, CFG.n_top6_class)
     log.info(f"Top {CFG.n_top6_class}: {top6_ids}")
 
@@ -1904,7 +2131,41 @@ def main() -> None:
     #   out_shrunk = (m·out + K·prior_ruolo) / (m + K)
     # un per-90 caldo su pochi minuti viene tirato verso la media; chi gioca
     # tanto resta vicino al suo valore reale.
-    K_out = float(CFG.output_prior_minutes)
+    #
+    # FIX SUBENTRO (2026-05-31): K è DINAMICO sull'avg_min_per_partita. Un
+    # subentrante che gioca 45'/partita ha p90 estrapolato 2× rispetto a un
+    # titolare → bias sistematico (Ferguson/Esposito problem). Per loro K
+    # cresce (~1000-1500), il loro p90 regredisce di più verso la media-ruolo.
+    # Per i titolari (75-90 min/partita) K resta il base 600 (no penalità).
+    avg_min_per_partita = (
+        pd.to_numeric(df_pa["minuti"], errors="coerce") /
+        pd.to_numeric(df_pa["partite"], errors="coerce").replace(0, np.nan)
+    ).fillna(45.0)
+    # Fattore moltiplicativo K per avg_min: avg=75 → 1.0, avg=45 → 1.67, avg=30 → 2.5 (cap)
+    K_subst_mult = (75.0 / avg_min_per_partita.clip(30.0, 90.0)).clip(1.0, 2.5)
+
+    # Fattore moltiplicativo K per PARTITE COUNT: 30 partite → 1.0, 15 → 2.0, 8 → 3.0 (cap).
+    # Risposta esplicita a "1 gol/partita su 30 ≠ 1 gol/partita su 5": pochi sample
+    # rendono il p90 INSTABILE, va regredito di più verso la media.
+    partite_count = pd.to_numeric(df_pa["partite"], errors="coerce").fillna(8).clip(lower=1)
+    K_partite_mult = (30.0 / partite_count).clip(1.0, 3.0)
+
+    # K finale = MAX dei due fattori, capped a 3.0 (no over-shrinkage).
+    # Es: 15 partite × 50' avg → K_subst=1.5, K_part=2.0 → K_mult=2.0
+    #     6 partite × 90' avg → K_subst=1.0, K_part=3.0 → K_mult=3.0
+    K_subst_mult = pd.Series(
+        np.maximum(K_subst_mult.values, K_partite_mult.values),
+        index=df_pa.index
+    ).clip(1.0, 3.0)
+
+    df_pa["avg_min_per_partita"] = avg_min_per_partita.round(1)
+    df_pa["k_subst_mult"] = K_subst_mult.round(3)
+    _heavy_subst = (avg_min_per_partita < 60).sum()
+    _few_games = (partite_count < 20).sum()
+    log.info(f"  FIX subentro+partite: K dinamico, {_heavy_subst} con avg<60', "
+             f"{_few_games} con <20 partite (media K_mult={K_subst_mult.mean():.2f})")
+
+    K_out_base = float(CFG.output_prior_minutes)
     for ctx in CONTESTI:
         mcol = f"{ctx}_min_tot"
         for col in (f"{ctx}_output_adj", f"{ctx}_buildup_adj"):  # entrambi per-90
@@ -1915,7 +2176,9 @@ def main() -> None:
                 if pd.isna(prior):
                     continue
                 m = pd.to_numeric(df_pa.loc[rmask, mcol], errors="coerce").fillna(0.0)
-                shrunk = (m * raw.fillna(prior) + K_out * prior) / (m + K_out)
+                # K dinamico per ogni giocatore
+                K_dyn = K_out_base * K_subst_mult.loc[rmask].values
+                shrunk = (m * raw.fillna(prior) + K_dyn * prior) / (m + K_dyn)
                 df_pa.loc[rmask, col] = np.where(raw.notna(), shrunk, np.nan)
 
     # ── FIX 3: Z-score PER RUOLO (offensivo, role-relative) ──────
@@ -1942,6 +2205,7 @@ def main() -> None:
     df_pa["z_finishing"] = _z_by_role("finishing_quality")
     df_pa["z_conv_ratio"] = _z_by_role("conv_ratio")
     df_pa["z_form"] = _z_by_role("form_ewma")
+    df_pa["z_form_trend"] = _z_by_role("form_trend")
 
     # AII/PRI: indici trasversali → z-score per ruolo anche loro
     if "eta_index" not in df_pa.columns:
@@ -1955,10 +2219,11 @@ def main() -> None:
     # Se una dimensione con peso >0 ha varianza ~nulla nel contesto 'totale',
     # non ordina nulla (caso consistenza vecchia: 12% di peso su zeri). Lo segnala
     # forte così non passa inosservato.
+    _zc_map = {"finishing": "z_finishing", "form": "z_form"}
     for _dim, _w in CFG.tpi_weights.items():
         if _w <= 0:
             continue
-        _zc = f"z_finishing" if _dim == "finishing" else f"z_totale_{_dim}"
+        _zc = _zc_map.get(_dim, f"z_totale_{_dim}")
         if _zc in df_pa.columns:
             _sd = pd.to_numeric(df_pa[_zc], errors="coerce").std()
             if pd.isna(_sd) or _sd < 0.05:
@@ -1973,8 +2238,9 @@ def main() -> None:
     # I pesi sono re-normalizzati sui dim presenti (boost/finishing possono
     # mancare) così la scala resta confrontabile tra giocatori.
     W = CFG.tpi_weights
-    # dim per-contesto = tutte le chiavi-peso tranne 'finishing' (gestita a parte)
-    _ctx_dims = [k for k in W if k != "finishing"]
+    # dim per-contesto = tutte le chiavi-peso tranne quelle trasversali ('finishing'
+    # e 'form'), che usano lo stesso z su tutti i contesti.
+    _ctx_dims = [k for k in W if k not in ("finishing", "form")]
     def _weighted_tpi(ctx: str) -> pd.Series:
         num = pd.Series(0.0, index=df_pa.index)
         den = pd.Series(0.0, index=df_pa.index)
@@ -1990,38 +2256,137 @@ def main() -> None:
             validf = zf.notna()
             num = num + np.where(validf, zf.fillna(0.0) * W["finishing"], 0.0)
             den = den + np.where(validf, W["finishing"], 0.0)
+        # form: stesso z su tutti i contesti (trend recente — EWMA xG+xA/90)
+        # chi non incide da N gare scende; chi è continuo o in crescita sale.
+        zfm = df_pa.get("z_form")
+        if zfm is not None and W.get("form", 0) > 0:
+            validfm = zfm.notna()
+            num = num + np.where(validfm, zfm.fillna(0.0) * W["form"], 0.0)
+            den = den + np.where(validfm, W["form"], 0.0)
         return pd.Series(np.where(den > 0, num / den, np.nan), index=df_pa.index)
 
     for ctx in CONTESTI:
         df_pa[f"TPI_{ctx}"] = _weighted_tpi(ctx)
 
-    # ── TPI Confidence — misura di affidabilità della stima ──
-    # Basata su: quante dimensioni sono disponibili e quanti minuti
-    # Alta confidence = tutte le dimensioni presenti + minuti elevati
+    # ── TPI Confidence v2 — affidabilità della stima su 4 fattori ────────
+    # v1 considerava solo minuti totali + dim disponibili. Mancava esplicito:
+    #   - COUNT delle partite (15 partite × 60' ≠ 30 partite × 80' come stima)
+    #   - INTENSITÀ per partita (subentro vs titolare → p90 diverso)
+    # v2 aggiunge entrambi come fattori separati nella geometric mean:
+    #
+    #   tpi_confidence = (min_conf × partite_conf × intensita_conf × dim_conf) ^ 0.25
+    #
+    # Esempio Donyell Malen (1499', 18 partite, 83.3'/gara, tutte dim):
+    #   v1: √(0.52 × 1.0) = 0.72
+    #   v2: (0.52 × 0.60 × 0.93 × 1.0)^0.25 = 0.74  (~simile, perché alto avg)
+    # Esempio Berisha (893', 13 partite, 68.7'/gara, tutte dim):
+    #   v1: √(0.31 × 1.0) = 0.55
+    #   v2: (0.31 × 0.43 × 0.76 × 1.0)^0.25 = 0.59  (~simile)
+    # L'effetto è maggiore sui giocatori con partite MOLTO basse o avg MOLTO basso.
     max_min = df_pa["minuti"].quantile(0.95).clip(1)
     min_confidence = (df_pa["minuti"] / max_min).clip(0, 1)
+
+    # Partite: full conf a 30 partite, floor 0.3 (sotto è già un caso limite)
+    partite_confidence = (
+        pd.to_numeric(df_pa["partite"], errors="coerce").fillna(0) / 30.0
+    ).clip(0.3, 1.0)
+
+    # Intensità: avg_min/90 con floor 0.4 (puro subentrante ~30'/gara non azzera)
+    intensita_confidence = (
+        pd.to_numeric(df_pa["avg_min_per_partita"], errors="coerce").fillna(45) / 90.0
+    ).clip(0.4, 1.0)
 
     dim_cols = [f"z_totale_{d}" for d in DIMS]
     n_dims_available = df_pa[dim_cols].notna().sum(axis=1)
     dim_confidence = (n_dims_available / len(DIMS)).clip(0, 1)
 
-    # Confidence = media geometrica di stabilità minuti e completezza dimensioni
-    df_pa["tpi_confidence"] = (
-        np.sqrt(min_confidence * dim_confidence)
+    # Geometric mean a 4 fattori (era sqrt a 2). Esponente 0.25 ⇒ ogni fattore conta uguale.
+    df_pa["tpi_confidence"] = np.power(
+        min_confidence * partite_confidence * intensita_confidence * dim_confidence,
+        0.25
     ).round(3)
+    log.info(f"  Confidence v2 (4 fattori): media={df_pa['tpi_confidence'].mean():.3f}, "
+             f"<0.5: {(df_pa['tpi_confidence'] < 0.5).sum()}/{len(df_pa)}")
 
-    # ── TPI_ext per contesto: base pesata + AII/PRI ──────────
+    # ── Cross-context stability: chi rende uguale in tutti i 5 contesti ──
+    # std bassa sui 5 TPI per contesto = giocatore "tutto terreno". Invertiamo
+    # il segno (alto = stabile) e z-scoriamo per ruolo. Ortogonale al livello
+    # del TPI: due ATT con TPI=+1 possono avere stabilità diversa.
+    _ctx_tpi_cols = [f"TPI_{c}" for c in CONTESTI]
+    df_pa["ctx_stability"] = -df_pa[_ctx_tpi_cols].astype(float).std(axis=1)
+    df_pa["z_ctx_stability"] = _z_by_role("ctx_stability")
+
+    # ── Early Momentum Index (EMI): residuo TPI vs aspettativa-età ─────────
+    # Risposta al limite "AII v3 satura sui 21-22enni": AII pura non discrimina
+    # i prospetti (std 0.005 a 21-22 anni), il Pro non sa scegliere tra Nico Paz
+    # e Pisilli. EMI guarda CHI PERFORMA AL DI SOPRA DELLA SUA ETÀ: regressione
+    # lineare TPI ~ età sul sample <= peak+5 (stima la curva attesa per età),
+    # poi residuo positivo = giocatore OVER l'aspettativa per la sua età.
+    # Calcolato solo per giovani < peak+1 (target scout); NaN altrimenti.
+    _eta_vals = pd.to_numeric(df_pa.get("eta", pd.Series(np.nan, index=df_pa.index)),
+                              errors="coerce")
+    _tpi_vals = pd.to_numeric(df_pa["TPI_totale"], errors="coerce")
+    _fit_mask = (_eta_vals <= CFG.age_peak + 5.0) & _eta_vals.notna() & _tpi_vals.notna()
+    df_pa["early_momentum"] = np.nan
+    if int(_fit_mask.sum()) >= 8:
+        _e = _eta_vals[_fit_mask].values
+        _t = _tpi_vals[_fit_mask].values
+        if np.std(_e) > 0:
+            # Curva attesa per età (lineare): slope dovrebbe essere ~ -0.05 to +0.05
+            _slope, _intercept = np.polyfit(_e, _t, deg=1)
+            _young_mask = (_eta_vals < CFG.age_peak + 1.0) & _eta_vals.notna() & _tpi_vals.notna()
+            _expected = _slope * _eta_vals + _intercept
+            df_pa.loc[_young_mask, "early_momentum"] = (
+                _tpi_vals[_young_mask] - _expected[_young_mask]
+            )
+            log.info(f"  EMI: curva età y={_slope:+.3f}·età{_intercept:+.3f}, "
+                     f"calcolato su {int(_young_mask.sum())} giovani (<{CFG.age_peak+1:.0f})")
+    df_pa["z_early_momentum"] = _z_by_role("early_momentum")
+
+    # ── TPI_ext per contesto: TPI base + 5 modulatori (AGE-AWARE) ─────
+    # Pesi cambiano per CATEGORIA ETÀ (PROSPETTO/PRIME/VETERANO) — risposta
+    # al feedback "veterano affidabile è una categoria positiva, non un demerito".
+    # Configurazione in CFG.tpi_pro_weights_age (3 set di pesi, 1 per categoria).
+    eta_series = pd.to_numeric(df_pa.get("eta"), errors="coerce")
+    def _classify_eta(e):
+        if pd.isna(e):
+            return "prime"  # default se età mancante
+        if e < CFG.prospetto_max_age:
+            return "prospetto"
+        if e >= CFG.veterano_min_age:
+            return "veterano"
+        return "prime"
+    df_pa["eta_cat"] = eta_series.map(_classify_eta)
+    log.info(f"  TPI Pro age-aware: {df_pa['eta_cat'].value_counts().to_dict()}")
+
+    # Pre-calcolo vettori di pesi per ogni giocatore in base alla sua categoria
+    AGE_W = CFG.tpi_pro_weights_age
+    def _w_for_dim(dim_key: str) -> np.ndarray:
+        return df_pa["eta_cat"].map(lambda c: AGE_W[c].get(dim_key, 0.0)).values
+
+    w_tpi = _w_for_dim("tpi")
+    w_modulators = {
+        "z_eta_index":           _w_for_dim("z_eta_index"),
+        "z_affidabilita_fisica": _w_for_dim("z_affidabilita_fisica"),
+        "z_ctx_stability":       _w_for_dim("z_ctx_stability"),
+        "z_form_trend":          _w_for_dim("z_form_trend"),
+        "z_early_momentum":      _w_for_dim("z_early_momentum"),
+    }
+
     for ctx in CONTESTI:
         z_base = df_pa[f"TPI_{ctx}"].astype(float)
-        ext_cols = []
-        if CFG.include_age_in_tpi_ext and df_pa["z_eta_index"].notna().any():
-            ext_cols.append(df_pa["z_eta_index"])
-        if CFG.include_physical_in_tpi_ext and df_pa["z_affidabilita_fisica"].notna().any():
-            ext_cols.append(df_pa["z_affidabilita_fisica"])
-        if ext_cols:
-            df_pa[f"TPI_ext_{ctx}"] = pd.concat([z_base.rename("b")] + [s.rename(f"e{i}") for i,s in enumerate(ext_cols)], axis=1).mean(axis=1)
-        else:
-            df_pa[f"TPI_ext_{ctx}"] = z_base
+        num = z_base.fillna(0.0) * w_tpi
+        den = np.where(z_base.notna(), w_tpi, 0.0)
+        for zcol, w_vec in w_modulators.items():
+            if zcol not in df_pa.columns:
+                continue
+            z = pd.to_numeric(df_pa[zcol], errors="coerce")
+            valid = z.notna() & (w_vec > 0)
+            num = num + np.where(valid, z.fillna(0.0) * w_vec, 0.0)
+            den = den + np.where(valid, w_vec, 0.0)
+        df_pa[f"TPI_ext_{ctx}"] = pd.Series(
+            np.where(den > 0, num / den, z_base), index=df_pa.index
+        )
 
     # ── FIX 2 + peso-ruolo: confidence nel sort + importanza offensiva ───────
     # 1) shrink verso la media-ruolo in base alla confidence (minuti+completezza):
@@ -2037,6 +2402,32 @@ def main() -> None:
             role_mean = raw.groupby(df_pa["ruolo"]).transform("mean")
             shrunk = role_mean + shrink_factor * (raw - role_mean)
             df_pa[base] = (role_w * shrunk).round(4)
+
+    # ── Penalty disponibilità WINTER-AWARE: fare tante partite è MERIT diretto ──
+    # Risposta esplicita al feedback "1 gol/partita su 30 ≠ 1 gol/partita su 5".
+    # Calcoliamo disponibilità RELATIVA al periodo di presenza del giocatore:
+    #   titolare:        partite_giocate / 38 (stagione intera)
+    #   winter signing:  partite_giocate / partite_disp (≈19 per chi arriva a gennaio)
+    # Questo gestisce correttamente Malen (winter, 18/20=90% → no penalty) vs
+    # De Bruyne (titolare, 18/38=47% → penalty) vs Berisha (titolare, 13/38=34% → max penalty).
+    #
+    # Penalty soft: 1.0 a disp ≥ 0.70, declina lineare fino a 0.85 a disp ≤ 0.30.
+    if "partite_disponibili" in df_pa.columns:
+        disponibilita_rel = (
+            pd.to_numeric(df_pa["partite"], errors="coerce") /
+            pd.to_numeric(df_pa["partite_disponibili"], errors="coerce").replace(0, np.nan)
+        ).clip(0.0, 1.0).fillna(1.0)
+        disponibilita_penalty = (
+            (disponibilita_rel.clip(0.30, 0.70) - 0.30) / 0.40 * 0.15 + 0.85
+        )
+        df_pa["disponibilita_rel"] = disponibilita_rel.round(3)
+        df_pa["disponibilita_penalty"] = disponibilita_penalty.round(3)
+        _penalized = (disponibilita_penalty < 0.99).sum()
+        log.info(f"  Penalty disponibilità WINTER-AWARE: {_penalized} giocatori penalizzati, "
+                 f"min penalty={disponibilita_penalty.min():.3f}, media={disponibilita_penalty.mean():.3f}")
+        for ctx in CONTESTI:
+            for base in (f"TPI_{ctx}", f"TPI_ext_{ctx}"):
+                df_pa[base] = (df_pa[base] * disponibilita_penalty).round(4)
 
     df_pa = df_pa.sort_values("TPI_totale", ascending=False).reset_index(drop=True)
 
@@ -2073,7 +2464,7 @@ def main() -> None:
     # ── Trend xG squadra (precomputato) ───────────────────────
     log.info("Precomputo trend xG squadra...")
     trend_cache: dict[int, dict] = {}
-    for _, row in df_pa.head(CFG.top_n_payload).iterrows():
+    for _, row in righe_payload(df_pa, CFG).iterrows():
         gid = int(row["giocatore_id"])
         sq_id = int(row["squadra_id"])
         trend_cache[gid] = get_trend_xg(
@@ -2202,7 +2593,28 @@ def main() -> None:
         "tpi_pro_showcase": tpi_pro_showcase,   # ← NUOVO: showcase TPI Pro
     }
 
-    payload_path = os.path.join(CFG.output_dir, "payload.json")
+    # `payload.json` E' la stagione corrente: e' il file che parte2 e parte3
+    # leggono ed e' quello che finisce pubblicato. Quindi la stagione corrente
+    # non mette suffisso, e i vintage restano `payload_g{N}.json` — parte3 li
+    # cerca con quel glob esatto, un nome diverso e il backtest smette di
+    # trovarli. Le altre stagioni tengono il loro nome esplicito, e la modalita'
+    # senza filtro ne prende uno tutto suo: aggrega piu' stagioni insieme e non
+    # deve poter essere scambiata per il payload del sito.
+    suffix_parts = []
+    if season is None:
+        suffix_parts.append("tutte-le-stagioni")
+    elif season != SEASON_CORRENTE:
+        suffix_parts.append(season)
+    if max_giornata is not None:
+        suffix_parts.append(f"g{max_giornata}")
+    elif CFG.top_n_payload <= 0:
+        # Senza il taglio in alto questo non e' piu' il payload del sito: la
+        # dashboard pubblicata mostra i primi 100. Prende un nome suo perche'
+        # non deve poter finire pubblicato per sbaglio — parte3 lo preferisce
+        # a payload.json per girare i test su tutti i qualificati.
+        suffix_parts.append("full")
+    suffix = "_" + "_".join(suffix_parts) if suffix_parts else ""
+    payload_path = os.path.join(CFG.output_dir, f"payload{suffix}.json")
     payload_bytes = json.dumps(
         deep_clean(payload_out),
         ensure_ascii=True,
@@ -2234,12 +2646,43 @@ def main() -> None:
         ]
         if c in df_pa.columns
     ]
-    csv_path = os.path.join(CFG.output_dir, "summary_stats.csv")
+    csv_path = os.path.join(CFG.output_dir, f"summary_stats{suffix}.csv")
     df_pa[csv_cols].to_csv(csv_path, index=False)
     log.info(f"✓ CSV: {csv_path}")
-    log.info("→ Ora esegui: python parte2_dashboard.py")
+    if max_giornata is None:
+        log.info("→ Ora esegui: python parte2_dashboard.py")
     log.info("=" * 58)
 
 
 if __name__ == "__main__":
-    main()
+    import argparse as _argp
+    _ap = _argp.ArgumentParser(description="Motore di analisi Serie A — multi-stagione ready")
+    _ap.add_argument("--max-giornata", type=int, default=None,
+                     help="Limita ai dati a giornata ≤ N (per snapshot vintage / backtest OOS). "
+                          "Output → payload_g{N}.json")
+    _ap.add_argument("--season", type=str, default=SEASON_CORRENTE,
+                     help=f"Tag stagione DB. Default: '{SEASON_CORRENTE}' (config.SEASON_CORRENTE), "
+                          "che scrive payload.json — il file che parte2/parte3 leggono e che "
+                          "viene pubblicato. Un'altra stagione (es. '2024-25') scrive "
+                          "payload_{season}.json. REQUISITO: `calendario.season` valorizzato "
+                          "(setup_multi_season.sql + backfill_24_25_completo.py).")
+    _ap.add_argument("--tutte-le-stagioni", action="store_true",
+                     help="Nessun filtro: aggrega TUTTE le stagioni in DB. Era il comportamento "
+                          "di default finche' il DB ne conteneva una sola; ora che ce ne sono due "
+                          "produce una classifica che non e' di nessuna stagione. Scrive "
+                          "payload_tutte-le-stagioni.json, mai payload.json.")
+    _ap.add_argument("--top-n", type=int, default=None,
+                     help="Quanti giocatori nel payload. 0 = tutti i qualificati. "
+                          f"Default: {Config.top_n_payload}, cioe' la dimensione della "
+                          "dashboard pubblicata. Usa 0 per i vintage della validazione: "
+                          "tagliare in alto attenua da solo le correlazioni.")
+    _args = _ap.parse_args()
+    # Il flag arriva prima di main() perche' CFG e' gia' istanziato a modulo:
+    # e' l'unico punto dove cambiarlo vale sia per build_payload sia per i
+    # trend precomputati, che devono coprire gli stessi giocatori.
+    if _args.top_n is not None:
+        CFG.top_n_payload = _args.top_n
+        log.info(f"top_n_payload = {_args.top_n}"
+                 + (" (tutti i qualificati)" if _args.top_n <= 0 else ""))
+    main(max_giornata=_args.max_giornata,
+         season=None if _args.tutte_le_stagioni else _args.season)
