@@ -140,15 +140,18 @@ def copia_pagine_nav(escludi: str) -> None:
 def avvisa_se_conteggio_a_mano(n_test: int) -> None:
     """Il numero dei test vive in validazione.html, dove si calcola.
 
-    `index.html`, `guida_completa.html` e `i18n.js` sono scritti a mano: se
-    qualcuno ci ricopia "15 verifiche" e poi un test perde i dati, le pagine
-    dicono due cose diverse e non se ne accorge nessuno. Questo non corregge
-    niente, avvisa e basta — ma avvisa nel momento giusto, cioe' appena il
-    numero cambia.
+    `guida_completa.html` e `i18n.js` sono scritti a mano: se qualcuno ci
+    ricopia "15 verifiche" e poi un test perde i dati, le pagine dicono due cose
+    diverse e non se ne accorge nessuno. Questo non corregge niente, avvisa e
+    basta — ma avvisa nel momento giusto, cioe' appena il numero cambia.
+
+    `index.html` e' uscito da questa lista: adesso lo genera `pagina_home.py`
+    dallo stesso dizionario di risultati, quindi il suo conteggio non puo'
+    divergere e segnalarlo sarebbe un falso allarme.
     """
     import re
     pat = re.compile(r"(\d+)\s+(?:verifiche|verifica|test|checks|tests)\b", re.I)
-    for nome in ("index.html", "guida_completa.html", "i18n.js"):
+    for nome in ("guida_completa.html", "i18n.js"):
         f = DEMO_DIR / nome
         if not f.is_file():
             continue
