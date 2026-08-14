@@ -372,7 +372,11 @@ window.onerror=function(m,s,l){
    <div class="hero-facts">
     <div class="hf"><div class="hf-n">__N_GIO__</div><div class="hf-l" data-it="Giocatori" data-en="Players">Giocatori</div></div>
     <div class="hf"><div class="hf-n">__N_GIOR__</div><div class="hf-l" data-it="Giornate" data-en="Matchdays">Giornate</div></div>
-    <div class="hf"><div class="hf-n">6</div><div class="hf-l" data-it="Dimensioni" data-en="Dimensions">Dimensioni</div></div>
+    <!-- 7, non 6: e' il numero di dimensioni del TPI, lo stesso che dicono la
+         riga sopra ("Sette dimensioni indipendenti") e tutte le altre pagine.
+         Il 6 veniva dal radar, che ne disegna sei, ma qui l'etichetta parla
+         del modello. -->
+    <div class="hf"><div class="hf-n">7</div><div class="hf-l" data-it="Dimensioni" data-en="Dimensions">Dimensioni</div></div>
    </div>
   </div>
   <div class="hero-right">

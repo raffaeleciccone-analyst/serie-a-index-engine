@@ -356,6 +356,74 @@ def paired_rmse_bootstrap(early: Sequence[float], late: Sequence[float],
     }
 
 
+def paired_rmse_bootstrap_clustered(early: Sequence[float], late: Sequence[float],
+                                    early_pro: Sequence[float],
+                                    cluster: Sequence,
+                                    n: int = 1000, seed: int = 42) -> dict | None:
+    """
+    Variante con CLUSTER BOOTSTRAP su un identificatore (es. giocatore_id) per
+    gestire pseudo-replicazione: lo stesso giocatore in più vintage NON è
+    un'osservazione indipendente. Resampling per cluster (giocatore), non per
+    riga. Restituisce IC tipicamente PIÙ AMPIO ma onesto sul pseudo-replication.
+    """
+    e = np.asarray(early, dtype=float)
+    ep = np.asarray(early_pro, dtype=float)
+    l = np.asarray(late, dtype=float)
+    cl = np.asarray(cluster)
+    mask = np.isfinite(e) & np.isfinite(ep) & np.isfinite(l)
+    e, ep, l, cl = e[mask], ep[mask], l[mask], cl[mask]
+    if len(e) < 12:
+        return None
+
+    def _oos_err(x, y):
+        rng_local = np.random.default_rng(seed)
+        idx = rng_local.permutation(len(x))
+        folds = np.array_split(idx, min(5, len(x)))
+        err = np.full(len(x), np.nan)
+        for f in folds:
+            tr = np.setdiff1d(np.arange(len(x)), f)
+            if len(tr) < 3 or np.std(x[tr]) == 0:
+                continue
+            sl, ic, *_ = stats.linregress(x[tr], y[tr])
+            err[f] = (y[f] - (sl * x[f] + ic)) ** 2
+        return err
+
+    err_base = _oos_err(e, l)
+    err_pro = _oos_err(ep, l)
+    ok = np.isfinite(err_base) & np.isfinite(err_pro)
+    if ok.sum() < 12:
+        return None
+    rmse_base = float(np.sqrt(np.mean(err_base[ok])))
+    rmse_pro = float(np.sqrt(np.mean(err_pro[ok])))
+
+    # Cluster bootstrap: campiona cluster (giocatori) con replacement; per ogni
+    # cluster prendi TUTTE le sue righe. Mantiene la struttura di dipendenza.
+    eb, ep_, cl_ok = err_base[ok], err_pro[ok], cl[ok]
+    clusters_unique = np.unique(cl_ok)
+    # Mappa cluster_id → indici delle righe
+    cluster_idx = {c: np.where(cl_ok == c)[0] for c in clusters_unique}
+
+    rng = np.random.default_rng(seed)
+    diffs = []
+    for _ in range(n):
+        sampled = rng.choice(clusters_unique, size=len(clusters_unique), replace=True)
+        boot_rows = np.concatenate([cluster_idx[c] for c in sampled])
+        diffs.append(np.sqrt(np.mean(eb[boot_rows])) - np.sqrt(np.mean(ep_[boot_rows])))
+    lo = float(np.percentile(diffs, 2.5))
+    hi = float(np.percentile(diffs, 97.5))
+    return {
+        "n": int(ok.sum()),
+        "n_clusters": int(len(clusters_unique)),
+        "rmse_base": round(rmse_base, 4),
+        "rmse_pro": round(rmse_pro, 4),
+        "delta_rmse": round(rmse_base - rmse_pro, 4),
+        "ci_lo": round(lo, 4),
+        "ci_hi": round(hi, 4),
+        "pro_better": bool(lo > 0),
+        "method": "cluster_bootstrap",
+    }
+
+
 def weight_sensitivity(z_by_dim: dict[str, Sequence[float]],
                        base_weights: dict[str, float],
                        pct: float = 0.20, n: int = 500, seed: int = 42,
