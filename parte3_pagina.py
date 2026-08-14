@@ -58,7 +58,7 @@ def evidenza(fig: str, lab_it: str, lab_en: str, it: str, en: str) -> str:
     Sostituisce le stat-box colorate: un numero che vive in un riquadro verde
     o rosso viene letto come voto prima ancora di essere letto come misura.
     """
-    return f"""<div class="ev">
+    return f"""<div class="ev riga">
   <div class="ev-fig">{fig}<span class="ev-lbl" {bi(lab_it, lab_en)}>{lab_it}</span></div>
   <div class="ev-txt" {bi(it, en)}>{it}</div>
 </div>"""
@@ -213,15 +213,23 @@ a{color:inherit}
 .nav-btn:hover{color:var(--lp);border-color:var(--lq)}
 .nav-btn.pri{border-color:rgba(255,176,32,.5);color:var(--orng)}
 
-/* ── Impaginazione: colonna di lettura + margine dei numeri ───── */
+/* ── Impaginazione ──────────────────────────────────────────────
+   Due bordi sinistri in tutta la pagina e non uno di piu':
+     · colonna di margine (--marg): numeri, etichette, marcatori
+     · colonna di testo: titoli, prosa, frasi, didascalie, tabella
+   Prima le scritte cadevano su quattro rientri diversi — hero a filo
+   pagina, capitoli a +84, frasi a +176, voci del metodo a +108 — e da
+   fuori si legge come sciatteria, non come gerarchia. */
+:root{--marg:150px;--gutter:26px}
 .doc{max-width:1040px;margin:0 auto;padding:0 clamp(20px,5vw,40px) 80px}
-.prosa{max-width:34em;font-size:16.5px;line-height:1.75;color:var(--ls)}
+.riga{display:grid;grid-template-columns:var(--marg) minmax(0,1fr);gap:0 var(--gutter)}
+.prosa{max-width:36em;font-size:16.5px;line-height:1.75;color:var(--ls)}
 .prosa strong{color:var(--lp);font-weight:600}
 .prosa+.prosa{margin-top:14px}
 .prosa.chiusa{margin-top:30px;padding-top:22px;border-top:1px solid var(--sep2);
   font-size:17px;color:var(--lp)}
 
-.hero{padding:clamp(46px,9vw,96px) 0 clamp(30px,5vw,52px)}
+.hero{padding:clamp(46px,9vw,96px) 0 clamp(30px,5vw,52px);align-items:start}
 .eyebrow{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--lt);
   margin-bottom:20px}
 h1{font-family:var(--disp);font-weight:500;text-transform:uppercase;
@@ -231,16 +239,17 @@ h1 em{font-style:normal;color:var(--orng)}
 .lede strong{color:var(--lp);font-weight:600}
 .lede.sec{margin-top:16px;font-size:15px;color:var(--lt);max-width:33em}
 
-.cifre{display:flex;flex-wrap:wrap;gap:0;margin-top:44px;border-top:1px solid var(--sep)}
-.cifra{flex:1 1 180px;padding:20px 22px 20px 0;border-right:1px solid var(--sep)}
-.cifra:last-child{border-right:0}
+/* Niente piu' righe verticali fra le cifre: il testo della colonna dopo le
+   toccava, e con il ritorno a capo restava un bordo appeso a meta' riga. */
+.cifre{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 34px;
+  margin-top:44px;padding-top:22px;border-top:1px solid var(--sep)}
+.cifra{min-width:0}
 .cifra b{display:block;font-family:var(--mono);font-weight:500;font-size:clamp(26px,4vw,34px);
   color:var(--orng);letter-spacing:-.03em;line-height:1}
 .cifra span{display:block;margin-top:8px;font-size:11px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--lt);line-height:1.5}
 
-.cap{display:grid;grid-template-columns:58px minmax(0,1fr);gap:0 26px;
-  padding:clamp(38px,6vw,64px) 0;border-top:1px solid var(--sep)}
+.cap{padding:clamp(38px,6vw,64px) 0;border-top:1px solid var(--sep)}
 .cap-num{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;color:var(--orng);
   padding-top:9px}
 h2{font-family:var(--disp);font-weight:500;text-transform:uppercase;
@@ -248,14 +257,13 @@ h2{font-family:var(--disp);font-weight:500;text-transform:uppercase;
 h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
   margin:38px 0 10px}
 
-.ev{display:grid;grid-template-columns:150px minmax(0,1fr);gap:0 26px;
-  padding:17px 0;border-top:1px solid var(--sep)}
+.ev{padding:17px 0;border-top:1px solid var(--sep)}
 .ev:first-of-type{border-top:1px solid var(--sep2)}
 .ev-fig{font-family:var(--mono);font-weight:500;font-size:23px;color:var(--orng);
   letter-spacing:-.03em;line-height:1.1}
 .ev-lbl{display:block;margin-top:7px;font-family:var(--font);font-size:9.5px;
   letter-spacing:.12em;text-transform:uppercase;color:var(--lt);line-height:1.5}
-.ev-txt{font-size:15px;line-height:1.68;color:var(--ls);padding-top:2px;max-width:38em}
+.ev-txt{font-size:15px;line-height:1.68;color:var(--ls);padding-top:2px;max-width:36em}
 /* Nel capitolo delle conseguenze il margine porta un titolo, non una cifra:
    stesso impianto, font di testo perche' una parola in mono si legge peggio. */
 .ev-fig.ev-txtfig{font-family:var(--font);font-size:14.5px;font-weight:600;
@@ -267,7 +275,7 @@ h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
 .sv-ax{font-family:var(--mono);font-size:9.5px;fill:var(--lt)}
 .sv-val{font-family:var(--mono);font-size:10px;fill:var(--ls)}
 .sv-dim{font-family:var(--mono);font-size:10.5px;fill:var(--ls)}
-.didascalia{font-size:12.5px;color:var(--lt);line-height:1.6;max-width:34em;margin-top:6px}
+.didascalia{font-size:12.5px;color:var(--lt);line-height:1.6;max-width:36em;margin-top:6px}
 
 table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
 th{text-align:left;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
@@ -278,32 +286,45 @@ tr:hover td{color:var(--lp)}
 .t-let{font-family:var(--mono);font-size:11px;color:var(--orng);width:26px;padding-top:15px}
 .t-mis{font-family:var(--mono);font-size:12px;color:var(--lp);white-space:nowrap}
 
+/* Il marcatore sta nella colonna di margine, cosi' il titolo del blocco e il
+   testo che si apre sotto partono dallo stesso bordo di tutto il resto. */
 details{border-top:1px solid var(--sep);padding:15px 0}
 details[open]{padding-bottom:22px}
-summary{cursor:pointer;list-style:none;font-size:14.5px;color:var(--lp);
-  display:flex;align-items:baseline;gap:10px}
+/* Titolo nella colonna di margine e testo in quella di lettura, come le voci
+   del capitolo precedente: erano l'unico blocco con un rientro suo. */
+summary{cursor:pointer;list-style:none;font-size:14.5px;font-weight:600;color:var(--lp);
+  line-height:1.45}
 summary::-webkit-details-marker{display:none}
-summary::before{content:"+";font-family:var(--mono);color:var(--orng);font-size:14px}
-details[open] summary::before{content:"\\2212"}
-details .prosa{margin-top:12px;font-size:14.5px}
+summary::before{content:"+ ";font-family:var(--mono);color:var(--orng);font-size:14px}
+details[open] summary::before{content:"\\2212 "}
+details.riga>summary{grid-column:1}
+details.riga>.prosa{grid-column:2;margin-top:0}
+details .prosa{font-size:14.5px}
 
 footer{border-top:1px solid var(--sep);padding:30px 0 0;margin-top:20px;
-  font-size:12px;color:var(--lt);display:flex;flex-wrap:wrap;gap:14px 26px}
+  font-size:12px;color:var(--lt)}
+footer>div{display:flex;flex-wrap:wrap;gap:14px 26px}
 footer a{color:var(--ls);text-decoration:none;border-bottom:1px solid var(--lq)}
 footer a:hover{color:var(--orng);border-color:var(--orng)}
 
-@media(max-width:860px){
-  .cap{grid-template-columns:1fr;gap:0}
+@media(max-width:900px){
+  /* Sotto questa larghezza la colonna di margine mangerebbe la riga di testo:
+     tutto torna in colonna unica, e i due bordi diventano uno solo. */
+  .riga{grid-template-columns:minmax(0,1fr);gap:0}
   .cap-num{padding:0 0 10px}
-  .ev{grid-template-columns:1fr;gap:8px 0;padding:16px 0}
+  .ev{padding:16px 0}
   .ev-fig{font-size:21px}
   .ev-lbl{display:inline;margin-left:10px}
-  .cifra{flex:1 1 45%;border-right:0;padding-right:14px}
+  .ev-fig.ev-txtfig{margin-bottom:6px}
+  .cifre{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 30px}
+  details.riga>summary,details.riga>.prosa{grid-column:auto}
+  details .prosa{margin-top:10px}
   .nav-brand small{display:none}
   table{font-size:12.5px}
   .t-mis{white-space:normal}
 }
 @media(max-width:520px){
+  .cifre{grid-template-columns:minmax(0,1fr)}
   td:nth-child(3),th:nth-child(3){display:none}
 }
 @media print{.nav{display:none}body{background:#fff;color:#000}}
@@ -359,12 +380,15 @@ def _hero(d: dict) -> str:
               f"accanto.")
     sub_en = (f"{meta['n_verifiche']} checks, including the one built to fail it. Where the index "
               f"loses is written down, with the confidence interval next to it.")
-    return f"""<header class="hero">
+    return f"""<header class="hero riga">
+  <div></div>
+  <div>
   <div class="eyebrow">Serie A Scout Index &middot; TPI</div>
   <h1 {bi("Cosa regge,<br><em>e cosa no</em>", "What holds up,<br><em>and what doesn&rsquo;t</em>")}>Cosa regge,<br><em>e cosa no</em></h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
   <p class="lede sec" {bi(sub_it, sub_en)}>{sub_it}</p>
   <div class="cifre">{box}</div>
+  </div>
 </header>"""
 
 
@@ -461,7 +485,7 @@ def _cap_regge(d: dict) -> str:
     cal_blk = (f'<h3 {bi("Dal primo al decimo decile", "From the first to the tenth decile")}>'
                f'Dal primo al decimo decile</h3>{cal}'
                f'<p class="didascalia" {bi(cal_it, cal_en)}>{cal_it}</p>' if cal else "")
-    return f"""<section class="cap">
+    return f"""<section class="cap riga">
   <div class="cap-num">01</div>
   <div>
     {el("h2", "Quello che l&rsquo;indice fa", "What the index does")}
@@ -591,7 +615,7 @@ def _cap_prova(d: dict) -> str:
     graf_blk = (f'<h3 {bi("Le sette dimensioni, una alla volta", "The seven dimensions, one at a time")}>'
                 f'Le sette dimensioni, una alla volta</h3>{graf}'
                 f'<p class="didascalia" {bi(dida_it, dida_en)}>{dida_it}</p>' if graf else "")
-    return f"""<section class="cap">
+    return f"""<section class="cap riga">
   <div class="cap-num">02</div>
   <div>
     {el("h2", "La prova costruita per bocciarlo", "The test built to fail it")}
@@ -677,7 +701,7 @@ def _cap_contesto(d: dict) -> str:
             "prove it. None of these numbers can fail it: either I decide who enters the "
             "comparison, or the criterion is built so that any result sounds good. They would be "
             "the easiest ones to show off, which is exactly why they sit at the bottom.")
-    return f"""<section class="cap">
+    return f"""<section class="cap riga">
   <div class="cap-num">03</div>
   <div>
     {el("h2", "Quello che non dimostra niente", "What proves nothing")}
@@ -751,14 +775,14 @@ def _cap_segue(d: dict) -> str:
             f"is why those two comparisons stay context rather than proof. Either the collection "
             f"becomes automatic and drawn at random, or those two figures will never get better."))
     blocchi = "".join(
-        f'<div class="ev"><div class="ev-fig ev-txtfig" {bi(t_it, t_en)}>{t_it}</div>'
+        f'<div class="ev riga"><div class="ev-fig ev-txtfig" {bi(t_it, t_en)}>{t_it}</div>'
         f'<div class="ev-txt" {bi(b_it, b_en)}>{b_it}</div></div>'
         for t_it, t_en, b_it, b_en in voci)
     p_it = ("Una pagina che elenca solo problemi &egrave; a met&agrave;. Questo &egrave; quello "
             "che i risultati qui sopra mi lasciano da fare, e quello che ho deciso di non fare.")
     p_en = ("A page that only lists problems is half a page. This is what the results above leave "
             "me to do, and what I have decided not to do.")
-    return f"""<section class="cap">
+    return f"""<section class="cap riga">
   <div class="cap-num">04</div>
   <div>
     {el("h2", "Cosa ne segue", "What follows")}
@@ -874,10 +898,10 @@ def _cap_metodo(d: dict) -> str:
               "happy to walk through the code on request.")
     voci.append(("Codice", "Code", cod_it, cod_en))
     blocchi = "".join(
-        f'<details><summary {bi(t_it, t_en)}>{t_it}</summary>'
+        f'<details class="riga"><summary {bi(t_it, t_en)}>{t_it}</summary>'
         f'<p class="prosa" {bi(b_it, b_en)}>{b_it}</p></details>'
         for t_it, t_en, b_it, b_en in voci)
-    return f"""<section class="cap">
+    return f"""<section class="cap riga">
   <div class="cap-num">05</div>
   <div>
     {el("h2", "Come &egrave; misurato", "How it is measured")}
@@ -999,7 +1023,7 @@ def _tabella(d: dict) -> str:
               "and C are the first three, Q the latest. Here they are sorted by how well the "
               "result holds, from the most solid to the most fragile. J and K are not missing: "
               "the Italian alphabet does not have them.")
-    return f"""<section class="cap">
+    return f"""<section class="cap riga">
   <div class="cap-num">06</div>
   <div>
     {el("h2", "Tutte le verifiche", "Every check")}
@@ -1029,10 +1053,13 @@ def render(dati: dict) -> str:
   <a class="nav-btn" href="guida_completa.html" {bi("Metodo", "Method")}>Metodo</a>
   <a class="nav-btn pri" href="index.html">Homepage</a>
 </nav>"""
-    footer = f"""<footer>
-  <span>Raffaele Ciccone &middot; Serie A Scout Index</span>
-  <a href="guida_completa.html" {bi("Come sono costruiti gli indici", "How the indices are built")}>Come sono costruiti gli indici</a>
-  <a href="dashboard_serie_a.html" {bi("La classifica completa", "The full ranking")}>La classifica completa</a>
+    footer = f"""<footer class="riga">
+  <div></div>
+  <div>
+    <span>Raffaele Ciccone &middot; Serie A Scout Index</span>
+    <a href="guida_completa.html" {bi("Come sono costruiti gli indici", "How the indices are built")}>Come sono costruiti gli indici</a>
+    <a href="dashboard_serie_a.html" {bi("La classifica completa", "The full ranking")}>La classifica completa</a>
+  </div>
 </footer>"""
     return f"""<!DOCTYPE html>
 <html lang="it">
