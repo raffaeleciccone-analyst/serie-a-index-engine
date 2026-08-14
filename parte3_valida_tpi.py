@@ -167,6 +167,29 @@ def avvisa_se_conteggio_a_mano(n_test: int) -> None:
                             f"(\"{m.group(0)}\"). Oggi coincide, divergera' al primo "
                             f"test che perde i dati: meglio toglierlo.")
 
+def _fatti_dataset(df_gp) -> dict:
+    """Volume dei dati su cui gira tutto, contato al momento.
+
+    Sta in pagina per rispondere a "da dove vengono questi numeri", e viene
+    contato invece che scritto a mano per lo stesso motivo di tutto il resto:
+    un dataset cresce, una frase no.
+    """
+    if df_gp is None or len(df_gp) == 0:
+        return {}
+    out = {"n_record": int(len(df_gp))}
+    for col, chiave in (("giocatore_id", "n_giocatori_db"),
+                        ("squadra", "n_squadre")):
+        if col in df_gp.columns:
+            out[chiave] = int(df_gp[col].nunique())
+    # Il massimo di `giornata`, non quante ne esistono: serve a dire a che punto
+    # della stagione sta un vintage. Attenzione, non e' il numero di giornata
+    # ufficiale — il campo arriva a 40/41 su 380 partite — quindi si usa solo
+    # come denominatore di un rapporto, mai come "la Serie A ha N giornate".
+    if "giornata" in df_gp.columns:
+        out["giornata_max"] = int(df_gp["giornata"].max())
+    return out
+
+
 def payload_corrente() -> Path:
     """Il payload della stagione corrente su cui girano i test.
 
@@ -2618,6 +2641,9 @@ def main():
             "meta": {"n_giocatori": len(players),
                      "campione_file": payload_corrente().name,
                      "campione_full": payload_corrente().name == PAYLOAD_FULL.name,
+                     # La pagina descrive anche il dataset: pure quei numeri
+                     # devono venire da qui, non essere scritti a mano in HTML.
+                     **_fatti_dataset(df_gp),
                      "n_verifiche": conta_test_pubblicati(
                          val_d, val_e, val_f, val_g, val_h, val_i,
                          val_l, val_m, val_n, val_o, val_p, val_q)}}

@@ -218,6 +218,8 @@ a{color:inherit}
 .prosa{max-width:34em;font-size:16.5px;line-height:1.75;color:var(--ls)}
 .prosa strong{color:var(--lp);font-weight:600}
 .prosa+.prosa{margin-top:14px}
+.prosa.chiusa{margin-top:30px;padding-top:22px;border-top:1px solid var(--sep2);
+  font-size:17px;color:var(--lp)}
 
 .hero{padding:clamp(46px,9vw,96px) 0 clamp(30px,5vw,52px)}
 .eyebrow{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--lt);
@@ -226,6 +228,8 @@ h1{font-family:var(--disp);font-weight:500;text-transform:uppercase;
   font-size:clamp(38px,8.4vw,84px);line-height:.92;letter-spacing:-.012em;margin-bottom:24px}
 h1 em{font-style:normal;color:var(--orng)}
 .lede{max-width:31em;font-size:clamp(16.5px,2.1vw,19px);line-height:1.62;color:var(--ls)}
+.lede strong{color:var(--lp);font-weight:600}
+.lede.sec{margin-top:16px;font-size:15px;color:var(--lt);max-width:33em}
 
 .cifre{display:flex;flex-wrap:wrap;gap:0;margin-top:44px;border-top:1px solid var(--sep)}
 .cifra{flex:1 1 180px;padding:20px 22px 20px 0;border-right:1px solid var(--sep)}
@@ -252,6 +256,10 @@ h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
 .ev-lbl{display:block;margin-top:7px;font-family:var(--font);font-size:9.5px;
   letter-spacing:.12em;text-transform:uppercase;color:var(--lt);line-height:1.5}
 .ev-txt{font-size:15px;line-height:1.68;color:var(--ls);padding-top:2px;max-width:38em}
+/* Nel capitolo delle conseguenze il margine porta un titolo, non una cifra:
+   stesso impianto, font di testo perche' una parola in mono si legge peggio. */
+.ev-fig.ev-txtfig{font-family:var(--font);font-size:14.5px;font-weight:600;
+  color:var(--lp);line-height:1.45;padding-top:3px}
 .ev-txt strong{color:var(--lp);font-weight:600}
 .ev.muta .ev-fig{color:var(--ls)}
 
@@ -335,17 +343,27 @@ def _hero(d: dict) -> str:
                       f"out-of-sample comparisons on {q.get('n_giocatori', 0)} players"))
     box = "".join(f'<div class="cifra"><b>{v}</b>'
                   f'<span {bi(li, le)}>{li}</span></div>' for v, li, le in cifre)
-    lede_it = (f"Il TPI ordina i giocatori di Serie A per impatto offensivo. Qui ci sono le "
-               f"{meta['n_verifiche']} verifiche che gli ho fatto sui {meta['n_giocatori']} "
-               f"giocatori qualificati della stagione, compresa quella costruita apposta per "
-               f"bocciarlo.")
-    lede_en = (f"The TPI ranks Serie A players by attacking impact. These are the "
-               f"{meta['n_verifiche']} checks I ran on the season&rsquo;s "
-               f"{meta['n_giocatori']} qualified players, including the one built to fail it.")
+    # Prima a cosa serve, poi dove perde. Al contrario &mdash; com'era &mdash; chi
+    # legge trenta secondi porta via solo la sconfitta, e non sa nemmeno di cosa.
+    lede_it = (f"Il <strong>TPI</strong> ordina i {meta['n_giocatori']} giocatori qualificati "
+               f"della Serie A per impatto offensivo. Serve a decidere <strong>chi guardare</strong>: "
+               f"restringere una lista lunga, riconoscere chi sta crescendo. Non serve a prevedere "
+               f"quanti gol far&agrave; qualcuno il mese prossimo, e questa pagina spiega "
+               f"perch&eacute;.")
+    lede_en = (f"The <strong>TPI</strong> ranks Serie A&rsquo;s {meta['n_giocatori']} qualified "
+               f"players by attacking impact. It is there to decide <strong>who to look at</strong>: "
+               f"to shorten a long list, to spot who is on the way up. It is not there to forecast "
+               f"how many goals someone will score next month, and this page explains why.")
+    sub_it = (f"{meta['n_verifiche']} verifiche, compresa quella costruita apposta per bocciarlo. "
+              f"Dove l&rsquo;indice perde &egrave; scritto, con l&rsquo;intervallo di confidenza "
+              f"accanto.")
+    sub_en = (f"{meta['n_verifiche']} checks, including the one built to fail it. Where the index "
+              f"loses is written down, with the confidence interval next to it.")
     return f"""<header class="hero">
   <div class="eyebrow">Serie A Scout Index &middot; TPI</div>
   <h1 {bi("Cosa regge,<br><em>e cosa no</em>", "What holds up,<br><em>and what doesn&rsquo;t</em>")}>Cosa regge,<br><em>e cosa no</em></h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
+  <p class="lede sec" {bi(sub_it, sub_en)}>{sub_it}</p>
   <div class="cifre">{box}</div>
 </header>"""
 
@@ -366,13 +384,26 @@ def _cap_regge(d: dict) -> str:
     pv = [r for r in l.get("per_vintage", []) if r.get("spearman_rho") is not None]
     if len(pv) >= 2:
         a, z = pv[0], pv[-1]
+        # A che punto della stagione sta quel vintage: calcolato, non stimato a
+        # occhio. Diceva "a un terzo di stagione" per una giornata che sta a
+        # meta', perche' il campo giornata arriva a 40 e non a 38.
+        gmax = d["meta"].get("giornata_max")
+        quota = (a["vintage_giornata"] / gmax) if gmax else None
+        if quota is None:
+            q_it = q_en = ""
+        elif quota <= 0.4:
+            q_it, q_en = "A un terzo di stagione", "A third of the way into the season"
+        elif quota <= 0.62:
+            q_it, q_en = "A met&agrave; stagione", "Halfway through the season"
+        else:
+            q_it, q_en = "A stagione avanzata", "Late in the season"
         ev.append(evidenza(
             _f(a["spearman_rho"], 3),
             f"Gi&agrave; alla giornata {a['vintage_giornata']}", f"Already by matchday {a['vintage_giornata']}",
-            f"A un terzo di stagione la graduatoria &egrave; gi&agrave; quasi quella di fine anno, e "
-            f"sale a {_f(z['spearman_rho'], 3)} alla giornata {z['vintage_giornata']}. "
+            f"{q_it} la graduatoria &egrave; gi&agrave; quasi quella di fine anno, e sale a "
+            f"{_f(z['spearman_rho'], 3)} alla giornata {z['vintage_giornata']}. "
             f"<strong>Non serve aspettare maggio per usarla.</strong>",
-            f"A third of the way in, the ranking is already close to the final one, rising to "
+            f"{q_en} the ranking is already close to the final one, rising to "
             f"{_f(z['spearman_rho'], 3)} by matchday {z['vintage_giornata']}. "
             f"<strong>You do not have to wait for May to use it.</strong>"))
     if h.get("has_data"):
@@ -540,6 +571,18 @@ def _cap_prova(d: dict) -> str:
     p2_en = ("This section is the only one that can fail the index, and in part it does. I report "
              "it in full because an index that has never lost is just an index that has never "
              "been tested.")
+    # La conclusione del capitolo detta per esteso: il risultato positivo era il
+    # terzo di sei punti, dentro il capitolo intitolato alla sconfitta, e chi
+    # scorreva portava via solo quella.
+    p3_it = ("In due righe: come previsione del rendimento assoluto l&rsquo;indice "
+             "<strong>non serve</strong>, e l&rsquo;output grezzo per-90 fa meglio da solo. Come "
+             "strumento per distinguere <strong>chi cresce da chi cala</strong> regge, ed &egrave; "
+             "l&rsquo;unico uso che rivendico &mdash; lo stesso per cui l&rsquo;indice era stato "
+             "scritto.")
+    p3_en = ("In two lines: as a forecast of absolute output the index is <strong>of no "
+             "use</strong>, and raw per-90 output does better on its own. As a way to tell "
+             "<strong>who is rising from who is fading</strong> it holds, and that is the only use "
+             "I claim &mdash; the one the index was written for.")
     graf = svg_ablation(o)
     dida_it = ("Peggioramento della previsione togliendo una dimensione alla volta: le barre "
                "ambra sono le dimensioni che servono.")
@@ -556,6 +599,7 @@ def _cap_prova(d: dict) -> str:
     <p class="prosa" {bi(p2_it, p2_en)}>{p2_it}</p>
     {"".join(ev)}
     {graf_blk}
+    <p class="prosa chiusa" {bi(p3_it, p3_en)}>{p3_it}</p>
   </div>
 </section>"""
 
@@ -643,6 +687,87 @@ def _cap_contesto(d: dict) -> str:
 </section>"""
 
 
+def _cap_segue(d: dict) -> str:
+    """Le conseguenze. Senza questo capitolo la pagina elenca problemi e non
+    dice mai cosa ho intenzione di farne, che e' meta' di quello che un lettore
+    vuole sapere di chi ha fatto il lavoro."""
+    o, p, a, m = (d.get(k) or {} for k in ("o", "p", "a", "m"))
+    res = sorted(o.get("results", []), key=lambda r: r.get("delta_predict", 0))
+    utili = [r["dim"] for r in res if r["delta_predict"] < -0.005]
+    inutili = [r["dim"] for r in res if r["delta_predict"] >= -0.005]
+    voci = []
+    if inutili:
+        voci.append((
+            "I pesi", "The weights",
+            f"Cinque dimensioni su sette non pagano contro il rendimento futuro "
+            f"({', '.join(inutili)}). Il candidato ovvio &egrave; ridurne il peso a favore di "
+            f"{' e '.join(utili)}. <strong>Non l&rsquo;ho fatto</strong>, ed &egrave; una scelta: "
+            f"il criterio che le boccia &egrave; la previsione del rendimento assoluto, che non "
+            f"&egrave; quello per cui l&rsquo;indice esiste. Ritararlo su quel criterio "
+            f"significherebbe inseguire una cosa che l&rsquo;indice non promette. Diventa la prima "
+            f"cosa da rifare il giorno in cui il TPI dovr&agrave; alimentare qualcosa che consuma "
+            f"le distanze e non solo l&rsquo;ordine.",
+            f"Five dimensions out of seven do not pay against future output "
+            f"({', '.join(inutili)}). The obvious move is to cut their weight in favour of "
+            f"{' and '.join(utili)}. <strong>I have not done it</strong>, and that is a choice: the "
+            f"criterion that fails them is the forecast of absolute output, which is not what the "
+            f"index is for. Retuning on that criterion would mean chasing something the index does "
+            f"not promise. It becomes the first thing to redo the day the TPI has to feed "
+            f"something that consumes distances and not just order."))
+    if m.get("slope") is not None:
+        voci.append((
+            "Le distanze", "The distances",
+            f"La pendenza {_f(m.get('slope'), 3)} dice che le differenze di TPI sono gonfiate "
+            f"circa {_f(1 / max(1e-9, float(m['slope'])), 1)} volte. Finch&eacute; l&rsquo;indice "
+            f"si legge come graduatoria non cambia niente; se un giorno dovesse entrare in un "
+            f"modello di valore, va riscalato prima.",
+            f"The {_f(m.get('slope'), 3)} slope says TPI differences are inflated by roughly "
+            f"{_f(1 / max(1e-9, float(m['slope'])), 1)}&times;. As long as the index is read as a "
+            f"ranking that changes nothing; if it ever feeds a valuation model, it has to be "
+            f"rescaled first."))
+    cs = p.get("cross_2season") or {}
+    if cs.get("n"):
+        voci.append((
+            "Quello che manca per rispondere", "What is missing to answer",
+            f"L&rsquo;ipotesi da cui l&rsquo;indice nasce &mdash; riconoscere chi <em>sta "
+            f"entrando</em> nel prime, non chi ci &egrave; gi&agrave; &mdash; non &egrave; "
+            f"n&eacute; dimostrata n&eacute; smentita: per giudicarla servirebbe seguire gli "
+            f"stessi giocatori per anni, e qui le stagioni sono due (i giocatori presenti in "
+            f"entrambe sono {cs['n']}). Il prossimo passo utile non &egrave; un altro test: "
+            f"&egrave; il backfill di altre stagioni.",
+            f"The hypothesis the index was born from &mdash; spotting who is <em>entering</em> "
+            f"their prime rather than who is already there &mdash; is neither proved nor disproved: "
+            f"judging it would mean following the same players for years, and there are two seasons "
+            f"here ({cs['n']} players appear in both). The next useful step is not another test: it "
+            f"is backfilling more seasons."))
+    if a.get("n"):
+        voci.append((
+            "I dati inseriti a mano", "The hand-entered data",
+            f"I {a['n']} voti Fantacalcio e la classifica WhoScored li ho copiati a mano, ed "
+            f"&egrave; il motivo per cui quei due confronti restano contesto e non prove. O la "
+            f"raccolta diventa automatica e su un campione estratto a caso, oppure quei due "
+            f"numeri non miglioreranno mai.",
+            f"The {a['n']} Fantacalcio ratings and the WhoScored ranking I copied by hand, which "
+            f"is why those two comparisons stay context rather than proof. Either the collection "
+            f"becomes automatic and drawn at random, or those two figures will never get better."))
+    blocchi = "".join(
+        f'<div class="ev"><div class="ev-fig ev-txtfig" {bi(t_it, t_en)}>{t_it}</div>'
+        f'<div class="ev-txt" {bi(b_it, b_en)}>{b_it}</div></div>'
+        for t_it, t_en, b_it, b_en in voci)
+    p_it = ("Una pagina che elenca solo problemi &egrave; a met&agrave;. Questo &egrave; quello "
+            "che i risultati qui sopra mi lasciano da fare, e quello che ho deciso di non fare.")
+    p_en = ("A page that only lists problems is half a page. This is what the results above leave "
+            "me to do, and what I have decided not to do.")
+    return f"""<section class="cap">
+  <div class="cap-num">04</div>
+  <div>
+    {el("h2", "Cosa ne segue", "What follows")}
+    <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
+    {blocchi}
+  </div>
+</section>"""
+
+
 def _cap_metodo(d: dict) -> str:
     meta, q, m, c = d["meta"], d.get("q") or {}, d.get("m") or {}, d.get("c") or {}
     voci = []
@@ -711,12 +836,49 @@ def _cap_metodo(d: dict) -> str:
               + ("The first-half/second-half backtest measures raw attacking output, not the "
                  "composite." if c.get("r") is not None else ""))
     voci.append(("Limiti", "Limits", lim_it, lim_en))
+    # Da dove vengono i dati e con cosa gira: senza questo la pagina mostra
+    # statistica e nasconde tutto il lavoro che l'ha resa possibile.
+    if meta.get("n_record"):
+        # Niente conteggio di giornate: il campo non porta il numero ufficiale
+        # di giornata e scriverlo qui direbbe una cosa falsa sulla Serie A.
+        n_st = 1 + len((d.get("p") or {}).get("vintage_cross_tags", []) or [])
+        st_it = {1: "una stagione", 2: "due stagioni"}.get(n_st, f"{n_st} stagioni")
+        st_en = {1: "one season", 2: "two seasons"}.get(n_st, f"{n_st} seasons")
+        vol_it = (f"{meta['n_record']} righe giocatore-partita su "
+                  f"{meta.get('n_giocatori_db', '&mdash;')} giocatori")
+        vol_en = (f"{meta['n_record']} player-match rows over "
+                  f"{meta.get('n_giocatori_db', '&mdash;')} players")
+        dati_it = (f"Un database MySQL con {vol_it}, {st_it} di Serie A. Gli xG e gli xA "
+                   f"vengono da Understat, l&rsquo;anagrafica e il valore di mercato da "
+                   f"Transfermarkt, agganciati per identificativo e non per nome. I voti "
+                   f"Fantacalcio e WhoScored sono gli unici dati inseriti a mano. Il motore "
+                   f"&egrave; Python: pandas per la trasformazione, scipy per la statistica, e "
+                   f"una suite di test di regressione che gira a ogni modifica.")
+        dati_en = (f"A MySQL database with {vol_en}, {st_en} of Serie A. xG and xA come from "
+                   f"Understat, biographical data and market value from Transfermarkt, joined on "
+                   f"identifiers rather than names. Fantacalcio and WhoScored ratings are the only "
+                   f"hand-entered data. The engine is Python: pandas for the transformations, "
+                   f"scipy for the statistics, and a regression suite that runs on every change.")
+        voci.append(("Dati", "Data", dati_it, dati_en))
+    # Il motore non e' pubblico. Dirlo, invece di lasciarlo scoprire a chi cerca
+    # il link e non lo trova, e indicare cosa invece si puo' ispezionare.
+    cod_it = ("Il motore che calcola l&rsquo;indice non &egrave; pubblico: quello che pubblico "
+              "sono le pagine e i dati su cui girano. Il file <code>payload.json</code> nel repo "
+              "del sito contiene, giocatore per giocatore, tutte le dimensioni e i punteggi che "
+              "questa pagina usa: chi vuole rifare i conti pu&ograve; farlo da l&igrave; senza "
+              "credermi sulla parola. Il codice lo mostro volentieri su richiesta.")
+    cod_en = ("The engine that computes the index is not public: what I publish are the pages and "
+              "the data they run on. The <code>payload.json</code> file in the site repository "
+              "holds, player by player, every dimension and score this page uses: anyone who wants "
+              "to redo the arithmetic can do it from there without taking my word for it. I am "
+              "happy to walk through the code on request.")
+    voci.append(("Codice", "Code", cod_it, cod_en))
     blocchi = "".join(
         f'<details><summary {bi(t_it, t_en)}>{t_it}</summary>'
         f'<p class="prosa" {bi(b_it, b_en)}>{b_it}</p></details>'
         for t_it, t_en, b_it, b_en in voci)
     return f"""<section class="cap">
-  <div class="cap-num">04</div>
+  <div class="cap-num">05</div>
   <div>
     {el("h2", "Come &egrave; misurato", "How it is measured")}
     {blocchi}
@@ -827,10 +989,21 @@ def _tabella(d: dict) -> str:
                           f'r {_f(e.get("r_corr"), 3)}',
                           "Alto per costruzione: il Pro contiene il TPI.",
                           "High by construction: the Pro contains the TPI."))
+    # Le lettere sopravvivono solo qui, e senza una riga che le spieghi sono un
+    # enigma: chi legge si chiede dove sia B e perche' si parta da Q.
+    let_it = ("La lettera &egrave; il nome del test nel codice, nell&rsquo;ordine in cui li ho "
+              "scritti: A, B e C sono i primi tre, Q l&rsquo;ultimo arrivato. Qui invece sono "
+              "ordinati per quanto il risultato regge, dal pi&ugrave; solido al pi&ugrave; "
+              "fragile. J e K non mancano: l&rsquo;alfabeto italiano non le ha.")
+    let_en = ("The letter is the test&rsquo;s name in the code, in the order I wrote them: A, B "
+              "and C are the first three, Q the latest. Here they are sorted by how well the "
+              "result holds, from the most solid to the most fragile. J and K are not missing: "
+              "the Italian alphabet does not have them.")
     return f"""<section class="cap">
-  <div class="cap-num">05</div>
+  <div class="cap-num">06</div>
   <div>
     {el("h2", "Tutte le verifiche", "Every check")}
+    <p class="prosa" style="margin-bottom:26px" {bi(let_it, let_en)}>{let_it}</p>
     <table>
       <thead><tr>
         <th></th>
@@ -877,6 +1050,7 @@ def render(dati: dict) -> str:
 {_cap_regge(dati)}
 {_cap_prova(dati)}
 {_cap_contesto(dati)}
+{_cap_segue(dati)}
 {_cap_metodo(dati)}
 {_tabella(dati)}
 {footer}
