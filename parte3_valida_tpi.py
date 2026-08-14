@@ -194,7 +194,16 @@ def payload_corrente() -> Path:
     (parte1 --top-n 0) i test usano quello — stessa stagione, stesso motore,
     senza il taglio in alto — e il sito resta quello di prima.
     """
-    return PAYLOAD_FULL if PAYLOAD_FULL.is_file() else PAYLOAD
+    if not PAYLOAD_FULL.is_file():
+        return PAYLOAD
+    # payload.json lo rigenera ogni run del sito, payload_full.json solo chi
+    # passa --top-n 0: se resta indietro, i test girerebbero su una stagione
+    # vecchia senza che se ne accorga nessuno. Non lo correggo qui — dire quale
+    # comando serve e' piu' onesto che scegliere da solo un file al posto suo.
+    if PAYLOAD.is_file() and PAYLOAD.stat().st_mtime > PAYLOAD_FULL.stat().st_mtime:
+        log.warning(f"  payload_full.json e' PIU' VECCHIO di payload.json: i test girerebbero "
+                    f"su dati superati. Rigeneralo con `python parte1_analisi.py --top-n 0`.")
+    return PAYLOAD_FULL
 
 
 def load_payload() -> dict:
