@@ -207,8 +207,8 @@ def _hero(d: dict) -> str:
   <h1 {bi("Cosa regge,<br><em>e cosa no</em>", "What holds up,<br><em>and what doesn&rsquo;t</em>")}>Cosa regge,<br><em>e cosa no</em></h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
   <p class="lede sec" {bi(sub_it, sub_en)}>{sub_it}</p>
-  <div class="cifre">{box}</div>
   </div>
+  <div class="cifre">{box}</div>
 </header>"""
 
 
@@ -311,7 +311,7 @@ def _cap_regge(d: dict) -> str:
     {el("h2", "Quello che l&rsquo;indice fa", "What the index does")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
     {graf_blk}
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     {cal_blk}
   </div>
 </section>"""
@@ -441,7 +441,7 @@ def _cap_prova(d: dict) -> str:
     {el("h2", "La prova costruita per bocciarlo", "The test built to fail it")}
     <p class="prosa" {bi(p1_it, p1_en)}>{p1_it}</p>
     <p class="prosa" {bi(p2_it, p2_en)}>{p2_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     {graf_blk}
     <p class="prosa chiusa" {bi(p3_it, p3_en)}>{p3_it}</p>
   </div>
@@ -532,7 +532,7 @@ def _cap_contesto(d: dict) -> str:
   <div>
     {el("h2", "Quello che non dimostra niente", "What proves nothing")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
   </div>
 </section>"""
 

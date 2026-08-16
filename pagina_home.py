@@ -61,14 +61,19 @@ def _hero(pay: dict, val: dict) -> str:
                f"xG and xA adjusted for opponent difficulty, seven dimensions, one ranking. "
                f"It is descriptive &mdash; it ranks, it does not predict &mdash; and the checks "
                f"also say where it loses.")
+    # Le tre cifre escono dalla colonna di testo e diventano il terzo figlio
+    # della griglia: sotto i 1500px restano dove stavano (grid-column 2, sotto
+    # il sommario), sopra vanno nella fascia vuota a destra. Il markup e' uno
+    # solo perche' due varianti dello stesso eroe divergerebbero al primo
+    # ritocco, come divergevano le tre nav.
     return f"""<header class="hero riga">
   <div></div>
   <div>
   <div class="eyebrow">Raffaele Ciccone &middot; Football analytics</div>
   <h1 {bi("Serie A<br><em>Scout Index</em>", "Serie A<br><em>Scout Index</em>")}>Serie A<br><em>Scout Index</em></h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
-  <div class="cifre">{box}</div>
   </div>
+  <div class="cifre">{box}</div>
 </header>"""
 
 
@@ -198,7 +203,7 @@ def _costruzione(pay: dict) -> str:
   <div>
     {el("h2", "Come &egrave; costruito", "How it is built")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     <a class="oltre" href="guida_completa.html" {bi("Le formule, una per una", "The formulas, one by one")}>Le formule, una per una</a>
   </div>
 </section>"""
@@ -249,7 +254,7 @@ def _quanto_regge(val: dict) -> str:
   <div>
     {el("h2", "Quanto regge", "How well it holds")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     <a class="oltre" href="validazione.html" {bi("Tutte le verifiche, come sono uscite", "Every check, exactly as it came out")}>Tutte le verifiche, come sono uscite</a>
   </div>
 </section>"""
@@ -319,6 +324,23 @@ CSS_EXTRA = """
 @media(max-width:460px){
   .porte-g{grid-template-columns:minmax(0,1fr)}
   .porta{min-height:0}
+}
+
+/* Sopra i 1500px il grosso lo fa pagina_stile.CSS, che allarga il contenitore,
+   sposta le cifre a fianco del titolo e manda le voci dei capitoli su due
+   colonne: quello vale per tutte e tre le pagine di testo. Qui restano i due
+   pezzi che esistono solo in homepage. */
+@media(min-width:1500px){
+  /* I tasti respirano invece di limitarsi a diventare piu' larghi. */
+  .porta{min-height:112px;padding:17px 17px 16px;gap:9px}
+  .porta-t{font-size:19px}
+  .porta-d{font-size:12.5px}
+
+  /* Nella classifica lo spazio in piu' va alla barra, che e' l'unica cosa
+     della riga che con piu' larghezza dice davvero di piu': e' lunga in
+     proporzione al primo, e serve a far vedere le distanze senza leggerle. */
+  .cl-row{grid-template-columns:34px minmax(0,1fr) 300px 74px;gap:0 22px}
+  .cl-bar{height:5px}
 }
 """
 

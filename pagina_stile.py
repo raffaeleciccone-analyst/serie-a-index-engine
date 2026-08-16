@@ -157,6 +157,9 @@ h1 em{font-style:normal;color:var(--orng)}
   color:var(--orng);letter-spacing:-.03em;line-height:1}
 .cifra span{display:block;margin-top:8px;font-size:11px;letter-spacing:.1em;
   text-transform:uppercase;color:var(--lt);line-height:1.5}
+/* Le cifre sono il terzo figlio della griglia dell'eroe, ma finche' le colonne
+   sono due restano dove stavano: in fondo alla colonna di lettura. */
+.hero .cifre{grid-column:2}
 
 .cap{padding:clamp(38px,6vw,64px) 0;border-top:1px solid var(--sep)}
 .cap-num{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;color:var(--orng);
@@ -226,7 +229,8 @@ details .prosa{font-size:14.5px}
 
 footer{border-top:1px solid var(--sep);padding:30px 0 0;margin-top:20px;
   font-size:12px;color:var(--lt)}
-footer>div{display:flex;flex-wrap:wrap;gap:14px 26px}
+footer>div{display:flex;flex-wrap:wrap;justify-content:center;text-align:center;
+  gap:14px 26px}
 footer a{color:var(--ls);text-decoration:none;border-bottom:1px solid var(--lq)}
 footer a:hover{color:var(--orng);border-color:var(--orng)}
 
@@ -244,6 +248,46 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
   details .prosa{margin-top:10px}
   table{font-size:12.5px}
   .t-mis{white-space:normal}
+  /* Qui la griglia e' a colonna unica: una seconda colonna non esiste. */
+  .hero .cifre{grid-column:auto}
+}
+
+/* ── Sopra i 1500px ──────────────────────────────────────────────────────
+   Su un monitor grande la pagina era una colonna in mezzo allo schermo: il
+   contenitore si ferma a 1040px, la colonna di margine ne prende altri 176 e
+   il testo e' tappato a 36em, cosi' a 1920px l'inchiostro occupava il 41%
+   della larghezza e il titolo cominciava a 656px dal bordo.
+
+   La misura del testo NON si tocca: 36em sono ~75 battute per riga, ed e'
+   quella che rende la prosa leggibile. Quello che cambia e' dove va tutto il
+   resto — le cifre e le voci dei capitoli — che finora si accontentava di
+   accodarsi sotto al testo lasciando vuota mezza pagina. La pagina si
+   allarga, la riga di lettura resta quella. */
+@media(min-width:1500px){
+  .doc{max-width:1340px}
+
+  /* L'eroe passa a tre colonne. Le cifre stavano sotto il sommario e la fascia
+     destra restava vuota proprio nella prima schermata, che e' quella che si
+     vede aprendo la pagina. */
+  .hero{grid-template-columns:var(--marg) minmax(0,1fr) 268px}
+  .hero .cifre{grid-column:3;grid-row:1;align-self:end;
+    display:flex;flex-direction:column;gap:24px;
+    margin:0;padding:6px 0 6px 32px;
+    border-top:0;border-left:1px solid var(--sep)}
+  .hero .cifra b{font-size:30px}
+
+  /* Le voci dei capitoli sono elenchi di cose parallele, non una sequenza da
+     leggere in ordine: a due a due riempiono la riga invece di lasciarla a
+     meta'. Dentro ogni colonna il margine si stringe, se no al testo
+     resterebbero quattro parole per riga.
+     Nota: qui i bordi sinistri diventano quattro invece dei due che il resto
+     dell'impaginazione tiene. E' il prezzo della colonna doppia, non una
+     svista. */
+  .ev-g{--marg:104px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:0 44px}
+  .ev-g .ev{border-top:1px solid var(--sep)}
+  .ev-g .ev:nth-child(-n+2){border-top:1px solid var(--sep2)}
+  .ev-g .ev-txt{max-width:none}
 }
 /* Le cinque voci chiedono 336px, e non si stringono: quello che cede e' il
    marchio, prima la stagione e poi tutto. Le soglie sono misurate, non a
@@ -307,9 +351,15 @@ def nav(pagina: str) -> str:
 
 
 def footer(voci: list[tuple[str, str, str]]) -> str:
+    """Il piede non sta piu' nella colonna di lettura ma in mezzo alla pagina.
+
+    Era un `.riga` come tutto il resto, quindi partiva dal bordo del testo con
+    la colonna di margine vuota accanto: su uno schermo largo restava un
+    grumo di scritte spinto a destra, sotto una riga che invece attraversa
+    tutta la pagina. Una firma si mette al centro.
+    """
     link = "".join(f'<a href="{h}" {bi(it, en)}>{it}</a>' for h, it, en in voci)
-    return f"""<footer class="riga">
-  <div></div>
+    return f"""<footer>
   <div>
     <span>Raffaele Ciccone &middot; Serie A Scout Index</span>
     {link}

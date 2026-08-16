@@ -179,8 +179,8 @@ def _hero(cfg, pay: dict) -> str:
   <div class="eyebrow">Serie A Scout Index &middot; Metodo</div>
   <h1 {bi("Come &egrave;<br><em>costruito</em>", "How it is<br><em>built</em>")}>Come &egrave;<br><em>costruito</em></h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
-  <div class="cifre">{box}</div>
   </div>
+  <div class="cifre">{box}</div>
 </header>"""
 
 
@@ -225,7 +225,7 @@ def _cap_dati(cfg, pay: dict, val: dict) -> str:
   <div>
     {el("h2", "Da dove vengono i numeri", "Where the numbers come from")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
   </div>
 </section>"""
 
@@ -256,7 +256,7 @@ def _cap_dimensioni(cfg) -> str:
   <div>
     {el("h2", "Le sette dimensioni", "The seven dimensions")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     {svg_pesi(pesi)}
     <p class="didascalia" {bi(dida_it, dida_en)}>{dida_it}</p>
   </div>
@@ -317,7 +317,7 @@ def _cap_composito(cfg, val: dict) -> str:
   <div>
     {el("h2", "Come diventano un punteggio solo", "How they become a single score")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     <div class="form form-big">{fin_it}</div>
   </div>
 </section>"""
@@ -347,7 +347,7 @@ def _cap_contesti(pay: dict) -> str:
   <div class="cap-num">04</div>
   <div>
     {el("h2", "I cinque contesti", "The five contexts")}
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
   </div>
 </section>"""
 
@@ -447,7 +447,7 @@ def _cap_pro(cfg) -> str:
   <div>
     {el("h2", "I modulatori scout e il TPI Pro", "The scout modulators and the TPI Pro")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     {svg_curva_aii(cfg)}
     <p class="didascalia" {bi(dida_it, dida_en)}>{dida_it}</p>
     <h3 {bi("I pesi cambiano per fascia d&rsquo;et&agrave;", "Weights change by age band")}>I pesi cambiano per fascia d&rsquo;et&agrave;</h3>
@@ -496,7 +496,7 @@ def _cap_lettura(val: dict) -> str:
   <div class="cap-num">06</div>
   <div>
     {el("h2", "Come si legge un punteggio", "How to read a score")}
-    {"".join(ev)}
+    <div class="ev-g">{"".join(ev)}</div>
     <a class="oltre" href="validazione.html" {bi("Quanto regge, verifica per verifica", "How well it holds, check by check")}>Quanto regge, verifica per verifica</a>
   </div>
 </section>"""
