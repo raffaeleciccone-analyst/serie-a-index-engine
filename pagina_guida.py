@@ -266,6 +266,27 @@ def _cap_dimensioni(cfg) -> str:
 def _cap_composito(cfg, val: dict) -> str:
     rw = " &middot; ".join(f"{k} {v:.2f}" for k, v in cfg.offensive_role_weight.items())
     ev = [
+        evidenza("&plusmn;&sigma;", "Confrontato con chi gioca dove gioca lui",
+                 "Compared with players in his own role",
+                 "Gli z-score si calcolano <strong>dentro il ruolo</strong>: un difensore &egrave; "
+                 "confrontato con i difensori, non con i centravanti. &Egrave; la scelta che fa "
+                 "emergere il terzino che spinge, e va detta perch&eacute; cambia cosa significa "
+                 "il numero: <strong>non &egrave; produzione offensiva assoluta, &egrave; quanto "
+                 "uno spicca per il suo ruolo</strong>. Poi un coefficiente per ruolo "
+                 f"({rw}) li rimette in una colonna sola. "
+                 "Il conto rifatto sulla lega intera d&agrave; una top 10 di soli attaccanti: "
+                 "spariscono Dimarco, Cambiaso, Wesley e McTominay, cio&egrave; i nomi per cui "
+                 "questa classifica esiste. Chi vuole rifare la misura: "
+                 "<span class=\"form\">parte1_analisi.py --z-lega</span>",
+                 "Z-scores are computed <strong>within the role</strong>: a defender is compared "
+                 "with defenders, not with strikers. It is the choice that surfaces the attacking "
+                 "full-back, and it must be stated because it changes what the number means: "
+                 "<strong>it is not absolute attacking output, it is how much a player stands out "
+                 "for his role</strong>. A per-role coefficient "
+                 f"({rw}) then puts them back in a single column. "
+                 "Recomputed league-wide, the top 10 is all strikers: Dimarco, Cambiaso, Wesley "
+                 "and McTominay disappear &mdash; the very names this ranking exists for. To redo "
+                 "the measurement: <span class=\"form\">parte1_analisi.py --z-lega</span>"),
         evidenza("z", "Stessa unit&agrave; di misura", "One unit of measure",
                  "Ogni dimensione diventa uno z-score <strong>winsorizzato al 5%</strong>: gli "
                  "estremi vengono schiacciati sul quinto e sul novantacinquesimo percentile prima "

@@ -92,6 +92,11 @@ class Config:
     # Peso della fase offensiva per ruolo: quanto "conta" l'offensiva nel TPI.
     # ATT pieno, DIF/POR ridotto → un difensore bravo offensivamente emerge tra
     # i difensori ma non supera gli attaccanti (resta un indice OFFENSIVO).
+    # True = z dentro il ruolo (default storico). False = z su tutta la lega:
+    # il punteggio torna confrontabile fra ruoli, ma la classifica la occupano
+    # gli attaccanti. Vedi _z_by_role.
+    z_per_ruolo: bool = True
+
     offensive_role_weight: dict[str, float] = field(default_factory=lambda: {
         "ATT": 1.00, "CEN": 0.85, "DIF": 0.55, "POR": 0.20,
     })
@@ -2255,11 +2260,24 @@ def main(max_giornata: int | None = None,
     # confrontato con i difensori, non con gli attaccanti. Resta un indice
     # offensivo, ma "relativo all'aspettativa di ruolo".
     def _z_by_role(value_col: str, fb_col: str | None = None) -> pd.Series:
+        """Standardizza dentro il ruolo, o su tutta la lega se z_per_ruolo=False.
+
+        Dentro il ruolo un difensore e' confrontato con i difensori, e serve a
+        far emergere il terzino che attacca. Il prezzo e' che il numero non e'
+        piu' confrontabile fra ruoli: e' un percentile intra-ruolo, che poi
+        `offensive_role_weight` riscala a mano per rimetterli in una colonna
+        sola. Su tutta la lega il numero torna confrontabile, ma la classifica
+        la occupano gli attaccanti e i difensori interessanti spariscono.
+        Il flag serve a misurare la differenza, non a nascondere la scelta.
+        """
         # coercizione a float: colonne con molti None (es. boost) sarebbero object
         # e pandas 3.0 rifiuta l'assegnazione in una serie float.
         vals = pd.to_numeric(df_pa[value_col], errors="coerce")
         fb = pd.to_numeric(df_pa[fb_col], errors="coerce") if fb_col else None
         out = pd.Series(np.nan, index=df_pa.index, dtype="float64")
+        if not CFG.z_per_ruolo:
+            tutti = pd.Series(True, index=df_pa.index)
+            return pd.to_numeric(z_series(vals, tutti, fb, min_ref=6), errors="coerce")
         for ruolo in df_pa["ruolo"].dropna().unique():
             rmask = df_pa["ruolo"] == ruolo
             z = z_series(vals, rmask, fb, min_ref=6)
@@ -2729,6 +2747,10 @@ if __name__ == "__main__":
     _ap.add_argument("--max-giornata", type=int, default=None,
                      help="Limita ai dati a giornata ≤ N (per snapshot vintage / backtest OOS). "
                           "Output → payload_g{N}.json")
+    _ap.add_argument("--z-lega", action="store_true",
+                    help="Standardizza sulla lega invece che dentro il ruolo. "
+                         "Esperimento: il punteggio torna confrontabile fra ruoli, "
+                         "ma la classifica la occupano gli attaccanti.")
     _ap.add_argument("--season", type=str, default=SEASON_CORRENTE,
                      help=f"Tag stagione DB. Default: '{SEASON_CORRENTE}' (config.SEASON_CORRENTE), "
                           "che scrive payload.json — il file che parte2/parte3 leggono e che "
@@ -2753,5 +2775,6 @@ if __name__ == "__main__":
         CFG.top_n_payload = _args.top_n
         log.info(f"top_n_payload = {_args.top_n}"
                  + (" (tutti i qualificati)" if _args.top_n <= 0 else ""))
+    CFG.z_per_ruolo = not getattr(_args, "z_lega", False)
     main(max_giornata=_args.max_giornata,
          season=None if _args.tutte_le_stagioni else _args.season)

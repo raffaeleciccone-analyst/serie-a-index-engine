@@ -52,15 +52,22 @@ def _hero(pay: dict, val: dict) -> str:
         cifre.append((str(meta["n_verifiche"]), "verifiche pubblicate", "checks published"))
     box = "".join(f'<div class="cifra"><b>{v}</b><span {bi(li, le)}>{li}</span></div>'
                   for v, li, le in cifre)
-    lede_it = (f"Un indice che ordina i giocatori di Serie A per <strong>impatto "
-               f"offensivo</strong>: xG e xA corretti per la difficolt&agrave; "
+    # Il confronto e' DENTRO il ruolo, e va detto qui e non in fondo alla
+    # validazione: e' la differenza fra "quanto incide" e "quanto incide per uno
+    # che gioca li'". Misurato: standardizzando sulla lega la top 10 diventa
+    # dieci attaccanti e spariscono Dimarco, Cambiaso, Wesley, McTominay - cioe'
+    # i nomi per cui uno scout aprirebbe il sito.
+    lede_it = (f"Un indice che ordina i giocatori di Serie A per <strong>quanto incidono in "
+               f"attacco rispetto al proprio ruolo</strong>: cos&igrave; un terzino che spinge "
+               f"non sparisce dietro i centravanti. xG e xA corretti per la difficolt&agrave; "
                f"dell&rsquo;avversario, sette dimensioni, una graduatoria sola. "
                f"&Egrave; descrittivo &mdash; ordina, non predice &mdash; e le verifiche "
                f"dicono anche dove perde.")
-    lede_en = (f"An index that ranks Serie A players by <strong>attacking impact</strong>: "
-               f"xG and xA adjusted for opponent difficulty, seven dimensions, one ranking. "
-               f"It is descriptive &mdash; it ranks, it does not predict &mdash; and the checks "
-               f"also say where it loses.")
+    lede_en = (f"An index that ranks Serie A players by <strong>how much they contribute in "
+               f"attack relative to their own role</strong>: so an attacking full-back does not "
+               f"vanish behind the strikers. xG and xA adjusted for opponent difficulty, seven "
+               f"dimensions, one ranking. It is descriptive &mdash; it ranks, it does not "
+               f"predict &mdash; and the checks also say where it loses.")
     # Le tre cifre escono dalla colonna di testo e diventano il terzo figlio
     # della griglia: sotto i 1500px restano dove stavano (grid-column 2, sotto
     # il sommario), sopra vanno nella fascia vuota a destra. Il markup e' uno
