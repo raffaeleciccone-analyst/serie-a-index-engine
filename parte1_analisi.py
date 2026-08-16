@@ -33,6 +33,7 @@ import logging
 import os
 import sys
 import warnings
+from pathlib import Path
 
 try:
     sys.stdout.reconfigure(encoding="utf-8")
@@ -1025,6 +1026,45 @@ def compute_dimensions(
 # ════════════════════════════════════════════════════════════════
 # 7. CALCOLO PER TUTTI I GIOCATORI × 5 CONTESTI
 # ════════════════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════════════════
+# Difese solide: fonte esterna
+# ══════════════════════════════════════════════════════════════════
+DIFESE_ESTERNE = Path(__file__).parent / "dati_esterni" / "xg_concessi_SA_2025-26.json"
+
+
+def carica_difese_esterne(sq_name_map: dict[int, str]) -> pd.Series | None:
+    """xG concessi per squadra da Sportmonks, se il file c'e'.
+
+    Il contesto "difese solide" vuole le squadre che concedono meno xG. La
+    nostra `t_squadra_game_log` per il 2025-26 ne copre 28 giornate su 38, e su
+    mezza stagione in meno la classifica cambia davvero: a stagione intera il
+    Bologna entra fra le sei piu' solide e il Milan esce, passando da terzo a
+    ottavo. Il file lo produce `estrai_xg_concessi_hexi.py` leggendo il feed
+    Sportmonks di heXI, che le ha tutte e 38.
+
+    Se il file manca si torna alla SOS interna, che e' la stessa misura su meno
+    partite: il motore non si ferma per una fonte esterna assente.
+    """
+    if not DIFESE_ESTERNE.is_file():
+        log.info("Difese solide: fonte esterna assente, uso la SOS interna")
+        return None
+    try:
+        dati = json.loads(DIFESE_ESTERNE.read_text(encoding="utf-8"))["squadre"]
+    except Exception as e:
+        log.warning(f"Difese solide: fonte esterna illeggibile ({e}), uso la SOS interna")
+        return None
+    per_nome = {n: v["xg_concessi_pg"] for n, v in dati.items()}
+    per_id = {sid: per_nome[nome] for sid, nome in sq_name_map.items() if nome in per_nome}
+    mancanti = sorted(set(per_nome) - {sq_name_map.get(s) for s in per_id})
+    if mancanti:
+        log.warning(f"Difese solide: {len(mancanti)} squadre del feed senza id nostro: {mancanti}")
+    if len(per_id) < 20:
+        log.warning(f"Difese solide: solo {len(per_id)} squadre agganciate, uso la SOS interna")
+        return None
+    log.info(f"Difese solide: xG concessi da Sportmonks su {len(per_id)} squadre")
+    return pd.Series(per_id)
+
+
 def compute_all_contexts(
     df_pa: pd.DataFrame,
     df_gp: pd.DataFrame,
@@ -1034,9 +1074,12 @@ def compute_all_contexts(
     sos_per_sq: pd.Series,
     xg_col: str,
     cfg: Config,
+    difese_per_sq: pd.Series | None = None,
 ) -> dict[int, dict]:
     all_ctx: dict[int, dict] = {}
-    sos_per_sq_dict = sos_per_sq.to_dict()
+    # Solo per scegliere le difese solide: la SOS vera resta quella che pesa
+    # l'output, e non si tocca.
+    sos_per_sq_dict = (difese_per_sq if difese_per_sq is not None else sos_per_sq).to_dict()
 
     for _, prow in df_pa.iterrows():
         gid = int(prow["giocatore_id"])
@@ -2108,9 +2151,11 @@ def main(max_giornata: int | None = None,
     log.info(f"Top {CFG.n_top6_class}: {top6_ids}")
 
     # ── Calcolo 5 contesti ────────────────────────────────────
+    sq_name_map = db.load_squad_names()
+    difese_per_sq = carica_difese_esterne(sq_name_map)
     all_ctx = compute_all_contexts(
         df_pa, df_gp, df_sgl, sos_map, top6_ids,
-        sos_per_sq, xg_col, CFG
+        sos_per_sq, xg_col, CFG, difese_per_sq
     )
 
     # ── Prior bayesiano centralità ─────────────────────────────
@@ -2508,9 +2553,9 @@ def main(max_giornata: int | None = None,
                 log.info(f"  {i+1}/{CFG.top_n_ai} narrative generate")
 
     # ── Nomi squadre per metadata ──────────────────────────────
-    sq_name_map = db.load_squad_names()
     top6_names = [clean_str(sq_name_map.get(sid, str(sid))) for sid in sorted(top6_ids)]
-    forti_ids = set(int(x) for x in sos_per_sq.nsmallest(CFG.n_top_difese).index)
+    _dif = difese_per_sq if difese_per_sq is not None else sos_per_sq
+    forti_ids = set(int(x) for x in _dif.nsmallest(CFG.n_top_difese).index)
     forti_names = [clean_str(sq_name_map.get(sid, str(sid))) for sid in sorted(forti_ids)]
 
     log.info(f"Top 6: {top6_names}")
