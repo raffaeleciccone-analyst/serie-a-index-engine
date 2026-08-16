@@ -66,7 +66,13 @@ CSS = """
 :root{
   --bg:#0A1512;--bg1:#0F1F1B;--bg2:#132723;
   --sep:rgba(233,240,236,.10);--sep2:rgba(233,240,236,.20);
-  --lp:#ECF2EE;--ls:rgba(233,240,236,.70);--lt:rgba(233,240,236,.42);
+  /* --lt e' il colore di tutto cio' che etichetta: occhielli, etichette delle
+     cifre, h3, didascalie, intestazioni di tabella, voci di nav non attive e
+     il testo degli assi dei grafici. A .42 dava 3.70:1 sul fondo — sotto la
+     soglia AA di 4.5 — e quasi sempre su corpi fra 9 e 12px, cioe' piccolo e
+     poco contrastato insieme. A .60 sale a 6.30:1 e resta comunque
+     nettamente subordinato al bianco pieno, che sta a 16.07:1. */
+  --lp:#ECF2EE;--ls:rgba(233,240,236,.70);--lt:rgba(233,240,236,.60);
   --lq:rgba(233,240,236,.22);
   --orng:#FFB020;
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",system-ui,sans-serif;
@@ -283,7 +289,7 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
      Nota: qui i bordi sinistri diventano quattro invece dei due che il resto
      dell'impaginazione tiene. E' il prezzo della colonna doppia, non una
      svista. */
-  .ev-g{--marg:104px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  .ev-g{--marg:150px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
     gap:0 44px}
   .ev-g .ev{border-top:1px solid var(--sep)}
   .ev-g .ev:nth-child(-n+2){border-top:1px solid var(--sep2)}
@@ -375,6 +381,7 @@ def guscio(titolo: str, desc_it: str, desc_en: str, pagina: str, corpo: str,
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230A1512'/><rect x='6' y='19' width='5' height='7' fill='%23FFB020'/><rect x='13.5' y='13' width='5' height='13' fill='%23FFB020'/><rect x='21' y='6' width='5' height='20' fill='%23FFB020'/></svg>">
 <title>{titolo}</title>
 <meta name="description" {bi(desc_it, desc_en)}>
 <style>{CSS}</style>

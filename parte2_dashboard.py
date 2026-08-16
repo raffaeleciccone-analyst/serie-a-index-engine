@@ -284,6 +284,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta http-equiv="X-Content-Type-Options" content="nosniff">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230A1512'/><rect x='6' y='19' width='5' height='7' fill='%23FFB020'/><rect x='13.5' y='13' width='5' height='13' fill='%23FFB020'/><rect x='21' y='6' width='5' height='20' fill='%23FFB020'/></svg>">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1092,7 +1093,7 @@ function buildLeaderboard(){
    +'<span class="lb-val">'+m.fmt(v)+'</span>'
    +'<div class="lb-actions">'
     +'<button class="lb-btn lb-btn-prof" onclick="pick('+p.id+')">&#x2192; '+esc(T("dash_btn_profile","Profilo"))+'</button>'
-    +'<button class="lb-btn lb-btn-cmp" id="cmpbtn-'+p.id+'" onclick="showDiff('+p.id+')">&#x2696; '+esc(T("dash_btn_diff","Scarto"))+'</button>'
+    +'<button class="lb-btn lb-btn-cmp" id="cmpbtn-'+p.id+'" onclick="showDiff('+p.id+')">'+esc(T("dash_btn_diff","Scarto"))+'</button>'
    +'</div></div>';
  }).join("")+'</div>';
 
@@ -1276,7 +1277,11 @@ window.addEventListener("resize",()=>{
  if(document.getElementById("fpk-box")?.classList.contains("open"))positionFpk();
  if(document.getElementById("sq-fpk-box")?.classList.contains("open"))positionSqFpk();
 });
-pi.addEventListener("input",()=>{PQ=pi.value.toLowerCase();buildDrop();});
+/* Accenti tolti dai due lati della ricerca: chi digita "leao" o "martinez"
+   sulla tastiera del telefono deve trovare Leao e Martinez. Prima rispondeva
+   "Nessun risultato", ed e' il primo gesto di chiunque arrivi sul sito. */
+const nrm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+pi.addEventListener("input",()=>{PQ=nrm(pi.value);buildDrop();});
 function selRole(el){const wasOn=el.classList.contains("on");document.querySelectorAll(".rpill[data-r]").forEach(b=>b.classList.remove("on"));if(!wasOn){el.classList.add("on");PR=el.dataset.r;}else PR="";buildDrop();buildLeaderboard();}
 function selForm(el){const wasOn=el.classList.contains("on");document.querySelectorAll(".rpill[data-f]").forEach(b=>b.classList.remove("on"));if(!wasOn){el.classList.add("on");FORM_FILTER=el.dataset.f;}else FORM_FILTER="";buildDrop();buildLeaderboard();}
 
@@ -1284,14 +1289,14 @@ function buildDrop(){
  const base=ACTIVE_TEAMS.size>0?DATA.filter(p=>ACTIVE_TEAMS.has(p.squadra)):DATA;
  /* Ricerca su nome completo, squadra, ruolo */
  const analyzed=base.filter(p=>(!PR||p.ruolo===PR)&&(!PQ||
-  p.nome.toLowerCase().includes(PQ)||
-  p.squadra.toLowerCase().includes(PQ)));
+  nrm(p.nome).includes(PQ)||
+  nrm(p.squadra).includes(PQ)));
  let rosterExtra=[];
  if((ACTIVE_TEAMS.size>0||PQ)&&ROSTER&&ROSTER.length){
   const aIds=new Set(analyzed.map(p=>p.id));
   rosterExtra=ROSTER.filter(r=>!aIds.has(r.id)&&r.ruolo!=="POR"&&(!PR||r.ruolo===PR)
    &&(ACTIVE_TEAMS.size===0||ACTIVE_TEAMS.has(r.squadra))
-   &&(!PQ||r.nome.toLowerCase().includes(PQ)||r.squadra.toLowerCase().includes(PQ)));
+   &&(!PQ||nrm(r.nome).includes(PQ)||nrm(r.squadra).includes(PQ)));
  }
  if(!analyzed.length&&!rosterExtra.length){pd.innerHTML='<div class="fpk-empty">'+esc(T("msg_no_results","Nessun risultato"))+'</div>';return;}
  let html=analyzed.map(p=>{
@@ -1520,7 +1525,11 @@ function autoSynth(p,ctx){
  const dn=dispNm(p);
  let out="";
  if(p.is_winter)out+="⚠️ Acquisto invernale (dal gg "+p.first_giornata+"): stime con shrinkage rafforzato. ";
- if(tpi!=null){const pct=r.TPI&&r.n_total?Math.round((1-r.TPI/r.n_total)*100):null;
+ /* r.TPI e' il RANK, non un punteggio: "top X%" si conta dall'alto. La
+    formula di pctCell (99.7 per il primo) e' il percentile della colonna ed
+    e' giusta li'; riusata qui stampava "top 100% della lega" sul migliore
+    della Serie A. */
+ if(tpi!=null){const pct=r.TPI&&r.n_total?Math.max(1,Math.round(r.TPI/r.n_total*100)):null;
   if(tpi>=1.5)out+=dn+" d'élite: TPI "+tpi.toFixed(2)+" (top "+(pct||"?")+"% della lega). ";
   else if(tpi>=0.5)out+=dn+": impatto offensivo positivo, TPI "+tpi.toFixed(2)+". ";
   else if(tpi>=0)out+=dn+" in linea con la media (TPI "+tpi.toFixed(2)+"). ";

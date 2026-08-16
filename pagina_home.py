@@ -87,11 +87,16 @@ def _porte(pay: dict, val: dict) -> str:
     e' voluto: qui non si legge, si sceglie dove andare.
     """
     n_gio = pay.get("n_giocatori")
+    # Quanti ne pubblica davvero la dashboard, non quanti ne qualifica il
+    # motore: il payload ne dichiara 381 e ne porta 100, e la homepage
+    # prometteva i 381. Su un sito che vende onesta' era l'unica pagina
+    # che diceva il falso.
+    n_pub = len(pay.get("players") or [])
     n_ver = ((val or {}).get("meta") or {}).get("n_verifiche")
-    d_cla = (f"Tutti i {n_gio} giocatori, con filtri e confronto"
-             if n_gio else "Tutti i giocatori, con filtri e confronto")
-    d_cla_en = (f"All {n_gio} players, with filters and head-to-head"
-                if n_gio else "Every player, with filters and head-to-head")
+    d_cla = (f"I primi {n_pub} dei {n_gio} qualificati, con filtri e confronto"
+             if n_pub and n_gio else "La classifica, con filtri e confronto")
+    d_cla_en = (f"The top {n_pub} of {n_gio} qualified, with filters and head-to-head"
+                if n_pub and n_gio else "The ranking, with filters and head-to-head")
     d_val = (f"Le {n_ver} verifiche, compresa quella che perde"
              if n_ver else "Le verifiche, compresa quella che perde")
     d_val_en = (f"The {n_ver} checks, including the one it loses"
@@ -137,7 +142,7 @@ def _classifica(pay: dict) -> str:
   <span class="cl-bar"><i style="width:{larg:.0f}%"></i></span>
   <span class="cl-v">{p['tpi']['totale']:+.2f}</span>
 </a>""")
-    resto = (pay.get("n_giocatori") or 0) - len(players)
+    resto = len(pay.get("players") or []) - len(players)
     coda_it = f"e altri {resto} giocatori nella dashboard"
     coda_en = f"and {resto} more players in the dashboard"
     p_it = ("I primi otto per TPI totale. Sotto ogni nome ci sono le due dimensioni in cui "

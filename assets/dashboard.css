@@ -21,7 +21,11 @@
      togliere l'aria da template scuro generico, senza rinunciare allo scuro. */
   --bg:#0A1512; --bg1:#0F1F1B; --bg2:#132723; --bg3:#1B342E; --bg4:#24443C;
   --sep:rgba(233,240,236,.10); --sep2:rgba(233,240,236,.18);
-  --lp:#ECF2EE; --ls:rgba(233,240,236,.66); --lt:rgba(233,240,236,.38); --lq:rgba(233,240,236,.20);
+/* --lt e' il colore di tutto cio' che etichetta: sigle di colonna, didascalie,
+   intestazioni, voci di nav non attive, assi dei grafici. A .38 dava 3.24:1 sul
+   fondo, sotto la soglia AA di 4.5, e quasi sempre su corpi fra 8 e 11px. A .58
+   sale sopra AA e resta subordinato al bianco pieno. */
+  --lp:#ECF2EE; --ls:rgba(233,240,236,.66); --lt:rgba(233,240,236,.58); --lq:rgba(233,240,236,.20);
 
   /* UN solo colore dice "attivo, oppure questo e' il valore": l'ambra.
      Prima --orng valeva sia questo sia il ruolo ATT, quindi non voleva dire
@@ -262,7 +266,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
    si allinea sulla stessa colonna di 1280px. Padding scalabile invece di un
    wrapper interno: .nav e' gia' un flex container, incapsularne i figli
    avrebbe rotto la disposizione. */
-.nav,.back-bar{padding-inline:max(20px,calc((100% - 1280px) / 2))}
+/* La nav va a filo pagina come sulle tre pagine di testo. Con il rientro
+   calcolato sul contenitore da 1280px il marchio cadeva a 320px da bordo
+   schermo a 1920, contro i 40px delle editoriali: passando da una pagina
+   all'altra saltava di 280px. Era anche la seconda di due regole in conflitto
+   sullo stesso elemento — il padding della riga 55 non ha mai avuto effetto. */
+.nav,.back-bar{padding-inline:clamp(18px,4vw,40px)}
 .home-hdr{padding:28px 20px 20px;border-bottom:1px solid var(--sep);
   background:linear-gradient(180deg,rgba(10,132,255,.04) 0%,transparent 100%)}
 .home-ttl{font-size:clamp(22px,3.5vw,30px);font-weight:800;letter-spacing:-1.2px}
