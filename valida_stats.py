@@ -356,6 +356,27 @@ def paired_rmse_bootstrap(early: Sequence[float], late: Sequence[float],
     }
 
 
+def _folds_by_cluster(cl: np.ndarray, k: int, rng) -> list[np.ndarray]:
+    """Divide le RIGHE in k folds tenendo insieme le righe dello stesso cluster.
+
+    Con un k-fold sulle righe lo stesso giocatore finisce in train e in test:
+    e' lo stesso identico soggetto, e la retta viene stimata su un dato che poi
+    deve prevedere. Qui i vintage peggiorano il problema, perche' i criteri sono
+    finestre annidate - "tutto dopo la 25a" contiene "tutto dopo la 36a" - quindi
+    il target delle due righe e' quasi lo stesso numero.
+
+    Si campionano i CLUSTER, non le righe, come gia' fa il bootstrap accanto:
+    due criteri diversi nella stessa funzione erano un'incoerenza, e quello
+    ingenuo era proprio sotto il numero che il sito pubblica.
+    """
+    unici = np.unique(cl)
+    ordine = rng.permutation(len(unici))
+    gruppi = np.array_split(ordine, min(k, len(unici)))
+    pos = {c: i for i, c in enumerate(unici)}
+    appartenenza = np.array([pos[c] for c in cl])
+    return [np.flatnonzero(np.isin(appartenenza, g)) for g in gruppi]
+
+
 def paired_rmse_bootstrap_clustered(early: Sequence[float], late: Sequence[float],
                                     early_pro: Sequence[float],
                                     cluster: Sequence,
@@ -377,8 +398,7 @@ def paired_rmse_bootstrap_clustered(early: Sequence[float], late: Sequence[float
 
     def _oos_err(x, y):
         rng_local = np.random.default_rng(seed)
-        idx = rng_local.permutation(len(x))
-        folds = np.array_split(idx, min(5, len(x)))
+        folds = _folds_by_cluster(cl, 5, rng_local)
         err = np.full(len(x), np.nan)
         for f in folds:
             tr = np.setdiff1d(np.arange(len(x)), f)
