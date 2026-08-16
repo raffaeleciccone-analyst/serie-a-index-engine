@@ -654,7 +654,13 @@ class DatabaseLayer:
                                               AND sc.calendario_id  = gp.calendario_id
             LEFT JOIN t_squadra_game_log  sgl ON  sgl.squadra_id   = g.squadra_id
                                               AND sgl.calendario_id = gp.calendario_id
-            WHERE 1=1{sw}
+            -- Niente portieri: questo e' un indice di impatto OFFENSIVO, e un
+            -- portiere non ne ha per definizione. Restavano dentro con il solo
+            -- peso di ruolo a 0.20, e siccome gli z-score si calcolano DENTRO
+            -- il ruolo bastava un portiere che produce 0.03 xG+xA per 90 per
+            -- essere un +3 sigma fra portieri, saturare il tetto e finire 77o
+            -- su 381. Il roster li escludeva gia': ora lo fa anche l'analisi.
+            WHERE g.ruolo <> 'POR'{sw}
             """,
             self.engine,
         )
@@ -746,9 +752,20 @@ class DatabaseLayer:
             return {}
 
     def load_roster(self) -> pd.DataFrame:
+        """La rosa per squadra, con i minuti giocati nella stagione corrente.
+
+        Era l'unica query del motore che non passava per `_season_where`, e non
+        agganciava nemmeno `calendario`: sommava i minuti di tutte le stagioni
+        presenti in DB. Con due stagioni caricate ne usciva Ndicka a 6391
+        minuti contro un massimo teorico di 3420, ed erano elencati come "minuti
+        insufficienti" giocatori che ne avevano quattromila. Da qui venivano
+        anche i giocatori che non sono piu' in rosa: erano quelli dell'anno
+        prima.
+        """
+        sw = self._season_where("cal")
         try:
             return pd.read_sql(
-                """
+                f"""
                 SELECT
                     g.id          AS giocatore_id,
                     TRIM(CASE
@@ -762,10 +779,17 @@ class DatabaseLayer:
                 FROM   giocatori g
                 JOIN   squadre sq ON sq.id = g.squadra_id
                 LEFT JOIN (
-                    SELECT giocatore_id, SUM(minuti) AS minuti
-                    FROM giocatore_partita WHERE minuti > 0 GROUP BY giocatore_id
+                    SELECT gp.giocatore_id, SUM(gp.minuti) AS minuti
+                    FROM giocatore_partita gp
+                    JOIN calendario cal ON cal.id = gp.calendario_id
+                    WHERE gp.minuti > 0{sw}
+                    GROUP BY gp.giocatore_id
                 ) agg ON agg.giocatore_id = g.id
-                WHERE  g.ruolo != 'POR'
+                -- Chi non ha giocato un minuto in questa stagione non ha niente
+                -- da dire in una pagina di scouting, e finiva in elenco solo
+                -- perche' l'anagrafica lo tiene ancora in quella squadra: era
+                -- il caso dei giocatori ceduti l'estate prima.
+                WHERE  g.ruolo != 'POR' AND agg.minuti > 0
                 ORDER  BY sq.nome, g.ruolo, ISNULL(agg.minuti), agg.minuti DESC
                 """,
                 self.engine,
