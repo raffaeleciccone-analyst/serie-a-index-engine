@@ -324,16 +324,43 @@ def _cap_composito(cfg, val: dict) -> str:
 
 
 def _cap_contesti(pay: dict) -> str:
-    top6 = ", ".join(pay.get("top6_names", [])[:6])
-    forti = ", ".join(pay.get("forti_names", [])[:6])
+    """I cinque contesti, e perche' due di essi possono sembrare lo stesso.
+
+    Le due liste venivano stampate una sotto l'altra, e quando coincidono - il
+    che succede ogni volta che le prime sei in classifica sono anche le sei
+    difese piu' solide, cioe' spesso - il lettore conclude che uno dei cinque
+    contesti sia finto. Non lo e': la differenza non sta nella lista globale ma
+    nel fatto che l'insieme si calcola per giocatore, togliendo la sua squadra.
+    """
+    top6_l = pay.get("top6_names", [])[:6]
+    forti_l = pay.get("forti_names", [])[:6]
+    top6 = ", ".join(top6_l)
+    forti = ", ".join(forti_l)
+    if top6_l and top6_l == forti_l:
+        quali_it = (f"Quest&rsquo;anno sono le stesse sei squadre &mdash; {top6} &mdash; "
+                    f"ma i due contesti <strong>non coincidono</strong>")
+        quali_en = (f"This season they are the same six teams &mdash; {top6} &mdash; "
+                    f"but the two contexts <strong>do not coincide</strong>")
+    else:
+        quali_it = f"Le prime sei sono {top6}, le difese pi&ugrave; solide {forti}"
+        quali_en = f"The top six are {top6}, the tightest defences {forti}"
     ev = [
         evidenza("5", "Un punteggio per contesto", "One score per context",
-                 f"Totale, casa, trasferta, contro le prime sei ({top6}) e contro le difese "
-                 f"pi&ugrave; solide ({forti}). Ogni contesto rifà tutto il calcolo sulle sole "
-                 f"partite che gli appartengono.",
-                 f"Overall, home, away, against the top six ({top6}) and against the tightest "
-                 f"defences ({forti}). Each context redoes the whole computation on its own "
-                 f"matches only."),
+                 f"Totale, casa, trasferta, contro le <strong>prime sei in classifica</strong> e "
+                 f"contro le <strong>sei difese che concedono meno xG</strong>. {quali_it}: "
+                 f"entrambi escludono la squadra del giocatore &mdash; contro s&eacute; stessi non "
+                 f"si gioca &mdash; ma il primo si limita a toglierla, mentre il secondo fa "
+                 f"scorrere dentro la settima difesa. Cos&igrave; chi gioca in una delle prime sei "
+                 f"ha cinque avversari nel primo contesto e sei nel secondo, e i due punteggi "
+                 f"vengono diversi. Ogni contesto rif&agrave; tutto il calcolo sulle sole partite "
+                 f"che gli appartengono.",
+                 f"Overall, home, away, against the <strong>top six in the table</strong> and "
+                 f"against the <strong>six defences conceding the fewest xG</strong>. {quali_en}: "
+                 f"both exclude the player&rsquo;s own team &mdash; you do not play yourself "
+                 f"&mdash; but the first simply drops it, while the second slides the seventh "
+                 f"defence in. So a player at one of the top six faces five opponents in the "
+                 f"first context and six in the second, and the two scores come out different. "
+                 f"Each context redoes the whole computation on its own matches only."),
         evidenza("&Delta;", "La differenza &egrave; il dato", "The gap is the data",
                  "Un giocatore che ha un punteggio alto in casa e basso in trasferta non &egrave; "
                  "lo stesso giocatore di uno che li ha uguali, anche a parit&agrave; di totale. "
