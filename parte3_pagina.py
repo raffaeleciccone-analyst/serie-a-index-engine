@@ -255,11 +255,47 @@ def _cap_regge(d: dict) -> str:
         ev.append(evidenza(
             _f(h.get("spearman_median"), 3), "Pesi perturbati", "Weights perturbed",
             f"Spostando a caso di &plusmn;{pct}% i sette pesi del composito, la graduatoria non si "
-            f"muove (peggior caso {_f(h.get('spearman_min'), 3)}). "
-            f"<strong>Non &egrave; un indice tarato a mano su un risultato che mi piaceva.</strong>",
+            f"muove (peggior caso {_f(h.get('spearman_min'), 3)}). Va detto per&ograve; che questo "
+            f"test <strong>non pu&ograve; quasi fallire</strong>: sette numeri positivi su "
+            f"z-score correlati fra loro, rinormalizzati dopo la perturbazione, danno "
+            f"&rho;&nbsp;&#8776;&nbsp;1 per costruzione. Non &egrave; una prova di robustezza, "
+            f"&egrave; una propriet&agrave; dei compositi.",
             f"Randomly shifting the seven weights by &plusmn;{pct}%, the ranking does not move "
-            f"(worst case {_f(h.get('spearman_min'), 3)}). <strong>It is not an index hand-tuned "
-            f"to a result I liked.</strong>"))
+            f"(worst case {_f(h.get('spearman_min'), 3)}). It must be said, though, that this "
+            f"test <strong>can hardly fail</strong>: seven positive numbers over mutually "
+            f"correlated z-scores, renormalised after the perturbation, give "
+            f"&rho;&nbsp;&#8776;&nbsp;1 by construction. It is not evidence of robustness, it is "
+            f"a property of composite indices."))
+    r = h.get("ruolo") or {}
+    if r:
+        # Il test che PUO' bocciare: il coefficiente di ruolo e' il parametro che
+        # decide quanti difensori entrano in cima, e non era mai stato perturbato.
+        rp = int(round((r.get("pct") or 0.2) * 100))
+        q0 = (r.get("quota_base") or {}).get("10", {})
+        qmin = (r.get("quota_min") or {}).get("10", {})
+        qmax = (r.get("quota_max") or {}).get("10", {})
+        pesi = " &middot; ".join(f"{k} {v:.2f}" for k, v in (r.get("pesi_base") or {}).items())
+        ov = (r.get("overlap_min") or {}).get("10")
+        ev.append(evidenza(
+            f"{int(round((ov or 0) * 10))}/10", "E il parametro che conta davvero",
+            "And the parameter that actually matters",
+            f"I sette pesi non sono il numero che decide la classifica. Lo &egrave; il "
+            f"<strong>coefficiente di ruolo</strong> ({pesi}), che rimette in una colonna sola "
+            f"z-score calcolati dentro ruoli diversi. Perturbato di &plusmn;{rp}% l&rsquo;ordine "
+            f"generale regge (&rho; {_f(r.get('spearman_med'), 3)}), ma della top 10 "
+            f"<strong>restano al loro posto solo {int(round((ov or 0) * 10))} nomi su 10</strong>, "
+            f"e i difensori in cima passano da {q0.get('DIF', 0)} a un intervallo fra "
+            f"{qmin.get('DIF', 0)} e {qmax.get('DIF', 0)}. "
+            f"<strong>Quel coefficiente &egrave; scelto a mano, e questa &egrave; la sua "
+            f"influenza.</strong>",
+            f"The seven weights are not the number that decides the ranking. The "
+            f"<strong>per-role coefficient</strong> ({pesi}) is &mdash; it puts z-scores computed "
+            f"within different roles back into a single column. Perturbed by &plusmn;{rp}% the "
+            f"overall order holds (&rho; {_f(r.get('spearman_med'), 3)}), but of the top 10 "
+            f"<strong>only {int(round((ov or 0) * 10))} names out of 10 stay put</strong>, and "
+            f"defenders at the top go from {q0.get('DIF', 0)} to a range between "
+            f"{qmin.get('DIF', 0)} and {qmax.get('DIF', 0)}. <strong>That coefficient is chosen "
+            f"by hand, and this is how much it moves.</strong>"))
     if f.get("has_data"):
         ev.append(evidenza(
             _f(f.get("r"), 3), "A livello di squadra", "At team level",

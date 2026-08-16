@@ -505,6 +505,76 @@ def weight_sensitivity(z_by_dim: dict[str, Sequence[float]],
     }
 
 
+def role_weight_sensitivity(score: Sequence[float], ruolo: Sequence[str],
+                            base_role_weights: dict[str, float],
+                            pct: float = 0.20, n: int = 500, seed: int = 42,
+                            top_k: tuple[int, int] = (10, 20)) -> dict | None:
+    """Sensibilita' del ranking ai COEFFICIENTI DI RUOLO, non ai pesi delle dimensioni.
+
+    Il test sui pesi delle sette dimensioni non puo' quasi fallire: sono sette
+    numeri positivi su z-score correlati fra loro, e rinormalizzando dopo una
+    perturbazione la graduatoria resta quasi identica per costruzione. E' una
+    proprieta' nota dei compositi di indicatori correlati, non una prova di
+    robustezza.
+
+    Il parametro che davvero decide la classifica e' un altro: gli z si calcolano
+    dentro il ruolo, e per rimettere tutti in una colonna sola il punteggio viene
+    moltiplicato per un coefficiente scelto a mano (ATT 1.00 / CEN 0.85 /
+    DIF 0.55). Quel numero governa quanti difensori entrano in cima. Perturbarlo
+    e' un test che PUO' bocciare, ed e' per questo che va fatto.
+
+    Il punteggio pubblicato contiene gia' il coefficiente: lo si divide via e si
+    riapplica quello perturbato.
+    """
+    s = np.asarray(score, dtype=float)
+    r = np.asarray(ruolo, dtype=object)
+    mask = np.isfinite(s) & np.array([x in base_role_weights for x in r])
+    s, r = s[mask], r[mask]
+    if len(s) < 10:
+        return None
+    ruoli = sorted({str(x) for x in r})
+    w0 = np.array([base_role_weights[x] for x in r], dtype=float)
+    if np.any(w0 <= 0):
+        return None
+    nudo = s / w0                      # punteggio senza il coefficiente di ruolo
+    base_order = stats.rankdata(s)
+    _topset = lambda v, k: set(np.argsort(-v)[:k])
+    base_top = {k: _topset(s, k) for k in top_k}
+    # quota di ciascun ruolo nella top-K di partenza: e' la cosa che cambia
+    quota0 = {k: {ro: sum(1 for i in base_top[k] if r[i] == ro) for ro in ruoli} for k in top_k}
+
+    rng = np.random.default_rng(seed)
+    sp, ov = [], {k: [] for k in top_k}
+    quota = {k: {ro: [] for ro in ruoli} for k in top_k}
+    for _ in range(n):
+        fatt = {ro: 1.0 + rng.uniform(-pct, pct) for ro in ruoli}
+        w = np.array([base_role_weights[x] * fatt[str(x)] for x in r], dtype=float)
+        v = nudo * w
+        rho = stats.spearmanr(base_order, stats.rankdata(v))[0]
+        if rho is not None and not np.isnan(rho):
+            sp.append(float(rho))
+        for k in top_k:
+            top = _topset(v, k)
+            ov[k].append(len(top & base_top[k]) / k)
+            for ro in ruoli:
+                quota[k][ro].append(sum(1 for i in top if r[i] == ro))
+    if not sp:
+        return None
+    return {
+        "n": int(len(s)),
+        "pct": pct,
+        "ruoli": ruoli,
+        "pesi_base": {ro: base_role_weights[ro] for ro in ruoli},
+        "spearman_med": float(np.median(sp)),
+        "spearman_min": float(np.min(sp)),
+        "overlap_med": {str(k): float(np.median(ov[k])) for k in top_k},
+        "overlap_min": {str(k): float(np.min(ov[k])) for k in top_k},
+        "quota_base": {str(k): quota0[k] for k in top_k},
+        "quota_min": {str(k): {ro: int(np.min(quota[k][ro])) for ro in ruoli} for k in top_k},
+        "quota_max": {str(k): {ro: int(np.max(quota[k][ro])) for ro in ruoli} for k in top_k},
+    }
+
+
 def team_level_corr(team_tpi: dict, team_criterion: dict,
                     method: str = "spearman") -> dict | None:
     """
