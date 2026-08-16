@@ -50,10 +50,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 .row{--bs-gutter-x:12px;--bs-gutter-y:12px}
 
 /* ── Liquid Glass materials ── */
+/* Fondo translucido con lo sfocato dietro, come sulle altre quattro pagine:
+   era l'unica nav opaca, e scorrendo la pagina si vedeva la differenza. */
 .nav{position:sticky;top:0;z-index:400;height:56px;
-  background:var(--bg);border-bottom:1px solid var(--sep);
+  background:rgba(10,21,18,.86);backdrop-filter:saturate(160%) blur(14px);
+  border-bottom:1px solid var(--sep);
   box-shadow:none;
-  display:flex;align-items:center;gap:10px;padding:0 20px}
+  display:flex;align-items:center;gap:14px;padding:0 20px}
 /* Le schede erano vetro: gradiente, bordo illuminato in alto e un'ombra da
    20px che le faceva galleggiare. Su una pagina di grafici l'unica cosa che
    deve staccare sono i dati, quindi restano un fondo appena piu' chiaro e un
@@ -145,26 +148,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
    alla base dell'Oswald da 19px e il suo centro cadeva 5,6px sotto quello dei
    link della nav. Su una fila di voci orizzontali conta l'allineamento con la
    fila, non con la base della parola accanto. */
+/* Il marchio adesso e' un link alla homepage, e su questa pagina c'e' Bootstrap:
+   senza colore e sottolineatura dichiarati usciva azzurro e sottolineato. */
 .nav-brand{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.4px;
   text-transform:uppercase;white-space:nowrap;flex-shrink:0;
-  display:flex;align-items:center;gap:10px}
+  display:flex;align-items:center;gap:10px;
+  color:var(--lp);text-decoration:none}
+.nav-brand:hover{color:var(--lp);text-decoration:none}
 .nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.16em;
   text-transform:uppercase;color:var(--lt);margin-left:0;
   padding-left:10px;border-left:1px solid var(--sep)}
 
-/* Lo switcher lingua arriva da i18n.js con la cornice e l'azzurro della vecchia
-   palette: qui e' l'unico elemento rimasto in scatola, quindi la togliamo e
-   restano due sigle, con l'attiva in ambra come gli altri stati correnti. */
-/* i18n.js monta lo switcher dentro uno <span> di blocco. L'inline-flex si
-   appoggiava alla baseline del testo di quello span, lasciando sotto lo
-   spazio del discendente: IT/EN scendevano di 2px rispetto alla fila. */
-.nav [data-i18n-switcher]{display:flex;align-items:center}
-.nav .i18n-switch{border:0;border-radius:0;background:none;height:auto;gap:2px}
-.nav .i18n-switch button{font-family:var(--mono);font-size:10px;letter-spacing:.12em;
-  padding:3px 5px;border-radius:3px;color:var(--lt)}
-.nav .i18n-switch button + button{border-left:0}
-.nav .i18n-switch button.active{background:none;color:var(--orng)}
-.nav .i18n-switch button:hover{background:none;color:var(--lp)}
+/* Lo switcher lingua non si riscrive piu' qui: usciva in scatola con l'attiva
+   in blu iOS e ogni pagina se lo ridipingeva per conto suo, con il risultato
+   che sulle tre pagine editoriali restava blu. Ora la palette giusta ce l'ha
+   gia' i18n.js, che e' lo stesso file su tutte e cinque. */
 .nav-chip{font-size:11px;color:var(--lt);white-space:nowrap;flex-shrink:0;margin-left:auto}
 
 /* ── Shared button / popover ── */
@@ -673,15 +671,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 /* ── Tablet portrait ≤ 768px ── */
 @media (max-width: 768px) {
 
-  /* Nav: comprimi */
-  .nav{padding:0 12px;gap:6px;height:48px}
-  .nav-brand{font-size:14px}
-  .nav-brand small{display:none}
+  /* Nav: comprimi. Altezza e marchio non si toccano piu' qui — la barra resta
+     alta 56px fino ai 480px come sulle altre pagine, e a cedere per prima e'
+     la stagione accanto al marchio (regola condivisa, piu' sotto). */
+  .nav{padding:0 12px;gap:10px}
   .nav-chip{display:none}
   .nav-btn-group{margin-left:6px;gap:4px}
-  .nav-right-group{gap:5px;flex-shrink:0}
-  /* .hp-label / .val-label restano visibili: erano nascoste perche' accanto
-     c'era un'emoji a fare da icona, e senza quella restavano due link vuoti. */
+  .nav-right-group{gap:10px;flex-shrink:0;min-width:0}
   .nav-switch-btn{padding:0 8px;min-width:30px}
 
   /* Back bar */
@@ -771,9 +767,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 /* ── Phone portrait ≤ 480px ── */
 @media (max-width: 480px) {
 
-  /* Nav ancora più compatta */
-  .nav{padding:0 10px;gap:4px;height:46px}
-  .nav-brand{font-size:13px}
+  /* La nav compatta la fissa la regola condivisa piu' sotto — altezza, respiro
+     e marchio che sparisce — cosi' resta uguale a quella delle altre pagine. */
   .nav-glass-btn.home-btn{padding:0 8px}
   /* Le etichette dei link restano: l'icona che le sostituiva non c'e' piu'. */
 
@@ -1015,47 +1010,59 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 .tpp-empty{padding:32px 20px;text-align:center;color:var(--lt);font-size:13px;line-height:1.7}
 .tpp-empty strong{color:var(--orng)}
 
-/* ── Nav: link di testo, non pillole ──────────────────────────────────────
-   Prima erano cinque pillole con quattro colori diversi (blu, ambra, chiaro,
-   gradiente oro) e nessuno dei quattro diceva dove sei: tutti gridavano allo
-   stesso volume. Ora sono link piatti, un solo colore, e la pagina corrente si
-   riconosce da una sottolineatura ambra. L'unico accento resta TPI Pro, che e'
-   l'unica destinazione a pagamento. */
-.nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{
-  position:relative;display:inline-flex;align-items:center;gap:6px;
-  height:34px;padding:0 2px;
+/* ── Nav: la stessa fila delle altre quattro pagine ───────────────────────
+   Le voci erano gia' link piatti con la sottolineatura ambra, ma erano tre:
+   qui Homepage/Validazione/TPI Pro, sulla pagina Pro un'altra fila, sulle tre
+   pagine editoriali delle pastiglie bordate in maiuscolo. Adesso le regole
+   sono le stesse di pagina_stile.CSS, le voci sono cinque ovunque e nello
+   stesso ordine, e mancava un collegamento: da qui non si arrivava al Metodo.
+
+   `.nav-link` e non piu' quattro classi diverse per quattro destinazioni:
+   erano nomi di colore (orng, purp) di una versione in cui ogni voce gridava
+   con la sua tinta, e i colori se n'erano gia' andati. */
+.nav-links{display:flex;align-items:center;gap:16px;min-width:0;
+  overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-link{position:relative;display:inline-flex;align-items:center;height:34px;
+  padding:0 2px;
   background:none;border:0;border-radius:0;box-shadow:none;
   font:12px var(--font);font-weight:600;letter-spacing:.02em;
   color:var(--lt);text-decoration:none;cursor:pointer;
   white-space:nowrap;flex-shrink:0;transition:color .16s}
-.nav-home-btn:hover,.nav-orng-btn:hover,.nav-purp-btn:hover,.nav-pro-btn:hover{
-  background:none;color:var(--lp);transform:none;box-shadow:none}
-.nav-home-btn::after,.nav-orng-btn::after,.nav-purp-btn::after{
-  content:"";position:absolute;left:0;right:0;bottom:7px;height:1.5px;
+.nav-link:hover{background:none;color:var(--lp);text-decoration:none;
+  transform:none;box-shadow:none}
+.nav-link::after{content:"";position:absolute;left:0;right:0;bottom:7px;height:1.5px;
   background:var(--orng);opacity:0;transition:opacity .16s}
-/* La classifica e' la pagina su cui sei quando guardi questa nav. */
-.nav-home-btn{color:var(--lp)}
-.nav-home-btn::after{opacity:1}
-.nav-pro-btn{color:var(--orng);font-weight:700}
-.nav-pro-btn:hover{color:#FFC85A}
+.nav-link:hover::after,.nav-link.on::after{opacity:1}
+.nav-link.on{color:var(--lp)}
+/* L'unico accento della fila: il TPI Pro e' l'altro indice, non un'altra
+   sezione di questo. */
+.nav-link.pro{color:var(--orng)}
+.nav-link.pro:hover{color:#FFC85A}
 
-/* Mobile: brand nascosto, tutto su una riga */
+/* Le cinque voci chiedono 336px, e non si stringono: quello che cede e' il
+   marchio, prima la stagione e poi tutto. Le soglie sono misurate, non a
+   occhio — con il marchio in riga fino a 480px l'ultima voce, TPI Pro, finiva
+   fuori dallo schermo su qualunque telefono, e nessuno pensa a trascinare di
+   lato un'intestazione. Sono le stesse tre soglie di pagina_stile.CSS. */
 @media(max-width:768px){
-  .nav-brand{display:none}
-  .nav{justify-content:flex-start}
   .nav-btn-group{margin-left:0}
-  .nav-right-group{margin-left:auto}
-  /* Le etichette NON si nascondono piu': erano nascoste perche' accanto
-     c'era un'emoji a fare da icona. Tolte le emoji, nasconderle lasciava
-     link vuoti e non cliccabili su telefono. */
-  .nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{padding:0 9px;gap:4px}
+  .nav-right-group{margin-left:auto;min-width:0}
 }
-@media(max-width:480px){
-  .nav{height:46px;padding:0 8px;gap:5px}
+@media(max-width:700px){
+  .nav-brand small{display:none}
+}
+@media(max-width:560px){
+  .nav{gap:10px;padding:0 14px}
+  .nav-brand{display:none}
+}
+@media(max-width:440px){
+  .nav{height:46px;padding:0 8px;gap:8px}
+  .nav-links{gap:9px}
+  .nav-link{font-size:11px;height:28px}
   /* A cedere il posto sono le frecce avanti/indietro, che sul telefono
      ripetono un gesto che il browser ha gia'. */
   .nav-glass-btn{display:none}
-  .nav-home-btn,.nav-orng-btn,.nav-purp-btn,.nav-pro-btn{height:28px;padding:0 6px}
 }
 
 /* ═══════════════════════════════════════

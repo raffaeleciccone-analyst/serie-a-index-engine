@@ -72,6 +72,45 @@ def _hero(pay: dict, val: dict) -> str:
 </header>"""
 
 
+def _porte(pay: dict, val: dict) -> str:
+    """I quattro tasti d'ingresso, subito sotto il titolo.
+
+    Prima le altre pagine si raggiungevano solo dalle voci piccole della nav,
+    da qualche link di coda dentro la prosa e da un capitolo in fondo alla
+    homepage: chi arrivava qui doveva leggere tutto per scoprire che il sito
+    ha altre quattro pagine. Sono l'unico blocco in scatola della pagina, ed
+    e' voluto: qui non si legge, si sceglie dove andare.
+    """
+    n_gio = pay.get("n_giocatori")
+    n_ver = ((val or {}).get("meta") or {}).get("n_verifiche")
+    d_cla = (f"Tutti i {n_gio} giocatori, con filtri e confronto"
+             if n_gio else "Tutti i giocatori, con filtri e confronto")
+    d_cla_en = (f"All {n_gio} players, with filters and head-to-head"
+                if n_gio else "Every player, with filters and head-to-head")
+    d_val = (f"Le {n_ver} verifiche, compresa quella che perde"
+             if n_ver else "Le verifiche, compresa quella che perde")
+    d_val_en = (f"The {n_ver} checks, including the one it loses"
+                if n_ver else "The checks, including the one it loses")
+    voci = [
+        ("dashboard_serie_a.html", "Classifica", "Ranking", d_cla, d_cla_en, True),
+        ("validazione.html", "Validazione", "Validation", d_val, d_val_en, False),
+        ("guida_completa.html", "Metodo", "Method",
+         "Le formule, una per una, con un esempio calcolato",
+         "The formulas, one by one, with a worked example", False),
+        ("dashboard_pro.html", "TPI Pro", "TPI Pro",
+         "L&rsquo;indice con i cinque modulatori scout",
+         "The index with the five scout modulators", False),
+    ]
+    carte = "".join(f"""<a class="porta{' pri' if pri else ''}" href="{h}">
+    <span class="porta-t" {bi(t_it, t_en)}>{t_it}</span>
+    <span class="porta-d" {bi(d_it, d_en)}>{d_it}</span>
+  </a>""" for h, t_it, t_en, d_it, d_en, pri in voci)
+    return f"""<nav class="porte riga" aria-label="Le pagine del sito">
+  <div class="porte-lbl" {bi("Vai a", "Go to")}>Vai a</div>
+  <div class="porte-g">{carte}</div>
+</nav>"""
+
+
 def _classifica(pay: dict) -> str:
     players = sorted(pay.get("players", []),
                      key=lambda p: -(p.get("tpi") or {}).get("totale", -99))[:N_CLASSIFICA]
@@ -216,41 +255,6 @@ def _quanto_regge(val: dict) -> str:
 </section>"""
 
 
-def _pagine(pay: dict) -> str:
-    voci = [
-        ("dashboard_serie_a.html", "Classifica", "Ranking",
-         f"Tutti i giocatori qualificati, filtrabili per squadra e ruolo, con i cinque contesti "
-         f"e il confronto fino a quattro alla volta.",
-         f"Every qualified player, filterable by team and role, with the five contexts and a "
-         f"head-to-head of up to four at a time."),
-        ("validazione.html", "Validazione", "Validation",
-         "Cosa regge e cosa no, con gli intervalli di confidenza e il test costruito per "
-         "bocciare l&rsquo;indice.",
-         "What holds up and what does not, with confidence intervals and the test built to "
-         "fail the index."),
-        ("guida_completa.html", "Metodo", "Method",
-         "Ogni indice spiegato con la formula, il motivo per cui esiste e un esempio "
-         "calcolato.",
-         "Every index explained with its formula, the reason it exists and a worked example."),
-        ("dashboard_pro.html", "TPI Pro", "TPI Pro",
-         "L&rsquo;indice con i cinque modulatori scout, i pesi che cambiano per fascia "
-         "d&rsquo;et&agrave; e chi guadagna o perde posizioni.",
-         "The index with the five scout modulators, weights that change by age band, and who "
-         "gains or loses places."),
-    ]
-    righe = "".join(f"""<a class="ev riga pag" href="{h}">
-  <div class="ev-fig ev-txtfig" {bi(t_it, t_en)}>{t_it}</div>
-  <div class="ev-txt" {bi(d_it, d_en)}>{d_it}</div>
-</a>""" for h, t_it, t_en, d_it, d_en in voci)
-    return f"""<section class="cap riga">
-  <div class="cap-num">04</div>
-  <div>
-    {el("h2", "Le quattro pagine", "The four pages")}
-    {righe}
-  </div>
-</section>"""
-
-
 # ══════════════════════════════════════════════════════════════════
 # Pagina
 # ══════════════════════════════════════════════════════════════════
@@ -273,19 +277,56 @@ CSS_EXTRA = """
   text-decoration:none;border-bottom:1px solid var(--lq);padding-bottom:2px}
 .oltre:hover{color:var(--orng);border-color:var(--orng)}
 .oltre::after{content:" \\2192"}
-a.pag{text-decoration:none;color:inherit}
-a.pag:hover .ev-txtfig{color:var(--orng)}
+
+/* I quattro tasti d'ingresso. Sono le uniche scatole del sito: il resto delle
+   pagine mette i numeri sul filo del testo apposta, ma un tasto deve avere un
+   bordo per farsi riconoscere come tasto. Restano dentro le due colonne di
+   tutto il resto — l'etichetta nel margine, i tasti nella colonna di lettura.
+
+   L'eroe qui sotto si stringe di una trentina di pixel rispetto alle altre
+   pagine, e solo qui: con l'aria di prima i tasti cadevano sul bordo basso di
+   un portatile da 900px, cioe' esattamente dove non li vede chi arriva. */
+.hero{padding-bottom:clamp(22px,3vw,30px)}
+.cifre{margin-top:32px;padding-top:18px}
+.porte{padding:0 0 clamp(34px,5.5vw,50px);align-items:start}
+.porte-lbl{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;
+  color:var(--lt);padding-top:15px}
+.porte-g{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.porta{display:flex;flex-direction:column;gap:7px;min-height:98px;
+  padding:14px 14px 13px;border:1px solid var(--sep2);border-radius:10px;
+  background:var(--bg1);text-decoration:none;color:inherit;
+  transition:border-color .16s,background .16s}
+.porta:hover{border-color:rgba(255,176,32,.55);background:var(--bg2)}
+.porta-t{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  font-family:var(--disp);font-weight:500;font-size:17.5px;text-transform:uppercase;
+  letter-spacing:.02em;line-height:1;color:var(--lp)}
+.porta-t::after{content:"\\2192";font-family:var(--font);font-size:13px;font-weight:400;
+  color:var(--orng);opacity:.42;transition:opacity .16s}
+.porta:hover .porta-t::after{opacity:1}
+.porta-d{font-size:12px;line-height:1.5;color:var(--lt)}
+/* La classifica e' quello che il visitatore e' venuto a vedere: e' l'unico dei
+   quattro a portare l'ambra, come la voce Pro nella nav. */
+.porta.pri{border-color:rgba(255,176,32,.42)}
+.porta.pri .porta-t{color:var(--orng)}
+.porta.pri .porta-t::after{opacity:.8}
+
 @media(max-width:900px){
   .cl-row{grid-template-columns:26px minmax(0,1fr) 56px;gap:0 12px}
   .cl-bar{display:none}
+  .porte-g{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .porte-lbl{padding:0 0 10px}
+}
+@media(max-width:460px){
+  .porte-g{grid-template-columns:minmax(0,1fr)}
+  .porta{min-height:0}
 }
 """
 
 
 def render(pay: dict, val: dict | None) -> str:
-    corpo = "\n".join(x for x in (_hero(pay, val or {}), _classifica(pay),
-                                  _costruzione(pay), _quanto_regge(val or {}),
-                                  _pagine(pay)) if x)
+    corpo = "\n".join(x for x in (_hero(pay, val or {}), _porte(pay, val or {}),
+                                  _classifica(pay), _costruzione(pay),
+                                  _quanto_regge(val or {})) if x)
     html = guscio(
         "Serie A Scout Index &mdash; Raffaele Ciccone",
         "Un indice descrittivo che ordina i giocatori di Serie A per impatto offensivo, "

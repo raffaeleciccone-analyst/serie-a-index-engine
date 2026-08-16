@@ -330,25 +330,20 @@ window.onerror=function(m,s,l){
 
 <!-- NAV -->
 <nav class="nav">
- <div class="nav-brand">Serie A 25/26 <small>Scout&nbsp;Index</small></div>
+ <a class="nav-brand" href="index.html">Serie A Scout <small>25/26</small></a>
  <div class="nav-btn-group">
-  <button class="nav-home-btn" onclick="showHome()" data-i18n-title="nav_back_ranking" title="Torna alla classifica">
-   <span class="home-label" data-i18n="term_ranking">Classifica</span>
-  </button>
   <button class="nav-glass-btn" id="nav-back-btn" onclick="histBack()" data-i18n-title="nav_back" data-i18n-aria-label="nav_back" title="Indietro" disabled>&#8592;</button>
   <button class="nav-glass-btn" id="nav-fwd-btn" onclick="histForward()" data-i18n-title="nav_forward" data-i18n-aria-label="nav_forward" title="Avanti" disabled>&#8594;</button>
  </div>
- <div class="nav-right-group" style="display:flex;align-items:center;gap:8px">
+ <div class="nav-right-group" style="display:flex;align-items:center;gap:14px">
   <span data-i18n-switcher></span>
-  <a class="nav-orng-btn" href="index.html" data-i18n-title="nav_back_homepage" title="Torna alla Homepage">
-   <span class="hp-label" data-i18n="nav_home">Homepage</span>
-  </a>
-  <a class="nav-purp-btn" href="validazione.html" data-i18n-title="nav_validation" title="Validazione TPI">
-   <span class="val-label" data-i18n="nav_validation">Validazione</span>
-  </a>
-  <a class="nav-pro-btn" href="dashboard_pro.html" title="TPI Pro — indice age-aware con i cinque modulatori scout">
-   <span class="pro-label">TPI Pro</span>
-  </a>
+  <div class="nav-links">
+   <a class="nav-link" href="index.html" data-it="Homepage" data-en="Homepage">Homepage</a>
+   <a class="nav-link on" href="#" aria-current="page" onclick="showHome();return false" data-i18n-title="nav_back_ranking" title="Torna alla classifica" data-it="Classifica" data-en="Ranking">Classifica</a>
+   <a class="nav-link" href="validazione.html" data-it="Validazione" data-en="Validation">Validazione</a>
+   <a class="nav-link" href="guida_completa.html" data-it="Metodo" data-en="Method">Metodo</a>
+   <a class="nav-link pro" href="dashboard_pro.html" title="TPI Pro — indice age-aware con i cinque modulatori scout" data-it="TPI Pro" data-en="TPI Pro">TPI Pro</a>
+  </div>
  </div>
 </nav>
 

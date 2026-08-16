@@ -83,20 +83,44 @@ body{background:var(--bg);color:var(--lp);font-family:var(--font);
 ::selection{background:rgba(255,176,32,.26)}
 a{color:inherit}
 
-/* ── Nav: identica alle altre pagine del sito ─────────────────── */
-.nav{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:14px;
-  padding:10px clamp(18px,4vw,40px);background:rgba(10,21,18,.86);
+/* ── Nav: una sola per tutte e cinque le pagine ──────────────────
+   Prima ce n'erano tre. Qui pastiglie bordate in maiuscolo, sulle due
+   dashboard link piatti con la sottolineatura ambra, e marchi diversi
+   ("TPI / Serie A 25/26" contro "Serie A 25/26 / Scout Index" contro
+   "Serie A Scout / TPI Pro"): passando da una pagina all'altra sembrava
+   di cambiare sito. Vince l'impianto delle dashboard, perche' fa una
+   cosa che le pastiglie non facevano — dire dove sei invece di
+   nascondere la voce corrente. Le stesse regole stanno in
+   assets/dashboard.css per le pagine che non passano di qui. */
+.nav{position:sticky;top:0;z-index:60;height:56px;display:flex;align-items:center;gap:14px;
+  padding:0 clamp(18px,4vw,40px);background:rgba(10,21,18,.86);
   backdrop-filter:saturate(160%) blur(14px);border-bottom:1px solid var(--sep)}
-.nav-brand{font-family:var(--disp);font-size:15px;letter-spacing:.06em;
-  text-transform:uppercase;white-space:nowrap}
-.nav-brand small{display:block;font-family:var(--font);font-size:9.5px;
-  letter-spacing:.14em;color:var(--lt);text-transform:uppercase}
+.nav-brand{display:flex;align-items:center;gap:10px;flex-shrink:0;
+  font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.4px;
+  text-transform:uppercase;white-space:nowrap;text-decoration:none;color:var(--lp)}
+.nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;
+  letter-spacing:.16em;color:var(--lt);padding-left:10px;
+  border-left:1px solid var(--sep)}
 .nav-sp{flex:1}
-.nav-btn{display:inline-flex;align-items:center;padding:6px 12px;border-radius:8px;
-  border:1px solid var(--sep2);font-size:11.5px;letter-spacing:.08em;
-  text-transform:uppercase;text-decoration:none;color:var(--ls);white-space:nowrap}
-.nav-btn:hover{color:var(--lp);border-color:var(--lq)}
-.nav-btn.pri{border-color:rgba(255,176,32,.5);color:var(--orng)}
+/* Le voci scorrono invece di andare a capo: restano cinque su una riga sola a
+   qualunque larghezza, e la barra resta alta uguale. Le soglie a cui la riga
+   si stringe stanno in fondo al foglio. */
+.nav-links{display:flex;align-items:center;gap:16px;min-width:0;
+  overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-link{position:relative;display:inline-flex;align-items:center;height:34px;
+  padding:0 2px;font-size:12px;font-weight:600;letter-spacing:.02em;
+  color:var(--lt);text-decoration:none;white-space:nowrap;flex-shrink:0;
+  transition:color .16s}
+.nav-link:hover{color:var(--lp)}
+.nav-link::after{content:"";position:absolute;left:0;right:0;bottom:7px;height:1.5px;
+  background:var(--orng);opacity:0;transition:opacity .16s}
+.nav-link:hover::after,.nav-link.on::after{opacity:1}
+.nav-link.on{color:var(--lp)}
+/* L'unico accento della fila: il TPI Pro e' l'altro indice, non un'altra
+   sezione di questo. */
+.nav-link.pro{color:var(--orng)}
+.nav-link.pro:hover{color:#FFC85A}
 
 /* ── Impaginazione ──────────────────────────────────────────────
    Due bordi sinistri in tutta la pagina e non uno di piu':
@@ -218,9 +242,25 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
   .cifre{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 30px}
   details.riga>summary,details.riga>.prosa{grid-column:auto}
   details .prosa{margin-top:10px}
-  .nav-brand small{display:none}
   table{font-size:12.5px}
   .t-mis{white-space:normal}
+}
+/* Le cinque voci chiedono 336px, e non si stringono: quello che cede e' il
+   marchio, prima la stagione e poi tutto. Le soglie sono misurate, non a
+   occhio — con il marchio in riga fino a 420px l'ultima voce, TPI Pro, finiva
+   fuori dallo schermo su qualunque telefono, e nessuno pensa a trascinare di
+   lato un'intestazione. Sotto i 400px scorre comunque: li' non ci sta niente. */
+@media(max-width:700px){
+  .nav-brand small{display:none}
+}
+@media(max-width:560px){
+  .nav{gap:10px;padding:0 14px}
+  .nav-brand{display:none}
+}
+@media(max-width:440px){
+  .nav{height:46px;padding:0 8px;gap:8px}
+  .nav-links{gap:9px}
+  .nav-link{font-size:11px;height:28px}
 }
 @media(max-width:520px){
   .cifre{grid-template-columns:minmax(0,1fr)}
@@ -233,23 +273,36 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
 # ══════════════════════════════════════════════════════════════════
 # Guscio: testata, navigazione, chiusura
 # ══════════════════════════════════════════════════════════════════
+# Le cinque pagine del sito, nell'ordine in cui compaiono in ogni nav. L'ordine
+# e' quello di lettura — si entra dalla homepage, si guarda la classifica, poi
+# si chiede se regge e come e' fatta — e non cambia da una pagina all'altra:
+# una voce che si sposta costringe a rileggere la fila ogni volta.
+VOCI = [("index.html", "Homepage", "Homepage"),
+        ("dashboard_serie_a.html", "Classifica", "Ranking"),
+        ("validazione.html", "Validazione", "Validation"),
+        ("guida_completa.html", "Metodo", "Method"),
+        ("dashboard_pro.html", "TPI Pro", "TPI Pro")]
+
+
 def nav(pagina: str) -> str:
-    """Barra in cima. `pagina` e' la voce da NON mostrare: e' quella corrente."""
-    voci = [("dashboard_serie_a.html", "Classifica", "Ranking"),
-            ("validazione.html", "Validazione", "Validation"),
-            ("guida_completa.html", "Metodo", "Method"),
-            ("dashboard_pro.html", "TPI Pro", "TPI Pro")]
+    """Barra in cima. `pagina` e' quella corrente: resta in fila, sottolineata.
+
+    Prima la voce corrente veniva tolta, e cinque pagine mostravano quattro
+    file diverse: chi arrivava da un link non aveva modo di sapere dove fosse
+    finito. Adesso la fila e' sempre la stessa e cambia solo cosa e' acceso.
+    """
     link = "".join(
-        f'<a class="nav-btn" href="{h}" {bi(it, en)}>{it}</a>'
-        for h, it, en in voci if h != pagina)
-    home = ("" if pagina == "index.html"
-            else '<a class="nav-btn pri" href="index.html">Homepage</a>')
+        '<a class="nav-link{cls}" href="{h}"{cur} {b}>{it}</a>'.format(
+            cls=("".join((" on" if h == pagina else "",
+                          " pro" if h == "dashboard_pro.html" else ""))),
+            h=h, cur=' aria-current="page"' if h == pagina else "",
+            b=bi(it, en), it=it)
+        for h, it, en in VOCI)
     return f"""<nav class="nav">
-  <div class="nav-brand">TPI <small>Serie A 25/26</small></div>
+  <a class="nav-brand" href="index.html">Serie A Scout <small>25/26</small></a>
   <div class="nav-sp"></div>
   <span data-i18n-switcher></span>
-  {link}
-  {home}
+  <div class="nav-links">{link}</div>
 </nav>"""
 
 
