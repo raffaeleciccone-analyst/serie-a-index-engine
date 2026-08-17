@@ -238,8 +238,11 @@ def _cap_dimensioni(cfg) -> str:
         if peso is None:
             continue
         f = formula.format(ewma=cfg.ewma_alpha, bk=int(cfg.boost_shrink_k))
-        corpo_it = f'<span class="form">{f}</span>{d_it}'
-        corpo_en = f'<span class="form">{f}</span>{d_en}'
+        # Prima la frase, poi la formula: chi non e' un analista si ferma alla
+        # riga uno, e la riga uno era un'espressione algebrica. La spiegazione
+        # c'era gia' ed era buona, stava solo dopo.
+        corpo_it = f'{d_it}<span class="form">{f}</span>'
+        corpo_en = f'{d_en}<span class="form">{f}</span>'
         ev.append(evidenza(f"{peso:.2f}", t_it, t_en, corpo_it, corpo_en))
     p_it = ("Sette misure, ognuna con un peso. Nessuna &egrave; una statistica grezza presa "
             "cos&igrave; com&rsquo;&egrave;: tutte sono corrette per qualcosa, e il peso dice "
@@ -477,8 +480,8 @@ def _cap_pro(cfg) -> str:
             f"{k.replace('z_', '')} {v:.2f}" for k, v in pesi.items() if k != "tpi")
         fasce.append(evidenza(
             f'{pesi["tpi"]:.2f}', f"{t_it} &mdash; {l_it}", f"{t_en} &mdash; {l_en}",
-            f'<span class="form">TPI {pesi["tpi"]:.2f} &middot; {det}</span>{c_it}',
-            f'<span class="form">TPI {pesi["tpi"]:.2f} &middot; {det}</span>{c_en}'))
+            f'{c_it}<span class="form">TPI {pesi["tpi"]:.2f} &middot; {det}</span>',
+            f'{c_en}<span class="form">TPI {pesi["tpi"]:.2f} &middot; {det}</span>'))
     p_it = ("Il TPI misura il rendimento in campo. Il <strong>TPI Pro</strong> aggiunge cinque "
             "misure che guardano al giocatore invece che alla prestazione, e serve a distinguere "
             "chi &egrave; forte adesso da chi lo sar&agrave;. Fuori campione non predice meglio "
@@ -558,7 +561,9 @@ CSS_EXTRA = """
 .form{display:block;font-family:var(--mono);font-size:13px;line-height:1.75;
   color:var(--lp);background:rgba(233,240,236,.04);
   border-left:2px solid rgba(255,176,32,.5);padding:9px 12px;
-  border-radius:0 4px 4px 0;margin:0 0 11px;overflow-wrap:anywhere}
+  border-radius:0 4px 4px 0;overflow-wrap:anywhere;
+  /* La formula chiude il blocco invece di aprirlo: l'aria le serve sopra. */
+  margin:11px 0 0}
 .form-big{margin-top:26px;font-size:14.5px}
 .oltre{display:inline-block;margin-top:22px;font-size:13.5px;color:var(--ls);
   text-decoration:none;border-bottom:1px solid var(--lq);padding-bottom:2px}

@@ -116,34 +116,55 @@ def svg_calibrazione(m: dict) -> str:
 
 
 def svg_ablation(o: dict) -> str:
-    """Quanto peggiora la previsione togliendo una dimensione per volta.
+    """Quanto cambia la previsione togliendo una dimensione per volta.
 
-    Le barre crescono tutte verso destra e misurano |Δ|: il segno lo porta il
-    colore. Farle crescere a sinistra dello zero, com'era prima, voleva dire
-    che la barra piu' lunga usciva dal riquadro e copriva la propria etichetta.
+    Grafico divergente, con lo zero al centro: a sinistra le dimensioni che
+    servono (toglierle peggiora la previsione), a destra quelle che non pagano.
+    Prima le barre crescevano tutte verso destra e il segno lo portava solo il
+    colore, cosi' -0.077 e +0.004 puntavano nella stessa direzione: un dato
+    divergente disegnato come se fosse unipolare. Chi non guarda la legenda
+    vede che finishing ha la barra piu' lunga e conclude l'opposto del vero.
+
+    Il tentativo precedente di farle divergere era stato abbandonato perche' la
+    barra piu' lunga usciva dal riquadro e copriva la propria etichetta: qui
+    meta' larghezza per lato, e il valore scritto SEMPRE dalla parte esterna
+    della barra, cosi' non ci finisce mai sopra.
     """
     res = sorted((o or {}).get("results", []), key=lambda r: r.get("delta_predict", 0))
     if not res:
         return ""
     w, rowh, ml = 640, 27, 118
-    h = rowh * len(res) + 14
+    testa = 16                      # riga per le due diciture d'asse
+    h = rowh * len(res) + 14 + testa
     lim = max(abs(r["delta_predict"]) for r in res) or 1e-9
-    fondo = w - 62
+    lab = 48                        # spazio riservato al numero, per lato
+    x0 = (ml + (w - 8)) / 2         # lo zero, al centro dell'area di disegno
+    mezza = (w - 8 - ml) / 2 - lab  # lunghezza massima di una barra
+
     out = [_SVG_OPEN.format(w=w, h=h)]
-    for i, r in enumerate(res):
-        y = 7 + i * rowh
+    out.append(f'<text x="{x0-8:.0f}" y="11" text-anchor="end" class="sv-ax">'
+               f'toglierla peggiora &#8592;</text>')
+    out.append(f'<text x="{x0+8:.0f}" y="11" class="sv-ax">'
+               f'&#8594; toglierla migliora</text>')
+    for i_, r in enumerate(res):
+        y = 7 + testa + i_ * rowh
         v = r["delta_predict"]
-        lung = abs(v) / lim * (fondo - ml)
+        lung = min(abs(v) / lim * mezza, mezza)
         serve = v < -0.005
-        col = "var(--orng)" if serve else "rgba(233,240,236,.22)"
+        col = "var(--orng)" if serve else "rgba(233,240,236,.28)"
         out.append(f'<text x="{ml-12}" y="{y+14}" text-anchor="end" class="sv-dim">{r["dim"]}</text>')
-        out.append(f'<rect x="{ml}" y="{y+4}" width="{max(1.5, lung):.1f}" height="14" '
+        if v < 0:
+            bx, tx, anc = x0 - lung, x0 - lung - 6, "end"
+        else:
+            bx, tx, anc = x0, x0 + lung + 6, "start"
+        out.append(f'<rect x="{bx:.1f}" y="{y+4}" width="{max(1.5, lung):.1f}" height="14" '
                    f'rx="2" fill="{col}"/>')
-        out.append(f'<text x="{w-6}" y="{y+16}" text-anchor="end" class="sv-val">{v:+.3f}</text>')
-    out.append(f'<line x1="{ml}" y1="2" x2="{ml}" y2="{h-4}" stroke="rgba(233,240,236,.25)"/>')
+        out.append(f'<text x="{tx:.1f}" y="{y+16}" text-anchor="{anc}" class="sv-val">{v:+.3f}</text>')
+    out.append(f'<line x1="{ml}" y1="{testa}" x2="{ml}" y2="{h-4}" stroke="rgba(233,240,236,.18)"/>')
+    out.append(f'<line x1="{x0:.1f}" y1="{testa}" x2="{x0:.1f}" y2="{h-4}" '
+               f'stroke="rgba(233,240,236,.45)"/>')
     out.append("</svg>")
     return "".join(out)
-
 
 # ══════════════════════════════════════════════════════════════════
 # CSS
