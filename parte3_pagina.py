@@ -171,8 +171,8 @@ def _hero(d: dict) -> str:
     cifre = []
     if m.get("monotonia_rho") is not None:
         cifre.append((f'&rho; {_f(m["monotonia_rho"], 3)}',
-                      "fra decile di TPI e rendimento reale",
-                      "between TPI decile and real output"))
+                      "diviso in dieci gruppi, l&rsquo;ordine tiene",
+                      "split into ten groups, the order holds"))
     if primo:
         cifre.append((f'&rho; {_f(primo["spearman_rho"], 3)}',
                       f"la graduatoria di giornata {primo['vintage_giornata']} "

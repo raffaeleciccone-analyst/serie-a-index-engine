@@ -174,6 +174,24 @@ SPIEGAZIONI = {
     "titolo": "TPI — Top Player Impact Index",
     "formula": "Media pesata z-score: output 0.32 · buildup 0.10 · centralità 0.18 · boost 0.02 · consistenza 0.07 · finishing 0.20 · forma 0.11 × penalty disponibilità winter-aware",
     "logica": (
+      # Il "?" e' l'aiuto: la prima riga deve rispondere a chi non sa cos'e'
+      # uno z-score, non aprire con "Shrinkage Bayes con K dinamico". Il
+      # dettaglio tecnico resta, ma dopo, e dichiarato come tale.
+      "COSA VUOL DIRE IL NUMERO\n"
+      "0.00 è il giocatore medio del suo ruolo. Sopra lo zero incide più della "
+      "media, sotto meno. +1.00 vuol dire stare nel 16% migliore del proprio "
+      "ruolo, +2.00 nel 2.5%. Un difensore è confrontato con i difensori, non "
+      "con i centravanti: serve a non far sparire il terzino che spinge dietro "
+      "chi fa gol di mestiere.\n\n"
+      "DA COSA NASCE\n"
+      "Sette cose misurate separatamente e poi pesate: quanto produce, quanto "
+      "partecipa alla manovra, quanta parte della produzione della squadra "
+      "passa da lui, quanto la squadra rende con lui in campo, quanto è "
+      "regolare, quanto è preciso sotto porta e come sta andando nelle "
+      "ultime partite. Ogni prestazione è pesata per la forza di chi c'era "
+      "dall'altra parte, e chi ha giocato poco viene tirato verso la media: "
+      "due partite buone non battono chi regge da trenta.\n\n"
+      "IN DETTAGLIO TECNICO\n"
       "Ogni dimensione viene standardizzata come z-score rispetto alla "
       "distribuzione di ruolo della lega (un difensore è confrontato con "
       "i difensori, non con gli attaccanti). "
@@ -194,7 +212,7 @@ SPIEGAZIONI = {
       "• Re-normalizzazione pesi sulle dim effettivamente disponibili (se boost N/D)."
       "\n\n"
       "Lo z-score misura quante deviazioni standard sopra/sotto la media-ruolo. "
-      "0 = media ruolo, +1 = top 16%, +2 = top 2.5%."
+      "0 = media del ruolo, +1 = top 16%, +2 = top 2.5%."
     ),
     "esempio": (
       "TPI +1.72: 1.72 dev std sopra la media del ruolo — top 5% della lega. "
@@ -1635,7 +1653,7 @@ function buildOvHTML(p,ctx){
     +zrow(T("dash_zr_boost","Team boost"),d.z_boost_ratio,"boost_ratio")
     +zrow(T("dash_chip_con","Consistenza"),d.z_consistenza,"consistenza")
     +zrow("Finishing Q",p.kpi.z_finishing)
-    +'</div><div style="font-size:11px;color:var(--lt)">'+esc(T("dash_ov_zcap","0σ = media ATT+CEN Serie A | clamped ±3σ"))+'</div></div>'
+    +'</div><div style="font-size:11px;color:var(--lt)">'+esc(T("dash_ov_zcap","0 = media di ruolo ATT+CEN Serie A | clamped ±3σ"))+'</div></div>'
    +'<div style="display:flex;flex-direction:column;gap:12px">'+convSnip+aiCard+'</div>'
   +'</div>'
   +'<div class="card"><div class="card-ttl">'+esc(T("dash_ctx5","TPI nei 5 contesti"))+'</div>'
@@ -1643,7 +1661,7 @@ function buildOvHTML(p,ctx){
    +'<div style="font-size:11px;color:var(--lt);margin-top:5px">'+esc(T("dash_ctx_graycap","Grigio = meno partite del minimo (dati insufficienti)"))+'</div></div>'
   +v2block
   +'<div class="card" style="margin-top:12px">'
-   +'<div class="card-ttl">'+esc(T("dash_form_match","Form — xG+xA/90 per partita (EWMA α=0.3)"))
+   +'<div class="card-ttl">'+esc(T("dash_form_match","Forma — quanto produce per 90', con le ultime partite che pesano di più (α=0.3)"))
     +'<span style="font-size:12px;color:var(--ls);font-family:var(--mono)">Trend: <span style="color:'+(p.form.trend>.10?"var(--green)":p.form.trend<-.10?"var(--red)":"var(--lt)")+';font-weight:700">'+(p.form.trend!=null?(p.form.trend>=0?"+":"")+((p.form.trend*100).toFixed(0))+"%":"—")+'</span></span></div>'
    +'<div id="c-form" style="height:180px"></div>'
    +(p.form.g&&p.form.g.length<5?'<div style="font-size:11px;color:var(--orng);margin-top:4px">'+esc(T("dash_form_few","⚠ Meno di 5 partite: trend non calcolato"))+'</div>':"")
