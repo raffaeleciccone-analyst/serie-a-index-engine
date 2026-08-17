@@ -1,13 +1,13 @@
-﻿"""
+"""
 valida_tpi.py  v3.0 - Validazione TPI Serie A 25/26
 ====================================================
 Fix v3:
-  Â· BUG1: slope/intercept None â†’ JS riceveva "None" â†’ SyntaxError
-  Â· BUG3: pri:.2f con valore None â†’ TypeError (ora usa safe())
-  Â· BUG6: eta:.0f con valore None â†’ TypeError (ora usa safe())
-  Â· BUG7: val_d scatter con aii/pri None â†’ rimossi dalla lista
-  Â· Responsive completo (phone portrait, tablet, landscape)
-  Â· Sezione E â€” Validazione TPI Pro (AII + PRI + confronto ranking)
+  · BUG1: slope/intercept None → JS riceveva "None" → SyntaxError
+  · BUG3: pri:.2f con valore None → TypeError (ora usa safe())
+  · BUG6: eta:.0f con valore None → TypeError (ora usa safe())
+  · BUG7: val_d scatter con aii/pri None → rimossi dalla lista
+  · Responsive completo (phone portrait, tablet, landscape)
+  · Sezione E — Validazione TPI Pro (AII + PRI + confronto ranking)
 """
 from __future__ import annotations
 import json, logging, os, sys, time, warnings, webbrowser
@@ -39,7 +39,7 @@ DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-
 
 sys.path.insert(0, str(BASE_DIR))
 from config import db_url as _cfg_db_url  # carica .env + fail-fast
-import valida_stats as vs  # helper statistici puri (bootstrap, skill, PCA, placeboâ€¦)
+import valida_stats as vs  # helper statistici puri (bootstrap, skill, PCA, placebo…)
 
 # Pesi nominali del TPI (specchio di Config.tpi_weights in parte1_analisi.py)
 TPI_WEIGHTS = {
@@ -47,7 +47,7 @@ TPI_WEIGHTS = {
     "boost_ratio": 0.02, "consistenza": 0.07, "finishing": 0.20,
     "form":       0.11,
 }
-# dim TPI â†’ chiave z-score nel payload
+# dim TPI → chiave z-score nel payload
 TPI_ZKEYS = {
     "output_adj": "z_output", "buildup_adj": "z_buildup", "centralita": "z_centralita",
     "boost_ratio": "z_boost", "consistenza": "z_consistenza",
@@ -61,10 +61,10 @@ TPI_ZKEYS = {
 # Specchio di Config.offensive_role_weight e Config.confidence_floor.
 ROLE_WEIGHT = {"ATT": 1.00, "CEN": 0.85, "DIF": 0.55, "POR": 0.20}
 CONFIDENCE_FLOOR = 0.35
-# codici ruolo IT â†’ EN (per i 'movers' bilingui)
+# codici ruolo IT → EN (per i 'movers' bilingui)
 _ROLE_EN = {"ATT": "FWD", "CEN": "MID", "DIF": "DEF", "POR": "GK"}
 
-# â”€â”€ Soglie dichiarate PRIMA di guardare i risultati â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# ── Soglie dichiarate PRIMA di guardare i risultati ──────────────
 # Fissate il 14 agosto 2026, prima di rigirare i test sui 381 qualificati
 # invece che sui primi 100. Servono a impedire una cosa sola: scegliere il
 # taglio dopo, sul valore che e' uscito. Se un risultato le attraversa
@@ -72,14 +72,14 @@ _ROLE_EN = {"ATT": "FWD", "CEN": "MID", "DIF": "DEF", "POR": "GK"}
 # cambia qui, si scrive perche', e si rigira tutto da capo.
 #
 # Stanno in un posto solo perche' il taglio del backtest era scritto due
-# volte â€” qui e nel setBadge lato JS â€” e due copie di un numero prima o poi
+# volte — qui e nel setBadge lato JS — e due copie di un numero prima o poi
 # dicono cose diverse. Il JS ora lo riceve da qui.
 #
 # Dove non c'e' un numero e' perche' non serve: Q e P si decidono dal segno
 # dell'IC 95% bootstrap, che e' una regola e non una scelta.
 SOGLIE = {
-    "c_hi":  0.50,   # backtest C: |r| >= 0.50 â†’ "Buono"
-    "c_mid": 0.30,   # 0.30 <= |r| < 0.50 â†’ "Moderato", sotto â†’ "Basso"
+    "c_hi":  0.50,   # backtest C: |r| >= 0.50 → "Buono"
+    "c_mid": 0.30,   # 0.30 <= |r| < 0.50 → "Moderato", sotto → "Basso"
 }
 SOGLIE_FISSATE_IL = ("14 agosto 2026", "14 August 2026")
 
@@ -88,11 +88,11 @@ DB_RETRY = 3
 DB_WAIT  = 5
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 # HELPERS
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 def _sf(v, d: int = 2) -> str:
-    """safe format: None â†’ 'â€”', altrimenti arrotonda."""
+    """safe format: None → '—', altrimenti arrotonda."""
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return "\u2014"
     try:
@@ -112,7 +112,7 @@ def copia_pagine_nav(escludi: str) -> None:
 
     Le voci Homepage / Metodo / TPI Pro / Classifica sono href relativi a file
     vicini. In `dashboard_output` quei file non ci sono, quindi la pagina
-    aperta da qui â€” che e' proprio quella che gli script aprono a fine run â€”
+    aperta da qui — che e' proprio quella che gli script aprono a fine run —
     manda in 404 ogni voce della nav. Stessa ragione per cui si copiano gia'
     i18n.js, ai_chat.js e i font.
 
@@ -132,7 +132,7 @@ def copia_pagine_nav(escludi: str) -> None:
             if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
                 continue
             dst.write_bytes(src.read_bytes())
-            log.info(f"OK â†’ {dst}  (pagina della nav)")
+            log.info(f"OK → {dst}  (pagina della nav)")
         except OSError as e:
             log.warning(f"Copia {nome} fallita: {e}")
 
@@ -143,7 +143,7 @@ def avvisa_se_conteggio_a_mano(n_test: int) -> None:
     `guida_completa.html` e `i18n.js` sono scritti a mano: se qualcuno ci
     ricopia "15 verifiche" e poi un test perde i dati, le pagine dicono due cose
     diverse e non se ne accorge nessuno. Questo non corregge niente, avvisa e
-    basta â€” ma avvisa nel momento giusto, cioe' appena il numero cambia.
+    basta — ma avvisa nel momento giusto, cioe' appena il numero cambia.
 
     `index.html` e' uscito da questa lista: adesso lo genera `pagina_home.py`
     dallo stesso dizionario di risultati, quindi il suo conteggio non puo'
@@ -186,7 +186,7 @@ def _fatti_dataset(df_gp) -> dict:
             out[chiave] = int(df_gp[col].nunique())
     # Il massimo di `giornata`, non quante ne esistono: serve a dire a che punto
     # della stagione sta un vintage. Attenzione, non e' il numero di giornata
-    # ufficiale â€” il campo arriva a 40/41 su 380 partite â€” quindi si usa solo
+    # ufficiale — il campo arriva a 40/41 su 380 partite — quindi si usa solo
     # come denominatore di un rapporto, mai come "la Serie A ha N giornate".
     if "giornata" in df_gp.columns:
         out["giornata_max"] = int(df_gp["giornata"].max())
@@ -200,14 +200,14 @@ def payload_corrente() -> Path:
     e quel taglio non e' neutro: confrontare fra loro solo i migliori comprime
     la varianza e attenua ogni correlazione, quindi i test finirebbero per
     misurare la selezione invece dell'indice. Se c'e' `payload_full.json`
-    (parte1 --top-n 0) i test usano quello â€” stessa stagione, stesso motore,
-    senza il taglio in alto â€” e il sito resta quello di prima.
+    (parte1 --top-n 0) i test usano quello — stessa stagione, stesso motore,
+    senza il taglio in alto — e il sito resta quello di prima.
     """
     if not PAYLOAD_FULL.is_file():
         return PAYLOAD
     # payload.json lo rigenera ogni run del sito, payload_full.json solo chi
     # passa --top-n 0: se resta indietro, i test girerebbero su una stagione
-    # vecchia senza che se ne accorga nessuno. Non lo correggo qui â€” dire quale
+    # vecchia senza che se ne accorga nessuno. Non lo correggo qui — dire quale
     # comando serve e' piu' onesto che scegliere da solo un file al posto suo.
     if PAYLOAD.is_file() and PAYLOAD.stat().st_mtime > PAYLOAD_FULL.stat().st_mtime:
         log.warning(f"  payload_full.json e' PIU' VECCHIO di payload.json: i test girerebbero "
@@ -223,7 +223,7 @@ def load_payload() -> dict:
             "Esegui prima: python parte1_analisi.py"
         )
     log.info(f"  Campione: {src.name}"
-             + ("" if src is PAYLOAD_FULL else " (primi 100 â€” genera payload_full.json"
+             + ("" if src is PAYLOAD_FULL else " (primi 100 — genera payload_full.json"
                                                " con `parte1_analisi.py --top-n 0`)"))
     with open(src, encoding="utf-8") as f:
         return json.load(f)
@@ -251,11 +251,11 @@ def load_player_games():
                 JOIN squadre sq     ON sq.id  = g.squadra_id
                 JOIN calendario cal ON cal.id = gp.calendario_id
                 WHERE gp.minuti > 0""", engine)
-            log.info(f"  DB connesso â€” {len(df)} record")
+            log.info(f"  DB connesso — {len(df)} record")
             return df
         except Exception as e:
             if attempt < DB_RETRY:
-                log.warning(f"  Tentativo {attempt}/{DB_RETRY} â€” riprovo tra {DB_WAIT}s...")
+                log.warning(f"  Tentativo {attempt}/{DB_RETRY} — riprovo tra {DB_WAIT}s...")
                 time.sleep(DB_WAIT)
             else:
                 log.error(f"  DB non raggiungibile: {str(e)[:120]}")
@@ -264,20 +264,20 @@ def load_player_games():
                 return None
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 # DATI ESTERNI (Fantacalcio / WhoScored)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 FANTA_VOTI = {
-    "Lautaro Martinez": 7.12, "Lautaro MartÃ­nez": 7.12,
+    "Lautaro Martinez": 7.12, "Lautaro Martínez": 7.12,
     "Marcus Thuram": 6.98, "Ademola Lookman": 6.89, "Keinan Davis": 6.71,
     "Paulo Dybala": 6.95, "Moise Kean": 6.82, "Kenan Yildiz": 6.74,
     "Dusan Vlahovic": 6.61, "Giacomo Raspadori": 6.68, "Donyell Malen": 6.72,
-    "Christian Pulisic": 6.91, "Rafael Leao": 6.88, "Rafael LeÃ£o": 6.88,
-    "Santiago Gimenez": 6.78, "Santiago GimÃ©nez": 6.78,
+    "Christian Pulisic": 6.91, "Rafael Leao": 6.88, "Rafael Leão": 6.88,
+    "Santiago Gimenez": 6.78, "Santiago Giménez": 6.78,
     "Albert Gudmundsson": 6.65, "Gianluca Scamacca": 6.59,
     "Lorenzo Lucca": 6.55, "David Neres": 6.71, "Romelu Lukaku": 6.63,
     "Matteo Politano": 6.61, "Khvicha Kvaratskhelia": 6.85,
-    "Nicolo Barella": 6.85, "NicolÃ² Barella": 6.85,
+    "Nicolo Barella": 6.85, "Nicolò Barella": 6.85,
     "Hakan Calhanoglu": 6.78, "Teun Koopmeiners": 6.72,
     "Scott McTominay": 6.69, "Charles De Ketelaere": 6.81,
     "Lazar Samardzic": 6.65, "Tijjani Reijnders": 6.74,
@@ -293,12 +293,12 @@ FANTA_VOTI = {
 }
 
 WHOSCORED = {
-    "Lautaro Martinez": 7.82, "Lautaro MartÃ­nez": 7.82,
+    "Lautaro Martinez": 7.82, "Lautaro Martínez": 7.82,
     "Marcus Thuram": 7.61, "Ademola Lookman": 7.58, "Paulo Dybala": 7.71,
-    "Nicolo Barella": 7.65, "NicolÃ² Barella": 7.65,
+    "Nicolo Barella": 7.65, "Nicolò Barella": 7.65,
     "Charles De Ketelaere": 7.55, "Kenan Yildiz": 7.38,
     "Khvicha Kvaratskhelia": 7.79, "Christian Pulisic": 7.68,
-    "Rafael Leao": 7.52, "Rafael LeÃ£o": 7.52,
+    "Rafael Leao": 7.52, "Rafael Leão": 7.52,
     "Hakan Calhanoglu": 7.44, "Teun Koopmeiners": 7.41,
     "Federico Dimarco": 7.38, "Andrea Cambiaso": 7.31,
     "Scott McTominay": 7.29, "Moise Kean": 7.35,
@@ -307,7 +307,7 @@ WHOSCORED = {
     "Mattia Zaccagni": 7.33, "Mario Pasalic": 7.18,
     "Tijjani Reijnders": 7.39, "Albert Gudmundsson": 7.24,
     "David Neres": 7.31, "Lorenzo Lucca": 7.12,
-    "Santiago Gimenez": 7.26, "Santiago GimÃ©nez": 7.26,
+    "Santiago Gimenez": 7.26, "Santiago Giménez": 7.26,
     "Dusan Vlahovic": 7.08, "Giacomo Raspadori": 7.14,
     "Lazar Samardzic": 7.21, "Gift Orban": 7.09, "Nico Paz": 7.22,
     "Nikola Krstovic": 7.05, "Riccardo Orsolini": 7.11,
@@ -315,9 +315,9 @@ WHOSCORED = {
 }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE A â€” Correlazione Fantacalcio
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE A — Correlazione Fantacalcio
+# ════════════════════════════════════════════════════════════════
 def _interp_corr(r: float) -> tuple[str, str]:
     """Restituisce (IT, EN).
 
@@ -328,16 +328,16 @@ def _interp_corr(r: float) -> tuple[str, str]:
     """
     ar = abs(r)
     if ar >= 0.70:
-        return ("Correlazione forte (râ‰¥0.7) â€” TPI e voto Fantacalcio ordinano i giocatori quasi allo stesso modo.",
-                "Strong correlation (râ‰¥0.7) â€” TPI and the Fantacalcio rating order players in nearly the same way.")
+        return ("Correlazione forte (r≥0.7) — TPI e voto Fantacalcio ordinano i giocatori quasi allo stesso modo.",
+                "Strong correlation (r≥0.7) — TPI and the Fantacalcio rating order players in nearly the same way.")
     if ar >= 0.50:
-        return ("Correlazione moderata (r=0.5â€“0.7) â€” accordo parziale col voto Fantacalcio.",
-                "Moderate correlation (r=0.5â€“0.7) â€” partial agreement with the Fantacalcio rating.")
+        return ("Correlazione moderata (r=0.5–0.7) — accordo parziale col voto Fantacalcio.",
+                "Moderate correlation (r=0.5–0.7) — partial agreement with the Fantacalcio rating.")
     if ar >= 0.30:
-        return ("Correlazione debole (r=0.3â€“0.5) â€” l'accordo col voto Fantacalcio Ã¨ limitato.",
-                "Weak correlation (r=0.3â€“0.5) â€” agreement with the Fantacalcio rating is limited.")
-    return ("Correlazione bassa (r<0.3) â€” quasi nessun accordo col voto Fantacalcio.",
-            "Low correlation (r<0.3) â€” almost no agreement with the Fantacalcio rating.")
+        return ("Correlazione debole (r=0.3–0.5) — l'accordo col voto Fantacalcio è limitato.",
+                "Weak correlation (r=0.3–0.5) — agreement with the Fantacalcio rating is limited.")
+    return ("Correlazione bassa (r<0.3) — quasi nessun accordo col voto Fantacalcio.",
+            "Low correlation (r<0.3) — almost no agreement with the Fantacalcio rating.")
 
 
 def _load_fanta_voti_from_db(player_ids: list[int],
@@ -367,7 +367,7 @@ def _load_fanta_voti_from_db(player_ids: list[int],
                 f"GROUP BY giocatore_id, provider", eng)
         if df.empty:
             return {}
-        # Se piÃ¹ provider, media pesata sul n_voti
+        # Se più provider, media pesata sul n_voti
         df["fm_weighted"] = df["fantamedia_avg"] * df["n_voti"]
         agg = (df.groupby("giocatore_id")
                  .agg(fm_sum=("fm_weighted", "sum"),
@@ -425,16 +425,16 @@ def valida_correlazione_fanta(players: list) -> dict:
     pooled_sd = np.sqrt((top.var() + bot.var()) / 2) if (top.var() + bot.var()) > 0 else 1
     cohen_d = (top.mean() - bot.mean()) / pooled_sd if pooled_sd > 0 else 0
 
-    # IC bootstrap su Spearman (metrica rank-based, piÃ¹ adatta a rating non normali)
+    # IC bootstrap su Spearman (metrica rank-based, più adatta a rating non normali)
     sp_ci_lo, sp_ci_hi = vs.bootstrap_ci(df["tpi"].tolist(), df["voto"].tolist(), "spearman")
     # Correlazione parziale controllando il RUOLO (scorpora il confondente "gli ATT
-    # segnano e prendono voti piÃ¹ alti")
+    # segnano e prendono voti più alti")
     partial_r = vs.partial_spearman_by_group(
         df["tpi"].tolist(), df["voto"].tolist(), df["ruolo"].tolist())
     # Diagnostica di influenza leave-one-out sulla Pearson (igiene small-n)
     loo = vs.loo_corr_range(df["tpi"].tolist(), df["voto"].tolist(), "pearson")
 
-    log.info(f"  Pearson r={r:.3f} [{ci_lo:.3f},{ci_hi:.3f}], Spearman Ï={r_sp:.3f}, "
+    log.info(f"  Pearson r={r:.3f} [{ci_lo:.3f},{ci_hi:.3f}], Spearman ρ={r_sp:.3f}, "
              f"parziale(ruolo)={partial_r}, p={p_val:.4f}, Cohen's d={cohen_d:.2f}")
     return {
         "r": round(float(r), 4), "p": round(float(p_val), 4),
@@ -449,9 +449,9 @@ def valida_correlazione_fanta(players: list) -> dict:
     }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE B â€” Top 10 Overlap WhoScored
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE B — Top 10 Overlap WhoScored
+# ════════════════════════════════════════════════════════════════
 def valida_top10(players: list) -> dict:
     sorted_tpi = sorted(
         [p for p in players if p["tpi"].get("totale") is not None],
@@ -471,9 +471,9 @@ def valida_top10(players: list) -> dict:
     overlap_pct = round(len(overlap) / 10 * 100)
 
     # Divergenze calcolate sul SET COMUNE (giocatori con sia TPI sia voto
-    # WhoScored), con ranking LOCALE per entrambe le metriche: cosÃ¬ il confronto
-    # Ã¨ simmetrico e anche i "sopravvalutati" (WhoScored alto / TPI basso)
-    # possono emergere â€” non solo i top-10 per TPI.
+    # WhoScored), con ranking LOCALE per entrambe le metriche: così il confronto
+    # è simmetrico e anche i "sopravvalutati" (WhoScored alto / TPI basso)
+    # possono emergere — non solo i top-10 per TPI.
     common = [r for r in ws_rows if r["tpi"] is not None]
     by_tpi = sorted(common, key=lambda x: x["tpi"], reverse=True)
     by_ws  = sorted(common, key=lambda x: x["ws"],  reverse=True)
@@ -488,25 +488,25 @@ def valida_top10(players: list) -> dict:
         rec = {"nome": nome, "squadra": r["squadra"],
                "tpi_rank": tpi_rank, "ws_rank": ws_rank,
                "tpi": round(r["tpi"], 3), "ws": r["ws"]}
-        if (ws_rank - tpi_rank) >= 4:      # TPI lo posiziona molto piÃ¹ in alto â†’ sottovalutato
+        if (ws_rank - tpi_rank) >= 4:      # TPI lo posiziona molto più in alto → sottovalutato
             div_pos.append(rec)
-        elif (tpi_rank - ws_rank) >= 4:    # WhoScored lo posiziona molto piÃ¹ in alto â†’ sopravvalutato
+        elif (tpi_rank - ws_rank) >= 4:    # WhoScored lo posiziona molto più in alto → sopravvalutato
             div_neg.append(rec)
 
     div_pos.sort(key=lambda x: x["ws_rank"] - x["tpi_rank"], reverse=True)
     div_neg.sort(key=lambda x: x["tpi_rank"] - x["ws_rank"], reverse=True)
 
-    # â”€â”€ Concordanza rank-based sull'INTERO set comune (piÃ¹ informativa del solo
-    #    overlap di 10 elementi quantizzato) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Concordanza rank-based sull'INTERO set comune (più informativa del solo
+    #    overlap di 10 elementi quantizzato) ──────────────────────────────
     common_tpi = [r["tpi"] for r in common]
     common_ws  = [r["ws"]  for r in common]
     kendall_common  = vs.correlation(common_tpi, common_ws, "kendall")
     spearman_common = vs.correlation(common_tpi, common_ws, "spearman")
     sp_ci_lo, sp_ci_hi = vs.bootstrap_ci(common_tpi, common_ws, "spearman")
 
-    # â”€â”€ Overlap "fair": Top10 per TPI e per WS estratti DALLO STESSO bacino
-    #    (i ~38 con voto WS) + significativitÃ  ipergeometrica. Evita il bias dei
-    #    pool incomparabili (Top10 globale TPI vs Top10 su 38). â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Overlap "fair": Top10 per TPI e per WS estratti DALLO STESSO bacino
+    #    (i ~38 con voto WS) + significatività ipergeometrica. Evita il bias dei
+    #    pool incomparabili (Top10 globale TPI vs Top10 su 38). ─────────────
     fair_top_tpi = {r["nome"] for r in by_tpi[:10]}
     fair_top_ws  = {r["nome"] for r in by_ws[:10]}
     fair_overlap = fair_top_tpi & fair_top_ws
@@ -514,8 +514,8 @@ def valida_top10(players: list) -> dict:
     hyper = vs.hypergeom_overlap(len(fair_overlap), 10, 10, len(common)) \
         if len(common) >= 10 else {"p": None, "expected": None, "k": len(fair_overlap)}
 
-    log.info(f"  Overlap: {overlap_pct}% (globale) Â· fair {fair_overlap_pct}% "
-             f"(p_iperg={hyper.get('p')}) Â· Ï„_comune={kendall_common} Â· "
+    log.info(f"  Overlap: {overlap_pct}% (globale) · fair {fair_overlap_pct}% "
+             f"(p_iperg={hyper.get('p')}) · τ_comune={kendall_common} · "
              f"divergenze +{len(div_pos)} / -{len(div_neg)}")
     return {
         "overlap_pct": overlap_pct,
@@ -535,24 +535,24 @@ def valida_top10(players: list) -> dict:
     }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE C â€” Backtest Predittivo
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE C — Backtest Predittivo
+# ════════════════════════════════════════════════════════════════
 def _interp_backtest(r) -> tuple[str, str]:
     """Restituisce (IT, EN)."""
     if r is None:
         return ("Dati insufficienti.", "Insufficient data.")
     if r >= 0.65:
-        return ("Forte stabilitÃ  predittiva (râ‰¥0.65) â€” il TPI cattura qualitÃ  stabile oltre il rumore.",
-                "Strong predictive stability (râ‰¥0.65) â€” TPI captures stable quality beyond noise.")
+        return ("Forte stabilità predittiva (r≥0.65) — il TPI cattura qualità stabile oltre il rumore.",
+                "Strong predictive stability (r≥0.65) — TPI captures stable quality beyond noise.")
     if r >= 0.45:
-        return ("Buona stabilitÃ  predittiva (r=0.45â€“0.65) â€” segnale reale con varianza residua attesa.",
-                "Good predictive stability (r=0.45â€“0.65) â€” real signal with expected residual variance.")
+        return ("Buona stabilità predittiva (r=0.45–0.65) — segnale reale con varianza residua attesa.",
+                "Good predictive stability (r=0.45–0.65) — real signal with expected residual variance.")
     if r >= 0.30:
-        return ("StabilitÃ  moderata (r=0.3â€“0.45) â€” potere predittivo parziale.",
-                "Moderate stability (r=0.3â€“0.45) â€” partial predictive power.")
-    return ("StabilitÃ  bassa (r<0.3) â€” sensibile alla forma del momento. Considera di aumentare K_base.",
-            "Low stability (r<0.3) â€” sensitive to current form. Consider increasing K_base.")
+        return ("Stabilità moderata (r=0.3–0.45) — potere predittivo parziale.",
+                "Moderate stability (r=0.3–0.45) — partial predictive power.")
+    return ("Stabilità bassa (r<0.3) — sensibile alla forma del momento. Considera di aumentare K_base.",
+            "Low stability (r<0.3) — sensitive to current form. Consider increasing K_base.")
 
 
 def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
@@ -560,7 +560,7 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
     if len(all_gg) < 8:
         return {"r": None, "p": None, "n": 0, "scatter": [], "source": "db",
                 "slope": None, "intercept": None,
-                "early_range": "â€”", "late_range": "â€”",
+                "early_range": "—", "late_range": "—",
                 "interpretazione": "Troppo poche giornate",
                 "interpretazione_en": "Too few matchdays"}
     split = len(all_gg) // 2
@@ -586,7 +586,7 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
                 "interpretazione_en": "Too few players in common"}
 
     r, p_val = stats.spearmanr(early[common], late[common])
-    # Aggiungo Pearson r e Kendall Ï„
+    # Aggiungo Pearson r e Kendall τ
     r_pearson, p_pearson = stats.pearsonr(
         [float(early[i]) for i in common],
         [float(late[i])  for i in common],
@@ -598,7 +598,7 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
         [float(late[i])  for i in common],
     )
 
-    # RMSE e MAE â€” misura errore predittivo assoluto
+    # RMSE e MAE — misura errore predittivo assoluto
     predicted = np.array([float(early[i]) * sl + ic for i in common])
     actual    = np.array([float(late[i]) for i in common])
     rmse = float(np.sqrt(np.mean((predicted - actual)**2)))
@@ -627,7 +627,7 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
         for g in common
     ]
 
-    # â”€â”€ Metriche predittive rigorose â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # ── Metriche predittive rigorose ───────────────────────────────────
     early_arr = [float(early[g]) for g in common]
     late_arr  = [float(late[g])  for g in common]
     roles     = [gmap[g]["ruolo"] if g in gmap else "" for g in common]
@@ -639,12 +639,12 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
     group_means = [role_late[rl] for rl in roles]
     # Skill OOS vs baseline persistenza e media-ruolo (k-fold sui giocatori)
     skill = vs.skill_scores(early_arr, late_arr, group_means)
-    # Controllo negativo (placebo): permuta â†’ distribuzione nulla
+    # Controllo negativo (placebo): permuta → distribuzione nulla
     placebo = vs.placebo_corr(early_arr, late_arr, "spearman")
     # Influenza leave-one-out sulla Spearman
     loo = vs.loo_corr_range(early_arr, late_arr, "spearman")
 
-    # â”€â”€ AffidabilitÃ  "pulita": split pari/dispari (controlla il trend stagionale)
+    # ── Affidabilità "pulita": split pari/dispari (controlla il trend stagionale)
     odd_gg  = [g for g in all_gg if int(g) % 2 == 1]
     even_gg = [g for g in all_gg if int(g) % 2 == 0]
     oe_odd, oe_even = tpi_slice(odd_gg), tpi_slice(even_gg)
@@ -653,9 +653,9 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
                                     [float(oe_even[i]) for i in oe_common], "spearman")
                      if len(oe_common) >= 10 else None)
 
-    log.info(f"  Spearman Ï={r:.3f} [{ci_lo:.3f},{ci_hi:.3f}], Kendall Ï„={tau:.3f}, "
+    log.info(f"  Spearman ρ={r:.3f} [{ci_lo:.3f},{ci_hi:.3f}], Kendall τ={tau:.3f}, "
              f"RMSE_oos={skill.get('rmse_oos')}, skill_persist={skill.get('skill_persistence')}, "
-             f"placebo_p={placebo.get('p_perm')}, affidabilitÃ (pari/dispari)={reliability_r}")
+             f"placebo_p={placebo.get('p_perm')}, affidabilità(pari/dispari)={reliability_r}")
     return {
         "r": round(float(r), 4), "p": round(float(p_val), 4),
         "r_pearson": round(float(r_pearson), 4),
@@ -664,7 +664,7 @@ def valida_backtest_db(df_gp: pd.DataFrame) -> dict:
         "rmse": round(rmse, 4), "mae": round(mae, 4),
         "skill": skill, "placebo": placebo, "loo": loo,
         "reliability_r": reliability_r,
-        "metric_note": ("Backtest su output offensivo (xG+xA)/90 â€” componente dominante "
+        "metric_note": ("Backtest su output offensivo (xG+xA)/90 — componente dominante "
                         "del TPI (peso 0.32), non il composito completo: evidenza parziale."),
         "n": len(common),
         "slope": round(float(sl), 4), "intercept": round(float(ic), 4),
@@ -705,15 +705,15 @@ def valida_backtest_payload(players: list) -> dict:
         "scatter": rows, "source": "payload",
         "interpretazione": _interp_backtest(r)[0], "interpretazione_en": _interp_backtest(r)[1],
         "nota": (
-            "âš ï¸ DB non disponibile â€” backtest calcolato da payload "
+            "⚠️ DB non disponibile — backtest calcolato da payload "
             "(Output Adj vs Form EWMA). Avvia MySQL e riesegui per il backtest completo."
         ),
     }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE D â€” EtÃ  Index & AffidabilitÃ  Fisica
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE D — Età Index & Affidabilità Fisica
+# ════════════════════════════════════════════════════════════════
 def valida_v2_indices(players: list) -> dict:
     rows = []
     for p in players:
@@ -787,7 +787,7 @@ def valida_v2_indices(players: list) -> dict:
     eta_mean  = round(float(eta_valid.mean()),   1) if len(eta_valid) > 0 else None
     eta_med   = round(float(eta_valid.median()), 1) if len(eta_valid) > 0 else None
 
-    # Scatter AII vs PRI (solo chi ha entrambi) â€” FIX BUG7
+    # Scatter AII vs PRI (solo chi ha entrambi) — FIX BUG7
     scatter_d = [
         {"nome": r["nome"], "squadra": r["squadra"], "ruolo": r["ruolo"],
          "aii":  round(float(r["aii"]), 4),
@@ -797,8 +797,8 @@ def valida_v2_indices(players: list) -> dict:
         if r["aii"] is not None and r["pri"] is not None
     ]
 
-    log.info(f"  AII: {n_aii} giocatori Â· r(AII,TPI)={aii_tpi_r}")
-    log.info(f"  PRI: {n_pri} giocatori Â· top affidabile: {top_pri[0]['nome'] if top_pri else 'â€”'}")
+    log.info(f"  AII: {n_aii} giocatori · r(AII,TPI)={aii_tpi_r}")
+    log.info(f"  PRI: {n_pri} giocatori · top affidabile: {top_pri[0]['nome'] if top_pri else '—'}")
     return {
         "has_data": True,
         "n_aii": n_aii, "n_pri": n_pri,
@@ -809,9 +809,9 @@ def valida_v2_indices(players: list) -> dict:
     }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE E â€” TPI Pro: confronto ranking TPI vs TPI Pro
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE E — TPI Pro: confronto ranking TPI vs TPI Pro
+# ════════════════════════════════════════════════════════════════
 def valida_tpi_pro(players: list) -> dict:
     """
     Analizza quanto TPI Pro cambia le classifiche rispetto a TPI classico:
@@ -865,7 +865,7 @@ def valida_tpi_pro(players: list) -> dict:
     rank_tpi = {row["nome"]: i + 1 for i, row in df_sorted_tpi.iterrows()}
     rank_pro = {row["nome"]: i + 1 for i, row in df_sorted_pro.iterrows()}
 
-    # Movers: chi sale/scende di piÃ¹
+    # Movers: chi sale/scende di più
     movers = []
     for nome, rk_pro in rank_pro.items():
         rk_tpi = rank_tpi.get(nome)
@@ -908,8 +908,8 @@ def valida_tpi_pro(players: list) -> dict:
         sl_r, ic_r, _, _, _ = stats.linregress(sub["tpi"], sub["tpi_pro"])
         sl, ic = round(float(sl_r), 4), round(float(ic_r), 4)
 
-    log.info(f"  TPI Pro: {n_pro} giocatori Â· r(TPI,TPIPro)={r_corr:.3f}")
-    log.info(f"  Max salita: {top_saliti[0]['nome'] if top_saliti else 'â€”'} +{top_saliti[0]['delta'] if top_saliti else 0} pos")
+    log.info(f"  TPI Pro: {n_pro} giocatori · r(TPI,TPIPro)={r_corr:.3f}")
+    log.info(f"  Max salita: {top_saliti[0]['nome'] if top_saliti else '—'} +{top_saliti[0]['delta'] if top_saliti else 0} pos")
     return {
         "has_data":   True,
         "n_pro":      n_pro,
@@ -927,14 +927,14 @@ def valida_tpi_pro(players: list) -> dict:
     }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE F â€” ValiditÃ  ecologica a livello squadra (T1)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE F — Validità ecologica a livello squadra (T1)
+# ════════════════════════════════════════════════════════════════
 def valida_team_level(players: list, df_gp) -> dict:
     """
-    ValiditÃ  di criterio ecologica: l'indice aggregato per squadra (media TPI)
+    Validità di criterio ecologica: l'indice aggregato per squadra (media TPI)
     deve spiegare un esito reale e indipendente di squadra (xG totale prodotto).
-    n = numero squadre (censo della lega) â†’ IC ampia, non test ad alta potenza.
+    n = numero squadre (censo della lega) → IC ampia, non test ad alta potenza.
     """
     tpi_by_team: dict[str, list] = {}
     for p in players:
@@ -945,7 +945,7 @@ def valida_team_level(players: list, df_gp) -> dict:
 
     if df_gp is None or len(df_gp) == 0:
         return {"has_data": False,
-                "msg": ("ValiditÃ  ecologica a livello squadra: richiede l'xG di squadra dal DB. "
+                "msg": ("Validità ecologica a livello squadra: richiede l'xG di squadra dal DB. "
                         "Avvia MySQL e riesegui per attivarla.")}
     xg_by_team = df_gp.groupby("squadra")["xg"].sum().to_dict()
     res = vs.team_level_corr(team_tpi, {k: float(v) for k, v in xg_by_team.items()})
@@ -956,16 +956,16 @@ def valida_team_level(players: list, df_gp) -> dict:
     return res
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE G â€” Struttura interna / dimensionalitÃ  del composito (T4)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE G — Struttura interna / dimensionalità del composito (T4)
+# ════════════════════════════════════════════════════════════════
 def valida_internal_structure(players: list) -> dict:
     """
     Le dimensioni del TPI misurano cose diverse o sono ridondanti? PCA + matrice
-    di correlazione sugli z-score per-dimensione. PC1 ~ 1.0 â‡’ composito di fatto
+    di correlazione sugli z-score per-dimensione. PC1 ~ 1.0 ⇒ composito di fatto
     monodimensionale (la pesatura conta poco).
     """
-    labels = ["output", "buildup", "centralitÃ ", "boost", "consistenza", "finishing", "forma"]
+    labels = ["output", "buildup", "centralità", "boost", "consistenza", "finishing", "forma"]
     keys   = ["z_output", "z_buildup", "z_centralita", "z_boost", "z_consistenza",
               "z_finishing", "z_form"]
     matrix = []
@@ -985,12 +985,12 @@ def valida_internal_structure(players: list) -> dict:
     return pca
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE H â€” SensibilitÃ  del ranking ai pesi (T2)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE H — Sensibilità del ranking ai pesi (T2)
+# ════════════════════════════════════════════════════════════════
 def valida_sensibilita(players: list) -> dict:
     """
-    StabilitÃ  del ranking sotto perturbazione Â±20% dei pesi, ricombinando gli
+    Stabilità del ranking sotto perturbazione ±20% dei pesi, ricombinando gli
     z-score per-dimensione del payload (non rieseguendo il motore). 'coverage'
     indica la quota di peso nominale coperta dalle dim disponibili.
     """
@@ -1002,10 +1002,10 @@ def valida_sensibilita(players: list) -> dict:
     res = vs.weight_sensitivity(z_by_dim, TPI_WEIGHTS)
     if res is None:
         return {"has_data": False,
-                "msg": ("SensibilitÃ  ai pesi: z-score per-dimensione assenti nel payload. "
+                "msg": ("Sensibilità ai pesi: z-score per-dimensione assenti nel payload. "
                         "Rigenera con parte1_analisi.py aggiornato.")}
     res["has_data"] = True
-    log.info(f"  SensibilitÃ  pesi: Spearman mediana={res['spearman_median']} "
+    log.info(f"  Sensibilità pesi: Spearman mediana={res['spearman_median']} "
              f"(min {res['spearman_min']}), coverage={res['coverage']}")
 
     # I sette pesi non bastano: sono numeri positivi su z correlati, e
@@ -1036,15 +1036,15 @@ def valida_sensibilita(players: list) -> dict:
     return res
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VINTAGE â€” helper condivisi dai test out-of-sample (I, Q)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VINTAGE — helper condivisi dai test out-of-sample (I, Q)
+# ════════════════════════════════════════════════════════════════
 def _vintage_paths(min_giornata: int) -> list[tuple[int, Path]]:
     """`payload_g{N}.json` con N >= min_giornata, ordinati per giornata.
 
     I vintage troppo presto hanno poco dato per differenziare due segnali:
     aggiungono rumore senza informazione. Il filtro sta qui, una volta sola,
-    cosÃ¬ i test OOS guardano lo stesso universo e restano confrontabili.
+    così i test OOS guardano lo stesso universo e restano confrontabili.
     """
     import re
     trovati: list[int] = []
@@ -1060,7 +1060,7 @@ def _vintage_paths(min_giornata: int) -> list[tuple[int, Path]]:
     tenuti.sort()
     if trovati:
         skipped = sorted(set(trovati) - {g for g, _ in tenuti})
-        log.info(f"  Vintage trovati: {sorted(trovati)} â†’ uso {[g for g, _ in tenuti]}"
+        log.info(f"  Vintage trovati: {sorted(trovati)} → uso {[g for g, _ in tenuti]}"
                  + (f" (skip <{min_giornata}: {skipped})" if skipped else ""))
     return tenuti
 
@@ -1068,7 +1068,7 @@ def _vintage_paths(min_giornata: int) -> list[tuple[int, Path]]:
 def _realized_post_map(engine, N: int) -> dict[int, dict] | None:
     """Minuti / npg / xa realizzati DOPO la giornata N, per giocatore.
 
-    Ãˆ il criterio dei test che partono da un vintage: i predittori vengono
+    È il criterio dei test che partono da un vintage: i predittori vengono
     dallo snapshot a g{N}, questo dalle gare successive. Zero leakage.
     """
     try:
@@ -1097,12 +1097,12 @@ def _realized_post_map(engine, N: int) -> dict[int, dict] | None:
     }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE I â€” ValiditÃ  incrementale TPI vs TPI Pro (riformula D/E)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE I — Validità incrementale TPI vs TPI Pro (riformula D/E)
+# ════════════════════════════════════════════════════════════════
 def valida_incrementale_pro_oos(engine) -> dict | None:
     """
-    Test I â€” versione SCOUT/GROWTH, OOS, gated dal payload vintage.
+    Test I — versione SCOUT/GROWTH, OOS, gated dal payload vintage.
 
     Obiettivo del TPI Pro (scout-oriented): identificare i giocatori che
     AUMENTERANNO il loro rendimento, non quelli che segneranno la settimana
@@ -1111,26 +1111,26 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
     Per ogni vintage `payload_g{N}.json`:
       - Predittori: TPI base e TPI Pro a vintage g{N}
       - Pre-output (a g{N}): (goal_p90 + xa_p90) dal payload vintage
-      - Post-output (g{N+1}..ultima): (npg + xa)/min Ã— 90 dal DB
-      - **Criterio IMPROVEMENT = post âˆ’ pre**
-      - Bootstrap appaiato: Î”RMSE(base âˆ’ pro), Pro vince se Î” > 0
+      - Post-output (g{N+1}..ultima): (npg + xa)/min × 90 dal DB
+      - **Criterio IMPROVEMENT = post − pre**
+      - Bootstrap appaiato: ΔRMSE(base − pro), Pro vince se Δ > 0
 
-    Î” negativo = BASE migliore in predire l'improvement (Pro non aggiunge)
-    Î” positivo = PRO migliore (gli AII scout + stability + trend catturano
-                  davvero chi farÃ  il salto)
+    Δ negativo = BASE migliore in predire l'improvement (Pro non aggiunge)
+    Δ positivo = PRO migliore (gli AII scout + stability + trend catturano
+                  davvero chi farà il salto)
 
     Zero leakage: predittori da snapshot pre, criterio da gare post.
 
-    Returns None se nessun vintage trovato â†’ fallback in-sample.
+    Returns None se nessun vintage trovato → fallback in-sample.
     """
     # I vintage troppo presto (< 25) hanno poco data per differenziare base vs Pro
-    # â†’ aggiungono rumore al META senza segnale. Filtriamo.
+    # → aggiungono rumore al META senza segnale. Filtriamo.
     VINTAGE_MIN_GIORNATA = 25
     vintages = _vintage_paths(VINTAGE_MIN_GIORNATA)
     if not vintages:
         return None
 
-    # Pool aggregato per il META-test (piÃ¹ potere statistico)
+    # Pool aggregato per il META-test (più potere statistico)
     pool_base, pool_pro, pool_crit, pool_v, pool_gid = [], [], [], [], []
     pool_base_scout, pool_pro_scout, pool_crit_scout, pool_gid_scout = [], [], [], []
     per_vintage = []
@@ -1173,7 +1173,7 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
         v_res = vs.paired_rmse_bootstrap(v_base, v_crit, v_pro)
         if v_res:
             log.info(f"  Vintage g{N} (n={len(v_base)}): "
-                     f"Î”RMSE={v_res['delta_rmse']} [{v_res['ci_lo']},{v_res['ci_hi']}] "
+                     f"ΔRMSE={v_res['delta_rmse']} [{v_res['ci_lo']},{v_res['ci_hi']}] "
                      f"pro_better={v_res['pro_better']}")
             v_res["vintage_giornata"] = N
             v_res["n_giocatori"] = len(v_base)
@@ -1190,8 +1190,8 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
 
     # META-test: aggrega coppie da TUTTI i vintage e usa CLUSTER BOOTSTRAP
     # su giocatore_id per gestire correttamente la pseudo-replicazione (stesso
-    # giocatore compare in piÃ¹ vintage). Bootstrap classico sovrastima la
-    # precisione perchÃ© tratta righe correlate come indipendenti.
+    # giocatore compare in più vintage). Bootstrap classico sovrastima la
+    # precisione perché tratta righe correlate come indipendenti.
     meta = vs.paired_rmse_bootstrap_clustered(
         pool_base, pool_crit, pool_pro, pool_gid
     )
@@ -1202,7 +1202,7 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
     if meta_naive:
         meta["naive_ci_lo"] = meta_naive["ci_lo"]
         meta["naive_ci_hi"] = meta_naive["ci_hi"]
-        log.info(f"  META naive (no cluster): Î”RMSE={meta_naive['delta_rmse']} "
+        log.info(f"  META naive (no cluster): ΔRMSE={meta_naive['delta_rmse']} "
                  f"[{meta_naive['ci_lo']},{meta_naive['ci_hi']}] "
                  f"pro_better={meta_naive['pro_better']}")
 
@@ -1212,9 +1212,9 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
     meta["n_vintage"] = len(per_vintage)
     meta["per_vintage"] = per_vintage
     meta["vintage_giornate"] = sorted({pv["vintage_giornata"] for pv in per_vintage})
-    meta["criterio"] = (f"IMPROVEMENT = output post-vintage âˆ’ output pre-vintage "
+    meta["criterio"] = (f"IMPROVEMENT = output post-vintage − output pre-vintage "
                         f"(growth target). META aggregato su {len(per_vintage)} vintage, "
-                        f"{meta['n']} coppie giocatore-vintage. Î”>0 = Pro identifica "
+                        f"{meta['n']} coppie giocatore-vintage. Δ>0 = Pro identifica "
                         f"chi sale meglio del Base.")
 
     # META SCOUT-FOCUS: solo giocatori <25 (target del Pro)
@@ -1232,17 +1232,17 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
                 "pro_better": meta_scout["pro_better"],
             }
             log.info(f"  META OOS SCOUT (<{SCOUT_MAX_AGE}, n={len(pool_base_scout)}): "
-                     f"Î”RMSE(baseâˆ’pro)={meta_scout['delta_rmse']} "
+                     f"ΔRMSE(base−pro)={meta_scout['delta_rmse']} "
                      f"[{meta_scout['ci_lo']},{meta_scout['ci_hi']}] "
                      f"pro_better={meta_scout['pro_better']}")
-            # Se scout-focus dÃ  pro_better, lo eleviamo a verdetto principale
+            # Se scout-focus dà pro_better, lo eleviamo a verdetto principale
             if meta_scout["pro_better"]:
                 meta["pro_better"] = True
                 meta["pro_better_reason"] = "scout_focus (<25 anni)"
     # rinomina per non confondere con per-vintage
     meta["vintage_giornata"] = meta["vintage_giornate"][0] if meta["vintage_giornate"] else None
     log.info(f"  META OOS (n={meta['n']} su {len(per_vintage)} vintage): "
-             f"Î”RMSE(baseâˆ’pro)={meta['delta_rmse']} "
+             f"ΔRMSE(base−pro)={meta['delta_rmse']} "
              f"[{meta['ci_lo']},{meta['ci_hi']}] pro_better={meta['pro_better']}")
     return meta
 
@@ -1250,8 +1250,8 @@ def valida_incrementale_pro_oos(engine) -> dict | None:
 def valida_incrementale_pro(players: list) -> dict:
     """
     Test NON circolare (versione IN-SAMPLE, fallback): TPI Pro predice il
-    rendimento realizzato RECENTE (ultime 6 gare giÃ  nel payload) meglio del
-    TPI base? Usato se non esiste un vintage; il vero OOS Ã¨
+    rendimento realizzato RECENTE (ultime 6 gare già nel payload) meglio del
+    TPI base? Usato se non esiste un vintage; il vero OOS è
     `valida_incrementale_pro_oos`.
     """
     base, pro, crit = [], [], []
@@ -1268,24 +1268,24 @@ def valida_incrementale_pro(players: list) -> dict:
             base.append(tpi); pro.append(tpi_pro); crit.append(realized)
     if len(base) < 12:
         return {"has_data": False,
-                "msg": ("ValiditÃ  incrementale TPI Pro: servono â‰¥12 giocatori con TPI, "
-                        "TPI Pro e â‰¥180' nelle ultime 6 gare. Popola AII/PRI e riesegui.")}
+                "msg": ("Validità incrementale TPI Pro: servono ≥12 giocatori con TPI, "
+                        "TPI Pro e ≥180' nelle ultime 6 gare. Popola AII/PRI e riesegui.")}
     res = vs.paired_rmse_bootstrap(base, crit, pro)
     if res is None:
         return {"has_data": False, "msg": "Dati insufficienti per il confronto incrementale appaiato."}
     res["has_data"] = True
     res["criterio"] = "gol no-rigore realizzati per-90 (ultime 6 gare)"
-    log.info(f"  Incrementale: Î”RMSE(baseâˆ’pro)={res['delta_rmse']} "
+    log.info(f"  Incrementale: ΔRMSE(base−pro)={res['delta_rmse']} "
              f"[{res['ci_lo']},{res['ci_hi']}] pro_better={res['pro_better']}")
     return res
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE Q â€” Il TPI batte una baseline banale?
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE Q — Il TPI batte una baseline banale?
+# ════════════════════════════════════════════════════════════════
 # Rosa Transfermarkt del progetto heXI, che e' SOLA LETTURA: qui si legge e
 # basta. Stesso percorso e stesso paracadute di stagione di
-# set_up_tpi_pro/allinea_anagrafica_hexi.py â€” accanto c'e' SA_2026-2027.json,
+# set_up_tpi_pro/allinea_anagrafica_hexi.py — accanto c'e' SA_2026-2027.json,
 # e agganciarsi a quello darebbe valori plausibili ma dell'anno sbagliato.
 HEXI_ROSTER = Path(os.environ.get(
     "SERIE_A_HEXI_ROSTER",
@@ -1294,7 +1294,7 @@ HEXI_STAGIONE = "2025/2026"
 
 
 def _valore_mercato_per_giocatore(engine) -> dict[int, float]:
-    """giocatore_id â†’ valore di mercato in euro, dalla rosa heXI.
+    """giocatore_id → valore di mercato in euro, dalla rosa heXI.
 
     L'aggancio e' su `giocatori.tm_id` (scritto da allinea_anagrafica_hexi.py):
     un id, non un nome, quindi qui non serve nessun match approssimato e non
@@ -1343,15 +1343,15 @@ def _valore_mercato_per_giocatore(engine) -> dict[int, float]:
 
 def valida_baseline(engine) -> dict | None:
     """
-    Test Q â€” Il TPI batte una baseline banale?
+    Test Q — Il TPI batte una baseline banale?
 
     Gli altri test chiedono "il TPI e' correlato con X?". Questo chiede
     l'unica cosa che puo' bocciare il composito: **serviva costruirlo?**
     Il confronto e' contro i predittori piu' stupidi a disposizione:
 
-      Â· output grezzo   (goal_p90 + xa_p90 allo snapshot) â€” l'input dominante
-      Â· minuti giocati  (allo snapshot) â€” "chi gioca, rende"
-      Â· valore di mercato (Transfermarkt via heXI) â€” il consenso del mercato
+      · output grezzo   (goal_p90 + xa_p90 allo snapshot) — l'input dominante
+      · minuti giocati  (allo snapshot) — "chi gioca, rende"
+      · valore di mercato (Transfermarkt via heXI) — il consenso del mercato
 
     Disegno identico al test I, quindi i due numeri si leggono insieme:
     predittori dal vintage g{N}, criterio dalle giornate successive, bootstrap
@@ -1359,10 +1359,10 @@ def valida_baseline(engine) -> dict | None:
     e non e' un'osservazione indipendente).
 
     Due criteri, perche' sono due promesse diverse:
-      Â· LIVELLO        = output per-90 realizzato dopo il vintage
-      Â· MIGLIORAMENTO  = livello post âˆ’ livello pre (la promessa scout)
+      · LIVELLO        = output per-90 realizzato dopo il vintage
+      · MIGLIORAMENTO  = livello post − livello pre (la promessa scout)
 
-    delta_rmse = RMSE(baseline) âˆ’ RMSE(TPI): positivo con IC che esclude lo
+    delta_rmse = RMSE(baseline) − RMSE(TPI): positivo con IC che esclude lo
     zero = il TPI batte quella baseline. Se non la batte, le sette dimensioni
     non stanno aggiungendo niente al loro stesso input.
 
@@ -1418,7 +1418,7 @@ def valida_baseline(engine) -> dict | None:
 
     if len(pool["gid"]) < 30:
         return {"has_data": False,
-                "msg": f"Test Q: {len(pool['gid'])} coppie giocatore-vintage (servono â‰¥30)."}
+                "msg": f"Test Q: {len(pool['gid'])} coppie giocatore-vintage (servono ≥30)."}
 
     BASELINES = [
         ("output_grezzo",  "b_output", "Output grezzo (goal + xA)/90", "Raw output (goals + xA)/90"),
@@ -1430,8 +1430,8 @@ def valida_baseline(engine) -> dict | None:
          "Output per-90 realizzato dopo il vintage",
          "Realized per-90 output after the vintage"),
         ("improvement", "crit_improvement",
-         "Miglioramento: output post âˆ’ output pre",
-         "Improvement: post-vintage output âˆ’ pre-vintage output"),
+         "Miglioramento: output post − output pre",
+         "Improvement: post-vintage output − pre-vintage output"),
     ]
 
     from scipy.stats import spearmanr
@@ -1458,7 +1458,7 @@ def valida_baseline(engine) -> dict | None:
                 "key": bkey, "label_it": blab_it, "label_en": blab_en,
                 "n": res["n"], "n_giocatori": res["n_clusters"],
                 "rmse_baseline": res["rmse_base"], "rmse_tpi": res["rmse_pro"],
-                # delta = RMSE(baseline) âˆ’ RMSE(TPI): >0 = TPI sbaglia meno
+                # delta = RMSE(baseline) − RMSE(TPI): >0 = TPI sbaglia meno
                 "delta_rmse": res["delta_rmse"],
                 "ci_lo": res["ci_lo"], "ci_hi": res["ci_hi"],
                 "tpi_better": res["pro_better"],
@@ -1466,8 +1466,8 @@ def valida_baseline(engine) -> dict | None:
                 "rho_tpi": round(float(rho_t), 3),
             })
             log.info(f"  Q [{ckey}] TPI vs {bkey:15s} n={res['n']} ({res['n_clusters']} giocatori): "
-                     f"Î”RMSE={res['delta_rmse']:+.4f} [{res['ci_lo']},{res['ci_hi']}] Â· "
-                     f"Ï baseline={rho_b:+.3f} Ï TPI={rho_t:+.3f} â†’ TPI meglio: {res['pro_better']}")
+                     f"ΔRMSE={res['delta_rmse']:+.4f} [{res['ci_lo']},{res['ci_hi']}] · "
+                     f"ρ baseline={rho_b:+.3f} ρ TPI={rho_t:+.3f} → TPI meglio: {res['pro_better']}")
         if not voci:
             continue
         criteri_out[ckey] = {
@@ -1498,17 +1498,17 @@ def valida_baseline(engine) -> dict | None:
     }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# VALIDAZIONE L â€” Convergenza del ranking per giornata (T5, gated)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
+# VALIDAZIONE L — Convergenza del ranking per giornata (T5, gated)
+# ════════════════════════════════════════════════════════════════
 def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
     """
-    Test P â€” Persistence Score: il TPI medio su PIÃ™ vintage predice meglio del
+    Test P — Persistence Score: il TPI medio su PIÙ vintage predice meglio del
     TPI singolo (snapshot corrente)?
 
-    Idea: il TPI di una sola finestra Ã¨ rumoroso (forma, infortuni, calendario).
+    Idea: il TPI di una sola finestra è rumoroso (forma, infortuni, calendario).
     Mediando su M vintage si filtra il rumore stagionale. Chi MANTIENE un TPI
-    alto su molti snapshot Ã¨ davvero TOP, indipendentemente da una stagione
+    alto su molti snapshot è davvero TOP, indipendentemente da una stagione
     fortunata o sfortunata.
 
     Confronta come predittori del rendimento realizzato (g37+ dal DB):
@@ -1516,15 +1516,15 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
       - PRED 2: persistence_score = TPI medio su tutti i vintage disponibili
       - PRED 3: persistence_min = TPI minimo sui vintage (robusto a outlier)
 
-    Se Spearman(persistence, realized) > Spearman(TPI, realized) â†’ la persistenza
-    aggiunge predittivitÃ , supporta il modello multi-snapshot.
+    Se Spearman(persistence, realized) > Spearman(TPI, realized) → la persistenza
+    aggiunge predittività, supporta il modello multi-snapshot.
     """
     import re as _re_p
 
     # Carica vintage within-season (within_only) + backfill cross-season opzionali.
     # Faremo DUE test: (1) within-season only, (2) tutti incluso cross-season.
-    # Il backfill 24-25 ha TPI ridotto a 3 dim (Understat aggregato) â†’ introduce
-    # rumore se mescolato col TPI completo. Test (1) Ã¨ la VERA misura di
+    # Il backfill 24-25 ha TPI ridotto a 3 dim (Understat aggregato) → introduce
+    # rumore se mescolato col TPI completo. Test (1) è la VERA misura di
     # persistence robusta.
     within_vintages = []
     for vp in OUTPUT_DIR.glob("payload_g*.json"):
@@ -1539,12 +1539,12 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
     vintages = within_vintages + cross_vintages
     if len(within_vintages) < 3:
         return {"has_data": False,
-                "msg": f"Persistence: solo {len(within_vintages)} within-vintage, servono â‰¥3."}
+                "msg": f"Persistence: solo {len(within_vintages)} within-vintage, servono ≥3."}
 
     log.info(f"  Persistence: {len(within_vintages)} within-vintage + "
              f"{len(cross_vintages)} cross-season: {[v[0] for v in vintages]}")
 
-    # TPI corrente (predittore singolo) â€” usa il payload main
+    # TPI corrente (predittore singolo) — usa il payload main
     cur_tpi = {p["nome"]: float(p["tpi"]["totale"])
                for p in players
                if (p.get("tpi") or {}).get("totale") is not None}
@@ -1600,7 +1600,7 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
     real_agg = (post.groupby("giocatore_id")
                 .apply(lambda g: (g["goal"].sum() + g["xa"].sum()) / max(g["minuti"].sum(), 1) * 90))
     real_map = real_agg.to_dict()
-    # Mappa giocatore_id â†’ nome_normalizzato (dal payload main, contiene id)
+    # Mappa giocatore_id → nome_normalizzato (dal payload main, contiene id)
     name_by_id = {p["id"]: _nm(p["nome"]) for p in players}
     real_by_name = {name_by_id[gid]: v for gid, v in real_map.items() if gid in name_by_id}
 
@@ -1628,7 +1628,7 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
 
     if len(rows) < 20:
         return {"has_data": False,
-                "msg": f"Persistence: solo {len(rows)} giocatori con â‰¥2 vintage + realized."}
+                "msg": f"Persistence: solo {len(rows)} giocatori con ≥2 vintage + realized."}
 
     df = pd.DataFrame(rows)
     log.info(f"  Persistence: {len(df)} giocatori, distrib n_vintage_within: "
@@ -1640,7 +1640,7 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
     rho_within_min, _ = spearmanr(df["persistence_within_min"], df["realized"])
     rho_all_mean, _ = spearmanr(df["persistence_all_mean"], df["realized"])
 
-    # Robust: solo chi appare in â‰¥4 vintage within-season
+    # Robust: solo chi appare in ≥4 vintage within-season
     df_robust = df[df["n_vintage_within"] >= 4]
     if len(df_robust) >= 12:
         rho_within_mean_r, _ = spearmanr(df_robust["persistence_within_mean"], df_robust["realized"])
@@ -1651,24 +1651,24 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
     delta_within = rho_within_mean - rho_single
     delta_all = rho_all_mean - rho_single
 
-    log.info(f"  Persistence Ï vs realized:")
+    log.info(f"  Persistence ρ vs realized:")
     log.info(f"    single TPI corrente        = {rho_single:+.3f}")
     log.info(f"    media within-season ({len(within_vintages)}v)   = {rho_within_mean:+.3f} "
-             f"(Î”={delta_within:+.3f})")
+             f"(Δ={delta_within:+.3f})")
     log.info(f"    media all ({len(vintages)}v, incl 24-25) = {rho_all_mean:+.3f} "
-             f"(Î”={delta_all:+.3f})")
+             f"(Δ={delta_all:+.3f})")
     log.info(f"    min within (robust outlier) = {rho_within_min:+.3f}")
     if rho_within_mean_r is not None:
-        log.info(f"  Robust (n_vintage_withinâ‰¥4, n={len(df_robust)}): "
+        log.info(f"  Robust (n_vintage_within≥4, n={len(df_robust)}): "
                  f"single={rho_single_r:+.3f}, persistence_within_mean={rho_within_mean_r:+.3f}")
 
     # VERA persistence cross-stagione: TPI medio (24-25, 25-26) per chi appare in entrambe.
-    # I within-vintage hanno overlap dati massivo â†’ non sono "ripetizioni indipendenti".
-    # La vera test della persistence Ã¨ "due stagioni distinte".
+    # I within-vintage hanno overlap dati massivo → non sono "ripetizioni indipendenti".
+    # La vera test della persistence è "due stagioni distinte".
     cross_2season_rho_single = cross_2season_rho_persist = None
     n_cross_2season = 0
     if cross_vintages:
-        cross_pers = {}  # nome â†’ TPI cross-season
+        cross_pers = {}  # nome → TPI cross-season
         for vtag, vpath in cross_vintages:
             try:
                 with open(vpath, encoding="utf-8") as fh:
@@ -1696,7 +1696,7 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
             cross_2season_rho_persist, _ = spearmanr(df2["two_season_mean"], df2["realized"])
             n_cross_2season = len(df2)
 
-            # Bootstrap IC95 sulla differenza Ï_persist âˆ’ Ï_single (n bootstrap = 2000)
+            # Bootstrap IC95 sulla differenza ρ_persist − ρ_single (n bootstrap = 2000)
             rng = np.random.default_rng(42)
             delta_boot = []
             arr_single = df2["single"].values
@@ -1716,9 +1716,9 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
             cross_2season_ic = (ic_lo, ic_hi)
             sig = (ic_lo > 0)
             log.info(f"  2-season persistence (n={n_cross_2season}): "
-                     f"single Ï={cross_2season_rho_single:+.3f}, "
-                     f"2-season mean Ï={cross_2season_rho_persist:+.3f}, "
-                     f"Î”={cross_2season_rho_persist - cross_2season_rho_single:+.3f} "
+                     f"single ρ={cross_2season_rho_single:+.3f}, "
+                     f"2-season mean ρ={cross_2season_rho_persist:+.3f}, "
+                     f"Δ={cross_2season_rho_persist - cross_2season_rho_single:+.3f} "
                      f"[{ic_lo:+.3f}, {ic_hi:+.3f}] sig95={sig}")
         else:
             cross_2season_ic = None
@@ -1768,13 +1768,13 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
 
 def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
     """
-    Test O â€” Ablation study: rimuove una dimensione alla volta dal TPI e misura:
+    Test O — Ablation study: rimuove una dimensione alla volta dal TPI e misura:
       - r(TPI_full, TPI_ablato): quanto cambia il ranking
       - top10 stability: quanti dei top 10 restano
-      - Î” Spearman vs realized: la dim aiuta davvero a predire?
+      - Δ Spearman vs realized: la dim aiuta davvero a predire?
 
-    Una dim con Î” ~ 0 Ã¨ candidata per la RIMOZIONE (semplicitÃ ). Una dim con
-    Î” negativo grande ha vero potere discriminante e va mantenuta.
+    Una dim con Δ ~ 0 è candidata per la RIMOZIONE (semplicità). Una dim con
+    Δ negativo grande ha vero potere discriminante e va mantenuta.
     """
     # z-score per dim nel payload (TPI base = 7 dim)
     DIM_ZKEYS = {
@@ -1808,12 +1808,12 @@ def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
                      **z_vals})
     df = pd.DataFrame(rows)
     if len(df) < 30:
-        return {"has_data": False, "msg": f"Ablation: {len(df)} pairs (servono â‰¥30)."}
+        return {"has_data": False, "msg": f"Ablation: {len(df)} pairs (servono ≥30)."}
 
     # TPI ricostruito. La versione precedente si fermava alla media pesata degli
     # z e correlava 0.79 col TPI pubblicato: confrontava due grandezze diverse,
     # e il Delta predittivo che ne usciva era ~-0.37 per OGNI dimensione, dal
-    # peso 0.32 al peso 0.02 â€” la firma di un artefatto, non di un'importanza.
+    # peso 0.32 al peso 0.02 — la firma di un artefatto, non di un'importanza.
     # Replicando anche i tre passaggi successivi si arriva a rho 0.96 / r 0.99.
     def reconstruct(weights: dict) -> pd.Series:
         num = pd.Series(0.0, index=df.index)
@@ -1843,13 +1843,13 @@ def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
     from scipy.stats import spearmanr
     base_rho_recon, _ = spearmanr(full_recon, df["tpi_full"])
     base_rho_real, _ = spearmanr(df["tpi_full"], df["real"])
-    log.info(f"  Ablation baseline: Ï(recon, payload)={base_rho_recon:.3f}, "
-             f"Ï(TPI, realized)={base_rho_real:.3f}, n={len(df)}")
+    log.info(f"  Ablation baseline: ρ(recon, payload)={base_rho_recon:.3f}, "
+             f"ρ(TPI, realized)={base_rho_real:.3f}, n={len(df)}")
 
     # Top 10 del payload
     top10_full = set(df.nlargest(10, "tpi_full")["gid"].tolist())
 
-    # Ablation: rimuovi una dim per volta (peso â†’ 0)
+    # Ablation: rimuovi una dim per volta (peso → 0)
     ablation_results = []
     for dim in TPI_WEIGHTS:
         w_ablato = {k: (v if k != dim else 0.0) for k, v in TPI_WEIGHTS.items()}
@@ -1862,7 +1862,7 @@ def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
         df["_tpi_abl"] = tpi_ablato
         top10_ablato = set(df.nlargest(10, "_tpi_abl")["gid"].tolist())
         overlap10 = len(top10_full & top10_ablato)
-        # Î” predittivo vs full
+        # Δ predittivo vs full
         delta_predict = rho_real - base_rho_real
         ablation_results.append({
             "dim": dim,
@@ -1873,9 +1873,9 @@ def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
             "top10_overlap": overlap10,
         })
         log.info(f"  Ablation -{dim:13s} (w={TPI_WEIGHTS[dim]:.2f}): "
-                 f"Ï vs full={rho_full:.3f}, Ï vs realized={rho_real:.3f}, "
-                 f"Î”predict={delta_predict:+.4f}, top10 overlap={overlap10}/10")
-    ablation_results.sort(key=lambda x: x["delta_predict"])  # piÃ¹ impattante prima
+                 f"ρ vs full={rho_full:.3f}, ρ vs realized={rho_real:.3f}, "
+                 f"Δpredict={delta_predict:+.4f}, top10 overlap={overlap10}/10")
+    ablation_results.sort(key=lambda x: x["delta_predict"])  # più impattante prima
 
     return {
         "has_data": True,
@@ -1887,12 +1887,12 @@ def valida_ablation(players: list, df_gp: pd.DataFrame) -> dict:
 
 def valida_calibration(players: list) -> dict:
     """
-    Test M â€” Reliability/Calibration: il TPI Ã¨ ben calibrato come predittore
+    Test M — Reliability/Calibration: il TPI è ben calibrato come predittore
     del rendimento? Plot decile-by-decile del TPI vs output realizzato.
 
     Per ogni decile di TPI calcola la media del criterio realizzato
-    (gol_p90 + xa_p90). Se la relazione Ã¨ ~lineare e monotona, il TPI Ã¨
-    ben calibrato: TPI alto â†’ output alto, in modo proporzionale.
+    (gol_p90 + xa_p90). Se la relazione è ~lineare e monotona, il TPI è
+    ben calibrato: TPI alto → output alto, in modo proporzionale.
 
     Diagnostica: slope (atteso ~positivo), intercept, residui per decile.
     Curve concave/convesse rivelano miscalibrazione (es. TPI gonfia/sgonfia
@@ -1912,7 +1912,7 @@ def valida_calibration(players: list) -> dict:
                      "ruolo": p.get("ruolo", "")})
     if len(rows) < 30:
         return {"has_data": False,
-                "msg": f"Test M (calibration): {len(rows)} giocatori (servono â‰¥30)."}
+                "msg": f"Test M (calibration): {len(rows)} giocatori (servono ≥30)."}
     df = pd.DataFrame(rows)
     # Bin in decili (10 gruppi). Se duplicati, fallback a quintili.
     try:
@@ -1932,11 +1932,11 @@ def valida_calibration(players: list) -> dict:
     # Calibration error (mean absolute residual relative to range)
     realized_range = float(df["realized"].max() - df["realized"].min())
     ace = float(bins["residual"].abs().mean() / realized_range) if realized_range > 0 else None
-    # Monotonia: lo Spearman tra bin TPI e bin realized deve essere â‰ˆ 1
+    # Monotonia: lo Spearman tra bin TPI e bin realized deve essere ≈ 1
     from scipy.stats import spearmanr
     mono_rho, _ = spearmanr(bins["tpi_mean"], bins["realized_mean"])
     log.info(f"  Reliability: slope={slope:+.3f}, intercept={intercept:+.3f}, "
-             f"ACE={ace:.3f}, monotonia Ï={mono_rho:+.3f} ({len(bins)} bin)")
+             f"ACE={ace:.3f}, monotonia ρ={mono_rho:+.3f} ({len(bins)} bin)")
     return {
         "has_data": True,
         "n": len(df),
@@ -1958,11 +1958,11 @@ def valida_calibration(players: list) -> dict:
 
 def valida_predittivita_per_ruolo(players: list, df_gp: pd.DataFrame) -> dict:
     """
-    Test N â€” PredittivitÃ  stratificata per ruolo: il TPI funziona ugualmente
-    bene per ATT, CEN, DIF? Spearman Ï(TPI, realized) per ogni ruolo.
+    Test N — Predittività stratificata per ruolo: il TPI funziona ugualmente
+    bene per ATT, CEN, DIF? Spearman ρ(TPI, realized) per ogni ruolo.
 
-    Risposta a "il TPI Ã¨ offensivo: vale anche per i difensori?". Se Ï Ã¨
-    forte solo per ATT/CEN, il TPI non discrimina i difensori â†’ segnale che
+    Risposta a "il TPI è offensivo: vale anche per i difensori?". Se ρ è
+    forte solo per ATT/CEN, il TPI non discrimina i difensori → segnale che
     serve un'altra metrica per quel ruolo (es. xG concessi quando in campo).
     """
     if df_gp is None or len(df_gp) == 0:
@@ -2003,19 +2003,19 @@ def valida_predittivita_per_ruolo(players: list, df_gp: pd.DataFrame) -> dict:
             "tpi_mean": round(float(t_arr.mean()), 3),
             "real_mean": round(float(r_arr.mean()), 3),
         }
-        log.info(f"  Per ruolo {ruolo}: Ï={rho:+.3f} (p={p_val:.3f}, n={len(pairs)})")
+        log.info(f"  Per ruolo {ruolo}: ρ={rho:+.3f} (p={p_val:.3f}, n={len(pairs)})")
     return {"has_data": True, "per_role": per_role}
 
 
 def valida_convergenza() -> dict:
     """
     Convergenza ranking: quanto il TPI calcolato a vintage g{N} prevede il TPI
-    attuale (stagione completa)? Richiede `payload_g{N}.json` per uno o piÃ¹ N.
+    attuale (stagione completa)? Richiede `payload_g{N}.json` per uno o più N.
 
     Per ogni vintage disponibile calcola:
-      - Spearman Ï tra ranking TPI vintage e ranking TPI corrente
+      - Spearman ρ tra ranking TPI vintage e ranking TPI corrente
       - overlap top-N (frazione comune nelle top 25)
-      - movers: chi Ã¨ salito/sceso di piÃ¹
+      - movers: chi è salito/sceso di più
     """
     import re
     # Vintage WITHIN-SEASON (payload_g{N}.json nella cartella output) + cross-season
@@ -2070,7 +2070,7 @@ def valida_convergenza() -> dict:
         common = sorted(set(cur_tpi) & set(v_tpi))
         if len(common) < 20:
             continue
-        # Spearman Ï via rank correlation
+        # Spearman ρ via rank correlation
         v_vals = np.array([v_tpi[g] for g in common])
         c_vals = np.array([cur_tpi[g] for g in common])
         v_rank = pd.Series(v_vals).rank().values
@@ -2091,7 +2091,7 @@ def valida_convergenza() -> dict:
         name_map = {int(p["id"]): p.get("nome", f"#{p['id']}")
                     for p in current.get("players", [])}
         deltas = [(gid, v_ord[gid] - c_ord[gid]) for gid in common if gid in v_ord and gid in c_ord]
-        deltas.sort(key=lambda x: x[1])  # negativi = saliti (era posizione alta, ora piÃ¹ bassa)
+        deltas.sort(key=lambda x: x[1])  # negativi = saliti (era posizione alta, ora più bassa)
         risers = [{"id": gid, "nome": name_map.get(gid, f"#{gid}"),
                    "delta": -d, "from": v_ord.get(gid), "to": c_ord.get(gid)}
                    for gid, d in deltas[:5]]
@@ -2105,7 +2105,7 @@ def valida_convergenza() -> dict:
             "overlap_top25": round(overlap25, 3),
         })
         movers_all.append({"vintage_giornata": N, "risers": risers, "fallers": fallers})
-        log.info(f"  Convergenza vintage g{N} â†’ corrente: Ï={rho:.3f}, "
+        log.info(f"  Convergenza vintage g{N} → corrente: ρ={rho:.3f}, "
                  f"overlap top25={overlap25:.0%}, n={len(common)}")
 
     # Cross-season: confronta payload corrente vs snapshot di stagioni passate.
@@ -2139,7 +2139,7 @@ def valida_convergenza() -> dict:
             common_names = sorted(set(cur_by_name) & set(s_tpi_by_name))
             if len(common_names) < 20:
                 log.info(f"  Cross-season {season}/{g_name}: n_common solo {len(common_names)} "
-                         f"(id) / {len(common_names)} (nome) â€” skip")
+                         f"(id) / {len(common_names)} (nome) — skip")
                 continue
             s_vals = pd.Series([s_tpi_by_name[n] for n in common_names]).rank().values
             c_vals = pd.Series([cur_by_name[n] for n in common_names]).rank().values
@@ -2157,8 +2157,8 @@ def valida_convergenza() -> dict:
             "spearman_rho": round(rho, 3) if rho is not None else None,
             "match": match_mode,
         })
-        log.info(f"  Cross-season {season}/{g_name} ({match_mode}) â†’ corrente: "
-                 f"Ï={rho:.3f}, n={len(common)}")
+        log.info(f"  Cross-season {season}/{g_name} ({match_mode}) → corrente: "
+                 f"ρ={rho:.3f}, n={len(common)}")
 
     if not rows and not cross_season_rows:
         return {"has_data": False, "msg": "Nessun vintage utilizzabile (n_common < 20)."}
@@ -2168,12 +2168,12 @@ def valida_convergenza() -> dict:
             "cross_season": cross_season_rows,
             "movers": movers_all,
             "msg": (f"{len(rows)} vintage within-season + {len(cross_season_rows)} "
-                    f"cross-season analizzati. PiÃ¹ Ï alto = ranking stabile.")}
+                    f"cross-season analizzati. Più ρ alto = ranking stabile.")}
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 # TEMPLATE CSS
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 CSS = """
 /* Font serviti dal repo, non da Google: gli stessi due file variabili della
    dashboard e della homepage (fonts/*.woff2 accanto all'HTML). SIL OFL, che
@@ -2189,12 +2189,12 @@ CSS = """
   unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ═══════════════════════════════════════
    Stessi token di assets/dashboard.css e di index.html. Questa pagina era
    rimasta l'ultima in palette vecchia: nero puro, azzurro/verde/viola di
    sistema, vetro e ombre da 32px. Passare dalla classifica alla validazione
    sembrava cambiare sito.
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+═══════════════════════════════════════ */
 :root{
   /* Il fondo non e' nero neutro ma ha un'inclinazione verde. */
   --bg:#0A1512;--bg1:#0F1F1B;--bg2:#132723;--bg3:#1B342E;--bg4:#24443C;
@@ -2223,7 +2223,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
 
-/* â”€â”€ NAV â€” link di testo, come dashboard e homepage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── NAV — link di testo, come dashboard e homepage ────────────────────── */
 .nav{position:sticky;top:0;z-index:400;height:56px;
   background:var(--bg);border-bottom:1px solid var(--sep);box-shadow:none;
   display:flex;align-items:center;gap:10px;
@@ -2252,7 +2252,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 
 /* I due link di pagina erano pillole piene, una azzurra e una arancione: due
    inviti all'azione che gridavano piu' del titolo. Ora sono testo, e il filetto
-   ambra compare solo al passaggio. Qui nessuno dei due e' la pagina corrente â€”
+   ambra compare solo al passaggio. Qui nessuno dei due e' la pagina corrente —
    lo dice il marchio a sinistra. */
 .nav-home-btn,.nav-orng-btn,.nav-switch-btn{
   position:relative;display:inline-flex;align-items:center;gap:6px;
@@ -2303,10 +2303,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
   .nav-right-group{gap:12px}
 }
 
-/* â”€â”€ HERO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── HERO ───────────────────────────────────────────────────────────────
    Il titolo prende la faccia condensata: e' la stessa voce della classifica,
    non un grassetto di sistema. Le cinque pillole diventano etichette mono
-   separate da filetti â€” dicono cosa contiene la pagina, non sono bottoni. */
+   separate da filetti — dicono cosa contiene la pagina, non sono bottoni. */
 .hero{padding:48px 20px 30px;background:var(--bg);
   border-bottom:1px solid var(--sep);
   max-width:var(--maxw);margin-inline:auto}
@@ -2324,7 +2324,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 .hero-pill:first-child{padding-left:0}
 .hero-pill + .hero-pill{border-left:1px solid var(--sep)}
 
-/* â”€â”€ CARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── CARD ───────────────────────────────────────────────────────────────
    Erano vetro: gradiente, bordo illuminato in alto e un'ombra da 20px che le
    faceva galleggiare. Su una pagina di grafici l'unica cosa che deve staccare
    sono i dati: restano un fondo appena piu' chiaro e un filetto. */
@@ -2334,7 +2334,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
   text-transform:uppercase;letter-spacing:.14em;margin-bottom:14px;
   display:flex;align-items:center;gap:6px}
 
-/* â”€â”€ LAYOUT E TESTATE DI SEZIONE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── LAYOUT E TESTATE DI SEZIONE ────────────────────────────────────────
    La lettera della sezione era un pallino pieno colorato: nove pallini di nove
    colori diversi facevano piu' rumore dei numeri. Ora e' una sigla mono in
    ambra sopra un filetto che apre la sezione. */
@@ -2352,8 +2352,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 
-/* â”€â”€ STAT BOX â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-   Via la barretta sfumata in cima: cinque varianti (sb-blue, sb-greenâ€¦) che
+/* ── STAT BOX ───────────────────────────────────────────────────────────
+   Via la barretta sfumata in cima: cinque varianti (sb-blue, sb-green…) che
    coloravano il bordo senza dire niente in piu' dell'etichetta sotto. */
 .stat-box{background:var(--bg1);border:1px solid var(--sep);border-radius:var(--rsm);
   box-shadow:none;padding:15px 14px;text-align:left;position:relative;overflow:hidden}
@@ -2364,7 +2364,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
   text-transform:uppercase;letter-spacing:.14em;margin-top:9px;line-height:1.4}
 .stat-sub{font-size:11.5px;color:var(--ls);margin-top:5px;line-height:1.45}
 
-/* â”€â”€ HELP E MODALE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── HELP E MODALE ──────────────────────────────────────────────────────
    Il "?" era un pallino che diventava azzurro pieno al passaggio. Ora e' un
    quadratino di filo che si accende in ambra: stesso segnale, meno peso. */
 .help{display:inline-flex;align-items:center;justify-content:center;
@@ -2394,7 +2394,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);
   cursor:pointer;transition:color .15s,border-color .15s}
 .mbox-cls:hover{background:none;color:var(--lp);border-color:var(--lt)}
 
-/* â”€â”€ NOTE E TABELLE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── NOTE E TABELLE ─────────────────────────────────────────────────────
    Le note di lettura erano riquadri con fondo, bordo e filetto azzurro. Un
    filetto solo basta: sono prosa a margine del grafico, non avvisi. */
 .interp{background:none;border:0;border-left:1px solid var(--sep2);border-radius:0;
@@ -2411,7 +2411,7 @@ tr:hover td{background:rgba(233,240,236,.03)}
 .tv{font-family:var(--mono);font-weight:500;color:var(--lp)}
 .torng{font-family:var(--mono);font-weight:500;color:var(--orng)}
 
-/* â”€â”€ BADGE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── BADGE ──────────────────────────────────────────────────────────────
    Erano sei pillole piene, una per tinta. Diventano etichette mono: il
    colore resta perche' qui e' un giudizio sul dato (buono/moderato/basso),
    la scatola no. */
@@ -2426,7 +2426,7 @@ tr:hover td{background:rgba(233,240,236,.03)}
 .badge-purp{color:var(--lp)}
 .badge-teal{color:var(--lp)}
 
-/* â”€â”€ ACCORDION E GUIDA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── ACCORDION E GUIDA ──────────────────────────────────────────────────
    Le sei schede della guida erano riquadri con emoji in cima. Le emoji sono
    via (non sono dati) e i riquadri diventano colonne separate da filetti. */
 .accordion{border:0;border-top:1px solid var(--sep);border-bottom:1px solid var(--sep);
@@ -2449,7 +2449,7 @@ tr:hover td{background:rgba(233,240,236,.03)}
   text-transform:uppercase;color:var(--lp);margin-bottom:9px}
 .guide-body{font-size:12.5px;color:var(--ls);line-height:1.65}
 
-/* â”€â”€ RECAP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── RECAP ──────────────────────────────────────────────────────────────
    Il riquadro di destra aveva bordo viola da 2px e una barra sfumata in cima:
    era il pezzo piu' gridato della pagina pur essendo un riepilogo. Ora le due
    colonne sono divise da un filetto. */
@@ -2475,7 +2475,7 @@ tr:hover td{background:rgba(233,240,236,.03)}
   .rc-grid{grid-template-columns:1fr 1fr}
 }
 
-/* â”€â”€ MOVER ROWS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── MOVER ROWS ─────────────────────────────────────────────────────────
    Righe di una lista, non schede: fondo piatto e un filetto a separarle. */
 .mover-row{display:flex;align-items:center;gap:12px;padding:10px 0;
   background:none;border:0;border-bottom:1px solid var(--sep);
@@ -2493,7 +2493,7 @@ tr:hover td{background:rgba(233,240,236,.03)}
 .mover-s-lbl{font-family:var(--mono);font-size:8.5px;color:var(--lt);
   text-transform:uppercase;letter-spacing:.12em}
 
-/* â”€â”€ FIRMA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+/* ── FIRMA ──────────────────────────────────────────────────────────────
    Era una pillola con bordo e pallino azzurro sopra il contenuto. E' una
    firma: testo mono, senza scatola. */
 #wm{position:fixed;bottom:0;left:0;right:0;
@@ -2505,7 +2505,7 @@ tr:hover td{background:rgba(233,240,236,.03)}
 #wm-text{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.14em;
   text-transform:uppercase;color:var(--lq);white-space:nowrap}
 
-/* â”€â”€ RESPONSIVE â”€â”€ */
+/* ── RESPONSIVE ── */
 @media (max-width: 900px) {
   .g4{grid-template-columns:1fr 1fr}
   .guide-grid{grid-template-columns:1fr 1fr}
@@ -2563,9 +2563,9 @@ tr:hover td{background:rgba(233,240,236,.03)}
 """
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 # BUILD DASHBOARD HTML
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# ════════════════════════════════════════════════════════════════
 # La pagina non si costruisce piu' qui: `build_dashboard` (1772 righe di HTML,
 # CSS, modali e grafici Plotly) e' stata sostituita da `parte3_pagina.render`,
 # che riceve i risultati gia' calcolati e non sa niente di come sono stati
@@ -2573,7 +2573,7 @@ tr:hover td{background:rgba(233,240,236,.03)}
 
 def main():
     log.info("=" * 58)
-    log.info("Validazione TPI v3.0 â€” Serie A 25/26")
+    log.info("Validazione TPI v3.0 — Serie A 25/26")
     log.info("=" * 58)
 
     log.info("Carico payload.json...")
@@ -2594,13 +2594,13 @@ def main():
     val_c = valida_backtest_db(df_gp) if (df_gp is not None and len(df_gp) > 0) \
             else valida_backtest_payload(players)
 
-    log.info("[D] Validazione EtÃ  & AffidabilitÃ  Fisica...")
+    log.info("[D] Validazione Età & Affidabilità Fisica...")
     val_d = valida_v2_indices(players)
 
     log.info("[E] Validazione TPI Pro...")
     val_e = valida_tpi_pro(players)
 
-    log.info("[F] ValiditÃ  ecologica a livello squadra...")
+    log.info("[F] Validità ecologica a livello squadra...")
     val_f = valida_team_level(players, df_gp)
 
     log.info("[G] Struttura interna del composito (PCA)...")
@@ -2609,9 +2609,9 @@ def main():
     log.info("[H] Robustezza ai pesi (Monte Carlo)...")
     val_h = valida_sensibilita(players)
 
-    log.info("[I] ValiditÃ  incrementale TPI Pro (preferendo OOS vintage se disponibile)...")
+    log.info("[I] Validità incrementale TPI Pro (preferendo OOS vintage se disponibile)...")
     # engine locale per la query del realizzato post-vintage (non riutilizziamo
-    # quello di load_player_games perchÃ© Ã¨ creato/chiuso dentro la funzione)
+    # quello di load_player_games perché è creato/chiuso dentro la funzione)
     _val_i_engine = None
     try:
         from sqlalchemy import create_engine as _ce
@@ -2620,7 +2620,7 @@ def main():
         log.warning(f"  Engine per test I OOS non disponibile: {_e}")
     val_i = valida_incrementale_pro_oos(_val_i_engine) if _val_i_engine else None
     if val_i is None:
-        log.info("  Nessun vintage trovato â†’ fallback in-sample (ultime 6 nel payload).")
+        log.info("  Nessun vintage trovato → fallback in-sample (ultime 6 nel payload).")
         val_i = valida_incrementale_pro(players)
     elif not val_i.get("has_data"):
         log.warning(f"  Vintage trovato ma test OOS non utilizzabile: {val_i.get('msg')}")
@@ -2630,37 +2630,37 @@ def main():
     log.info("[Q] Baseline: il TPI batte i predittori banali?...")
     val_q = valida_baseline(_val_i_engine) if _val_i_engine else None
     if val_q is None:
-        log.info("  Nessun vintage utilizzabile â†’ test Q non calcolato.")
+        log.info("  Nessun vintage utilizzabile → test Q non calcolato.")
     elif not val_q.get("has_data"):
-        log.info(f"  {val_q.get('msg','â€”')}")
+        log.info(f"  {val_q.get('msg','—')}")
 
     log.info("[O] Ablation study (rimuove una dim per volta)...")
     val_o = valida_ablation(players, df_gp)
     if not val_o.get("has_data"):
-        log.info(f"  {val_o.get('msg','â€”')}")
+        log.info(f"  {val_o.get('msg','—')}")
 
     log.info("[P] Persistence Score (TPI medio multi-vintage vs singolo)...")
     val_p = valida_persistence(players, df_gp)
     if not val_p or not val_p.get("has_data"):
-        log.info(f"  {val_p.get('msg','â€”') if val_p else 'Persistence non eseguito.'}")
+        log.info(f"  {val_p.get('msg','—') if val_p else 'Persistence non eseguito.'}")
 
     log.info("[M] Reliability/Calibration del TPI...")
     val_m = valida_calibration(players)
     if not val_m.get("has_data"):
-        log.info(f"  {val_m.get('msg','â€”')}")
+        log.info(f"  {val_m.get('msg','—')}")
 
-    log.info("[N] PredittivitÃ  stratificata per ruolo...")
+    log.info("[N] Predittività stratificata per ruolo...")
     val_n = valida_predittivita_per_ruolo(players, df_gp)
     if not val_n.get("has_data"):
-        log.info(f"  {val_n.get('msg','â€”')}")
+        log.info(f"  {val_n.get('msg','—')}")
 
     log.info("[L] Convergenza per giornata (gated)...")
     val_l = valida_convergenza()
     if not val_l.get("has_data"):
-        log.info(f"  {val_l.get('msg','â€”')}")
+        log.info(f"  {val_l.get('msg','—')}")
 
     # Tutti i risultati in un dizionario solo: la pagina si costruisce da qui e
-    # da nient'altro. Serve anche a poterla ridisegnare senza DB â€” il dump JSON
+    # da nient'altro. Serve anche a poterla ridisegnare senza DB — il dump JSON
     # contiene esattamente cio' che la resa puo' usare, quindi se un numero non
     # e' qui dentro non puo' finire in pagina scritto a mano.
     dati = {"a": val_a, "b": val_b, "c": val_c, "d": val_d, "e": val_e,
@@ -2681,7 +2681,7 @@ def main():
     try:
         _dump.write_text(json.dumps(dati, ensure_ascii=False, default=str),
                          encoding="utf-8")
-        log.info(f"  Risultati â†’ {_dump}")
+        log.info(f"  Risultati → {_dump}")
     except OSError as e:
         log.warning(f"  Dump risultati fallito: {e}")
 
@@ -2694,13 +2694,13 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out = OUTPUT_DIR / "validazione.html"
     out.write_bytes(html.encode("utf-8", "replace"))
-    log.info(f"OK â†’ {out}")
+    log.info(f"OK → {out}")
 
     if DEMO_DIR.is_dir():
         demo_copy = DEMO_DIR / out.name
         try:
             demo_copy.write_bytes(out.read_bytes())
-            log.info(f"OK â†’ {demo_copy}  (copia per repo demo)")
+            log.info(f"OK → {demo_copy}  (copia per repo demo)")
         except OSError as e:
             log.warning(f"Copia demo fallita: {e}")
         avvisa_se_conteggio_a_mano(
@@ -2708,8 +2708,8 @@ def main():
                                   val_l, val_m, val_n, val_o, val_p, val_q))
 
     # i18n.js e ai_chat.js devono stare ACCANTO a ogni HTML (i loro <script src>
-    # sono relativi): la fonte canonica Ã¨ nel repo demo, li copio in dashboard_output
-    # cosÃ¬ la pagina funziona anche aperta da lÃ¬ (gli script suggeriscono di aprirla
+    # sono relativi): la fonte canonica è nel repo demo, li copio in dashboard_output
+    # così la pagina funziona anche aperta da lì (gli script suggeriscono di aprirla
     # da dashboard_output).
     for _asset in ("i18n.js", "ai_chat.js"):
         _src = DEMO_DIR / _asset
@@ -2717,7 +2717,7 @@ def main():
             continue
         try:
             (OUTPUT_DIR / _asset).write_bytes(_src.read_bytes())
-            log.info(f"OK â†’ {OUTPUT_DIR / _asset}  (accanto all'HTML)")
+            log.info(f"OK → {OUTPUT_DIR / _asset}  (accanto all'HTML)")
         except OSError as e:
             log.warning(f"Copia {_asset} fallita: {e}")
 
@@ -2731,44 +2731,44 @@ def main():
             _fonts_dst.mkdir(exist_ok=True)
             for _f in _fonts_src.glob("*.woff2"):
                 (_fonts_dst / _f.name).write_bytes(_f.read_bytes())
-            log.info(f"OK â†’ {_fonts_dst}  (font accanto all'HTML)")
+            log.info(f"OK → {_fonts_dst}  (font accanto all'HTML)")
         except OSError as e:
             log.warning(f"Copia fonts fallita: {e}")
 
     copia_pagine_nav(escludi=out.name)
 
     log.info("")
-    log.info(f"  A â€” r={_sf(val_a.get('r'),3)}  n={val_a.get('n',0)}")
-    log.info(f"  B â€” overlap={val_b.get('overlap_pct','â€”')}%")
-    log.info(f"  C â€” r={_sf(val_c.get('r'),3)}  n={val_c.get('n',0)}  fonte={val_c.get('source','?')}")
-    log.info(f"  D â€” AII:{val_d.get('n_aii',0)} PRI:{val_d.get('n_pri',0)}  has_data={val_d.get('has_data',False)}")
-    log.info(f"  E â€” TPI Pro: {val_e.get('n_pro',0)} giocatori  r={_sf(val_e.get('r_corr'),3)}  has_data={val_e.get('has_data',False)}")
-    log.info(f"  F â€” Team-level: r={_sf(val_f.get('r'),3)}  has_data={val_f.get('has_data',False)}")
-    log.info(f"  G â€” Struttura: PC1={_sf(val_g.get('pc1'),3)}  has_data={val_g.get('has_data',False)}")
-    log.info(f"  H â€” SensibilitÃ  pesi: Ï_med={_sf(val_h.get('spearman_median'),3)}  has_data={val_h.get('has_data',False)}")
-    log.info(f"  I â€” Incrementale Pro: Î”={_sf(val_i.get('delta_rmse'),3)}  pro_better={val_i.get('pro_better')}  has_data={val_i.get('has_data',False)}")
-    log.info(f"  M â€” Calibration: slope={_sf(val_m.get('slope'),3)} monot.Ï={_sf(val_m.get('monotonia_rho'),3)} ACE={_sf(val_m.get('calibration_error'),3)}")
+    log.info(f"  A — r={_sf(val_a.get('r'),3)}  n={val_a.get('n',0)}")
+    log.info(f"  B — overlap={val_b.get('overlap_pct','—')}%")
+    log.info(f"  C — r={_sf(val_c.get('r'),3)}  n={val_c.get('n',0)}  fonte={val_c.get('source','?')}")
+    log.info(f"  D — AII:{val_d.get('n_aii',0)} PRI:{val_d.get('n_pri',0)}  has_data={val_d.get('has_data',False)}")
+    log.info(f"  E — TPI Pro: {val_e.get('n_pro',0)} giocatori  r={_sf(val_e.get('r_corr'),3)}  has_data={val_e.get('has_data',False)}")
+    log.info(f"  F — Team-level: r={_sf(val_f.get('r'),3)}  has_data={val_f.get('has_data',False)}")
+    log.info(f"  G — Struttura: PC1={_sf(val_g.get('pc1'),3)}  has_data={val_g.get('has_data',False)}")
+    log.info(f"  H — Sensibilità pesi: ρ_med={_sf(val_h.get('spearman_median'),3)}  has_data={val_h.get('has_data',False)}")
+    log.info(f"  I — Incrementale Pro: Δ={_sf(val_i.get('delta_rmse'),3)}  pro_better={val_i.get('pro_better')}  has_data={val_i.get('has_data',False)}")
+    log.info(f"  M — Calibration: slope={_sf(val_m.get('slope'),3)} monot.ρ={_sf(val_m.get('monotonia_rho'),3)} ACE={_sf(val_m.get('calibration_error'),3)}")
     _pr = val_n.get('per_role', {}) if val_n else {}
-    log.info(f"  N â€” Per ruolo: " + " Â· ".join(f"{k}:Ï={_sf(v.get('rho'),3)} n={v.get('n',0)}" for k,v in _pr.items()))
+    log.info(f"  N — Per ruolo: " + " · ".join(f"{k}:ρ={_sf(v.get('rho'),3)} n={v.get('n',0)}" for k,v in _pr.items()))
     if val_o and val_o.get("has_data"):
         _ord = val_o["results"]
-        log.info(f"  O â€” Ablation (Ï_real baseline={val_o['baseline_rho_realized']}): "
-                 f"piÃ¹ impatto: {_ord[0]['dim']}(Î”={_ord[0]['delta_predict']:+.3f}), "
-                 f"meno impatto: {_ord[-1]['dim']}(Î”={_ord[-1]['delta_predict']:+.3f})")
+        log.info(f"  O — Ablation (ρ_real baseline={val_o['baseline_rho_realized']}): "
+                 f"più impatto: {_ord[0]['dim']}(Δ={_ord[0]['delta_predict']:+.3f}), "
+                 f"meno impatto: {_ord[-1]['dim']}(Δ={_ord[-1]['delta_predict']:+.3f})")
     if val_p and val_p.get("has_data"):
-        log.info(f"  P â€” Persistence (n={val_p['n_giocatori']}): "
-                 f"single Ï={val_p['rho_single']:+.3f}, within-mean Ï={val_p['rho_persistence_within_mean']:+.3f} "
-                 f"(Î”={val_p['delta_within_vs_single']:+.3f}), all-mean Ï={val_p['rho_persistence_all_mean']:+.3f} "
-                 f"(Î”={val_p['delta_all_vs_single']:+.3f}), wins={val_p['persistence_wins']}")
+        log.info(f"  P — Persistence (n={val_p['n_giocatori']}): "
+                 f"single ρ={val_p['rho_single']:+.3f}, within-mean ρ={val_p['rho_persistence_within_mean']:+.3f} "
+                 f"(Δ={val_p['delta_within_vs_single']:+.3f}), all-mean ρ={val_p['rho_persistence_all_mean']:+.3f} "
+                 f"(Δ={val_p['delta_all_vs_single']:+.3f}), wins={val_p['persistence_wins']}")
     if val_q and val_q.get("has_data"):
         for _ck, _cv in val_q["criteri"].items():
             _batte = _cv["tpi_batte"]
-            log.info(f"  Q â€” Baseline [{_ck}]: il TPI batte {len(_batte)}/{_cv['n_baselines']}"
+            log.info(f"  Q — Baseline [{_ck}]: il TPI batte {len(_batte)}/{_cv['n_baselines']}"
                      + (f" ({', '.join(_batte)})" if _batte else " (nessuna)"))
     log.info("=" * 58)
 
-    # Apre il file nel browser â€” una sola volta
-    # os.startfile Ã¨ piÃ¹ affidabile su Windows con percorsi con spazi
+    # Apre il file nel browser — una sola volta
+    # os.startfile è più affidabile su Windows con percorsi con spazi
     try:
         import sys
         if sys.platform == "win32":
