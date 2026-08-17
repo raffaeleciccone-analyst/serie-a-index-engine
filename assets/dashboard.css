@@ -398,7 +398,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 .ztrk{flex:1;height:5px;background:rgba(233,240,236,.06);border-radius:3px;position:relative;overflow:hidden}
 .zsp{position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(233,240,236,.14)}
 .zf{position:absolute;height:100%;border-radius:3px;transition:all .4s cubic-bezier(.4,0,.2,1)}
-.zval{width:38px;text-align:right;font-size:12px;font-weight:600;font-family:var(--mono)}
+/* 38px bastavano al desktop ma non alla resa su telefono: "+3.00" andava a
+   capo fra lo zero e lo zero, e il numero si leggeva "+3.0" con uno "0"
+   sotto. Un valore non si spezza mai. */
+.zval{width:44px;flex-shrink:0;white-space:nowrap;text-align:right;
+  font-size:12px;font-weight:600;font-family:var(--mono)}
 
 /* ── Stat pills ── */
 .spills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px}
@@ -1171,3 +1175,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 
 /* Il titolo di sezione si allinea con il nome nelle righe, non col bordo pagina. */
 .sec-ttl,#lb-title,.lb-sec-ttl{padding-left:12px}
+
+/* ── Profilo giocatore su telefono ────────────────────────────────────────
+   L'intestazione e' una riga flex: barretta di ruolo, colonna del nome,
+   etichette, TPI. Le ultime due hanno flex-shrink:0, la colonna del nome ha
+   flex:1 e min-width:0 — quindi a 390px cedeva tutta lei: il nome finiva in
+   ellissi dopo due lettere ("L/" al posto di Lautaro Martinez) e il sommario
+   sotto, che e' una riga sola con i separatori, impilava UNA PAROLA PER RIGA
+   fino a scavalcare il riquadro accanto.
+
+   Su telefono l'intestazione va a capo invece di comprimersi: il nome prende
+   la riga intera e puo' andare a capo, il punteggio e le etichette scendono
+   sotto. E' la pagina piu' importante del sito ed era quella messa peggio da
+   cellulare. */
+@media (max-width: 620px){
+  .hero{flex-wrap:wrap;align-items:flex-start;row-gap:10px}
+  .hero-inf{flex:1 1 100%;min-width:0;order:1}
+  .hero-nm{white-space:normal;font-size:19px;line-height:1.15;gap:7px}
+  .hero-sub{font-size:11px;line-height:1.7;word-spacing:.04em}
+  /* Punteggio ed etichette scendono su una riga loro, il numero a sinistra
+     perche' e' quello che si legge per primo. */
+  .hero-tpi{order:2;flex:0 0 auto;padding-left:0;border-left:0;text-align:left}
+  .hero-tpi-lbl{display:inline;margin-right:6px}
+  .hero-tpi-val{display:inline;font-size:27px}
+  .hero-tags{order:3;flex:1 1 auto;align-self:center;justify-content:flex-end}
+  .hero-av{align-self:stretch;order:0;flex:0 0 3px}
+}
