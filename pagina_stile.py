@@ -120,6 +120,13 @@ a{color:inherit}
 .nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;
   letter-spacing:.16em;color:var(--lt);padding-left:10px;
   border-left:1px solid var(--sep)}
+/* Sotto i 560px il marchio esce per fare posto alle cinque voci, e la barra
+   restava una fila di link nudi con IT/EN in testa: la cosa meno importante nel
+   posto piu' importante, e nessun segno di chi sia il sito. Al suo posto entra
+   il monogramma — le tre barre della favicon — e la scelta lingua scivola in
+   fondo. */
+.nav-mark{display:none;align-items:center;flex-shrink:0;color:var(--orng);
+  text-decoration:none;line-height:0}
 .nav-sp{flex:1}
 /* Le voci scorrono invece di andare a capo: restano cinque su una riga sola a
    qualunque larghezza, e la barra resta alta uguale. Le soglie a cui la riga
@@ -319,6 +326,8 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
 @media(max-width:560px){
   .nav{gap:10px;padding:0 14px}
   .nav-brand{display:none}
+  .nav-mark{display:inline-flex}
+  [data-i18n-switcher]{order:9}
 }
 @media(max-width:440px){
   .nav{height:46px;padding:0 8px;gap:8px}
@@ -363,6 +372,7 @@ def nav(pagina: str) -> str:
         for h, it, en in VOCI)
     return f"""<nav class="nav">
   <a class="nav-brand" href="index.html">Serie A Scout <small>25/26</small></a>
+  <a class="nav-mark" href="index.html" aria-label="Serie A Scout Index" title="Serie A Scout Index"><svg viewBox="0 0 32 32" width="19" height="19" aria-hidden="true" focusable="false"><rect x="6" y="19" width="5" height="7" fill="currentColor"/><rect x="13.5" y="13" width="5" height="13" fill="currentColor"/><rect x="21" y="6" width="5" height="20" fill="currentColor"/></svg></a>
   <div class="nav-sp"></div>
   <span data-i18n-switcher></span>
   <div class="nav-links">{link}</div>

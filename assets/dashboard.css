@@ -159,6 +159,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   display:flex;align-items:center;gap:10px;
   color:var(--lp);text-decoration:none}
 .nav-brand:hover{color:var(--lp);text-decoration:none}
+/* Sotto i 560px il marchio esce per fare posto alle cinque voci, e la barra
+   restava una fila di link nudi con IT/EN in testa: la cosa meno importante nel
+   posto piu' importante, e nessun segno di chi sia il sito. Al suo posto entra
+   il monogramma — le tre barre della favicon — e la scelta lingua scivola in
+   fondo. */
+.nav-mark{display:none;align-items:center;flex-shrink:0;color:var(--orng);
+  text-decoration:none;line-height:0}
 .nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.16em;
   text-transform:uppercase;color:var(--lt);margin-left:0;
   padding-left:10px;border-left:1px solid var(--sep)}
@@ -824,6 +831,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
      sforare la riga oltre la larghezza dello schermo. */
   .lb-pct{width:auto;margin-left:0;gap:0}
   .lb-pct .pf-pbar{display:none}
+  /* Su schermo stretto resta il solo numero: l'etichetta la porta il tooltip. */
+  .lb-pct .pf-plab{display:none}
   /* I due pulsanti scendono su una riga loro invece di comprimere il
      nome a una manciata di pixel. */
   .lb-row{flex-wrap:wrap}
@@ -1068,6 +1077,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 @media(max-width:560px){
   .nav{gap:10px;padding:0 14px}
   .nav-brand{display:none}
+  .nav-mark{display:inline-flex}
+  .nav-right-group [data-i18n-switcher]{order:9}
 }
 @media(max-width:440px){
   .nav{height:46px;padding:0 8px;gap:8px}
@@ -1169,9 +1180,15 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 
 /* Percentile e barra TPI su una riga sola: prima il numero stava sotto la sua
    barra e i centri dei due blocchi cadevano ad altezze diverse. */
-.lb-pct{display:flex;align-items:center;gap:8px;width:104px;margin-left:auto}
+.lb-pct{width:104px;margin-left:auto}
+.pf-prow{display:flex;align-items:center;gap:8px}
 .pf-pn{font-family:var(--mono);font-size:10.5px;color:var(--ls);margin:0;flex-shrink:0}
 .pf-pbar{flex:1;height:3px;background:rgba(233,240,236,.08);border-radius:2px;overflow:hidden}
+/* L'etichetta della colonna, nello stesso trattamento delle sigle sotto le
+   barre del profilo: 7.5px, spenta, una parola. Senza, restava un numero con
+   un simbolo di grado accanto a due barrette. */
+.pf-plab{font-family:var(--mono);font-size:7.5px;color:var(--lq);
+  letter-spacing:.04em;margin-top:3px}
 
 /* Il titolo di sezione si allinea con il nome nelle righe, non col bordo pagina. */
 .sec-ttl,#lb-title,.lb-sec-ttl{padding-left:12px}

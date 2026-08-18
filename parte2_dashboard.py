@@ -350,6 +350,7 @@ window.onerror=function(m,s,l){
 <!-- NAV -->
 <nav class="nav">
  <a class="nav-brand" href="index.html">Serie A Scout <small>25/26</small></a>
+ <a class="nav-mark" href="index.html" aria-label="Serie A Scout Index" title="Serie A Scout Index"><svg viewBox="0 0 32 32" width="19" height="19" aria-hidden="true" focusable="false"><rect x="6" y="19" width="5" height="7" fill="currentColor"/><rect x="13.5" y="13" width="5" height="13" fill="currentColor"/><rect x="21" y="6" width="5" height="20" fill="currentColor"/></svg></a>
  <div class="nav-btn-group">
   <button class="nav-glass-btn" id="nav-back-btn" onclick="histBack()" data-i18n-title="nav_back" data-i18n-aria-label="nav_back" title="Indietro" disabled>&#8592;</button>
   <button class="nav-glass-btn" id="nav-fwd-btn" onclick="histForward()" data-i18n-title="nav_forward" data-i18n-aria-label="nav_forward" title="Avanti" disabled>&#8594;</button>
@@ -672,16 +673,33 @@ function profStrip(p){
   +'"><div class="pf-bars">'+bars+'</div><div class="pf-labs">'+labs+'</div></div>';
 }
 
-/* Percentile sui 381 analizzati, non sui 100 del payload: rank.n_total porta il
-  totale vero. La barra parte da 50 e non da 0 perche' in classifica sono tutti
-  sopra la mediana, e su 0-100 verrebbero cento barre identiche. */
+/* Percentile su TUTTI i qualificati, non sui 100 del payload: rank.n_total
+  porta il totale vero. La barra parte da 50 e non da 0 perche' in classifica
+  sono tutti sopra la mediana, e su 0-100 verrebbero cento barre identiche.
+  La colonna era un numero con un grado e due barrette grigie, senza una parola
+  che dicesse cos'era: si poteva solo indovinare "percentile". */
 function pctCell(p){
  const r=p&&p.rank, tot=r&&r.n_total, pos=r&&r.TPI;
  if(!tot||!pos) return '<div class="lb-pct"><span class="pf-na">&mdash;</span></div>';
  const pc=(tot-pos)/tot*100;
- return '<div class="lb-pct">'
-  +'<span class="pf-pn">'+pc.toFixed(1)+'&deg;</span>'
-  +'<div class="pf-pbar"><b style="width:'+Math.max(0,(pc-50)/50*100).toFixed(1)+'%"></b></div></div>';
+ const tip=T("dash_pct_tip","Percentile: sta davanti al PC% dei TOT giocatori qualificati")
+   .replace("PC",pc.toFixed(1)).replace("TOT",tot);
+ return '<div class="lb-pct" title="'+esc(tip)+'">'
+  +'<div class="pf-prow"><span class="pf-pn">'+pc.toFixed(1)+'&deg;</span>'
+  +'<div class="pf-pbar"><b style="width:'+Math.max(0,(pc-50)/50*100).toFixed(1)+'%"></b></div></div>'
+  +'<div class="pf-plab">'+esc(T("dash_pct_lab","percentile"))+'</div></div>';
+}
+/* Spazio sopra e sotto le barre perche' il valore scritto FUORI dalla barra ci
+  stia. Plotly taglia il testo esterno quando la barra arriva al bordo dell'area:
+  sul grafico dei 5 contesti spariva proprio il valore piu' alto, cioe' quello
+  che uno guarda per primo ("+1.86" si leggeva "..."). Il range lo fissiamo noi,
+  e cliponaxis:false toglie la forbice. */
+function padRange(vals){
+ const v=vals.filter(x=>x!=null&&isFinite(x));
+ if(!v.length) return null;
+ const hi=Math.max(0,...v), lo=Math.min(0,...v);
+ const pad=Math.max(.3,(hi-lo)*.22);
+ return [lo-pad,hi+pad];
 }
 const CTX_L = __CTX_L_JS__;
 const SPIEG = __SPIEG_JS__;
@@ -1367,7 +1385,7 @@ function updateHero(p){
  av.textContent=p.ruolo==="ATT"?"":p.ruolo==="DIF"?"":p.ruolo==="CEN"?"":"";
  const wb=p.is_winter?' <span class="tag tag-snow" title="Acquisto invernale: soglia minuti ridotta ('+p.first_giornata+'ª gg)">❄️ dal gg '+p.first_giornata+'</span>':"";
  document.getElementById("h-nm").innerHTML=esc(p.nome)+wb;
- document.getElementById("h-sub").innerHTML=esc(p.squadra)+" · "+(+p.minuti||0)+"' · SOS "+fv(p.kpi.sos);
+ document.getElementById("h-sub").innerHTML=esc(p.squadra)+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos);
  // ── Forma recente (ultime N gare) ──
  const hf=document.getElementById("h-form"), r=p.recent||{};
  if(hf){
@@ -1573,7 +1591,7 @@ function buildOvHTML(p,ctx){
   +(ctx==="vs_forti"?'<span>&middot;</span><span style="color:var(--lt)">Difese top '+NTOP+' per xG concessi: '+FORTI.join(", ")+'</span>':'')
   +(ctx==="vs_top6"&&TOP6.length?'<span>&middot;</span><span style="color:var(--lt)">Top 6: '+TOP6.join(", ")+'</span>':"")
   +'<span>&middot;</span>'+cm
-  +(d.sos_ctx!=null?'<span>&middot;</span><span>SOS <strong style="color:var(--lp);font-family:var(--mono)">'+d.sos_ctx.toFixed(3)+'</strong></span>':"")
+  +(d.sos_ctx!=null?'<span>&middot;</span><span>'+esc(T("dash_kpi_sos","Difficoltà avversari"))+' <strong style="color:var(--lp);font-family:var(--mono)">'+d.sos_ctx.toFixed(3)+'</strong></span>':"")
   +(p.is_winter?'<span>&middot;</span><span class="tag-warn">❄ Invernale — K bayesiano aumentato, stima conservativa</span>':"")
   +'</div>';
  const dims=[
@@ -1653,7 +1671,7 @@ function buildOvHTML(p,ctx){
     +zrow(T("dash_zr_boost","Team boost"),d.z_boost_ratio,"boost_ratio")
     +zrow(T("dash_chip_con","Consistenza"),d.z_consistenza,"consistenza")
     +zrow("Finishing Q",p.kpi.z_finishing)
-    +'</div><div style="font-size:11px;color:var(--lt)">'+esc(T("dash_ov_zcap","0 = media di ruolo ATT+CEN Serie A | clamped ±3σ"))+'</div></div>'
+    +'</div><div style="font-size:11px;color:var(--lt)">'+esc(T("dash_ov_zcap","0 = la media del suo ruolo. Nessun valore supera ±3: una partita fuori scala non conta il doppio."))+'</div></div>'
    +'<div style="display:flex;flex-direction:column;gap:12px">'+convSnip+aiCard+'</div>'
   +'</div>'
   +'<div class="card"><div class="card-ttl">'+esc(T("dash_ctx5","TPI nei 5 contesti"))+'</div>'
@@ -1703,7 +1721,7 @@ function buildRadarHTML(p){
  return'<div class="card">'
   +'<div class="card-ttl">'+esc(T("dash_off_profile","Profilo offensivo"))+' — '+dn+' ('+CTXL(CTX)+')</div>'
   +'<div id="c-radar" style="height:400px"></div>'
-  +'<div style="font-size:11px;color:var(--lt);margin-top:5px">'+esc(T("dash_radar_caption","Ogni asse = z-score vs media ATT+CEN &middot; range ±3σ (clampato) &middot; 0 = media lega"))+'</div></div>';
+  +'<div style="font-size:11px;color:var(--lt);margin-top:5px">'+esc(T("dash_radar_caption","Ogni raggio dice quanto sta sopra o sotto la media del suo ruolo. Il bordo &egrave; il tetto: oltre ±3 non si va."))+'</div></div>';
 }
 
 function renderPanelContent(p){
@@ -1741,9 +1759,10 @@ function drawCharts(p){
   Plotly.newPlot(ce,[{type:"bar",x:cn.map(c=>CTXL(c)),y:vv,
    marker:{color:vv.map((v,i)=>nd[i]?"rgba(233,240,236,.08)":v>=0?"rgba(255,176,32,.85)":"rgba(111,180,196,.85)"),line:{width:0}},
    text:vv.map((v,i)=>nd[i]?"n/d":(v!=null?(v>=0?"+":"")+v.toFixed(2):"—")),
-   textposition:"outside",textfont:{size:11,color:"rgba(235,235,245,.65)"},
+   textposition:"outside",textfont:{size:11,color:"rgba(235,235,245,.65)"},cliponaxis:false,
   }],{...BL,margin:{t:22,b:26,l:34,r:8},height:160,
-   yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)"},showlegend:false},PL);
+   yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)",
+    range:padRange(vv)||undefined},showlegend:false},PL);
  }
  // Trend
  const te=document.getElementById("c-tr");
@@ -1845,14 +1864,14 @@ function drawCmp(){
  ],{...BL,barmode:"group",margin:{t:8,b:52,l:32,r:8},height:300,yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)"},legend:{orientation:"h",y:-.22,font:{size:10},bgcolor:"transparent"}},PL);
  const cn=Object.keys(CTX_L);
  Plotly.newPlot("cmp-ctx",[
-  {type:"bar",name:n1,x:cn.map(c=>CTXL(c)),y:cn.map(c=>p1.tpi[c]),marker:{color:rc1,opacity:.8},text:cn.map(c=>{const v=p1.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
-  {type:"bar",name:n2,x:cn.map(c=>CTXL(c)),y:cn.map(c=>p2.tpi[c]),marker:{color:rc2,opacity:.8},text:cn.map(c=>{const v=p2.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
- ],{...BL,barmode:"group",margin:{t:8,b:34,l:32,r:8},height:220,yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)"},legend:{orientation:"h",y:-.2,font:{size:10},bgcolor:"transparent"}},PL);
+  {type:"bar",name:n1,x:cn.map(c=>CTXL(c)),y:cn.map(c=>p1.tpi[c]),marker:{color:rc1,opacity:.8},text:cn.map(c=>{const v=p1.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"},cliponaxis:false},
+  {type:"bar",name:n2,x:cn.map(c=>CTXL(c)),y:cn.map(c=>p2.tpi[c]),marker:{color:rc2,opacity:.8},text:cn.map(c=>{const v=p2.tpi[c];return v!=null?(v>=0?"+":"")+v.toFixed(2):"—";}),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"},cliponaxis:false},
+ ],{...BL,barmode:"group",margin:{t:16,b:34,l:32,r:8},height:220,yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)",range:padRange([...cn.map(c=>p1.tpi[c]),...cn.map(c=>p2.tpi[c])])||undefined},legend:{orientation:"h",y:-.2,font:{size:10},bgcolor:"transparent"}},PL);
  const cr=[{l:"G/xG",v1:p1.conv?.conv_ratio,v2:p2.conv?.conv_ratio},{l:"Goal/90",v1:p1.conv?.goal_p90,v2:p2.conv?.goal_p90},{l:"xG/90",v1:p1.conv?.xg_p90_conv,v2:p2.conv?.xg_p90_conv},{l:"Finish Q",v1:p1.conv?.finishing_q,v2:p2.conv?.finishing_q}];
  Plotly.newPlot("cmp-conv",[
-  {type:"bar",name:n1,x:cr.map(m=>m.l),y:cr.map(m=>m.v1),marker:{color:rc1,opacity:.8},text:cr.map(m=>fv(m.v1,2)),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
-  {type:"bar",name:n2,x:cr.map(m=>m.l),y:cr.map(m=>m.v2),marker:{color:rc2,opacity:.8},text:cr.map(m=>fv(m.v2,2)),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"}},
- ],{...BL,barmode:"group",margin:{t:8,b:34,l:32,r:8},height:200,yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)"},legend:{orientation:"h",y:-.22,font:{size:10},bgcolor:"transparent"}},PL);
+  {type:"bar",name:n1,x:cr.map(m=>m.l),y:cr.map(m=>m.v1),marker:{color:rc1,opacity:.8},text:cr.map(m=>fv(m.v1,2)),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"},cliponaxis:false},
+  {type:"bar",name:n2,x:cr.map(m=>m.l),y:cr.map(m=>m.v2),marker:{color:rc2,opacity:.8},text:cr.map(m=>fv(m.v2,2)),textposition:"outside",textfont:{size:9,color:"rgba(235,235,245,.65)"},cliponaxis:false},
+ ],{...BL,barmode:"group",margin:{t:16,b:34,l:32,r:8},height:200,yaxis:{...BL.yaxis,zeroline:true,zerolinecolor:"rgba(255,255,255,.12)",range:padRange([...cr.map(m=>m.v1),...cr.map(m=>m.v2)])||undefined},legend:{orientation:"h",y:-.22,font:{size:10},bgcolor:"transparent"}},PL);
 }
 
 /* ── Metodologia (tab player) ── */

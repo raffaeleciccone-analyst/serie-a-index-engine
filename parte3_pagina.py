@@ -87,30 +87,63 @@ def svg_convergenza(l: dict) -> str:
 
 
 def svg_calibrazione(m: dict) -> str:
-    """Decili di TPI contro rendimento realizzato, con la retta ideale."""
+    """Decili di TPI contro rendimento realizzato, con la retta ideale.
+
+    Aveva solo due etichette sulla x ("1o decile", "10o decile") e niente asse
+    y: la didascalia diceva "rendimento medio realizzato" e non c'era modo di
+    leggere QUANTO. Una curva che sale senza una scala accanto non e' una prova,
+    e' una forma. Ora l'asse y porta tre valori e la sua unita', e il grafico
+    dichiara che non parte da zero quando non ci parte.
+    """
     bins = [b for b in (m or {}).get("bins", []) if b.get("realized_mean") is not None]
     if len(bins) < 4:
         return ""
-    w, h, ml, mr, mt, mb = 640, 210, 40, 14, 16, 30
+    w, h, ml, mr, mt, mb = 640, 210, 74, 14, 26, 30
     ys = [b["realized_mean"] for b in bins]
     y0, y1 = min(ys), max(ys)
     span = max(1e-9, y1 - y0)
+    # Un filo di aria sopra e sotto, se no il primo e l'ultimo punto stanno
+    # incollati al bordo e sembrano tagliati.
+    y0, y1 = y0 - span * 0.12, y1 + span * 0.12
+    span = y1 - y0
+
     def px(i):
         return ml + i / max(1, len(bins) - 1) * (w - ml - mr)
+
     def py(v):
         return mt + (1 - (v - y0) / span) * (h - mt - mb)
+
     out = [_SVG_OPEN.format(w=w, h=h)]
-    out.append(f'<line x1="{px(0):.1f}" y1="{py(y0):.1f}" x2="{px(len(bins)-1):.1f}" '
-               f'y2="{py(y1):.1f}" stroke="rgba(233,240,236,.22)" stroke-width="1" '
+    # Asse y: tre valori bastano a dare la scala senza trasformarlo in una
+    # tabella. Le linee di riferimento sono piu' chiare dei soli numeri.
+    for frazione in (0.0, 0.5, 1.0):
+        v = y0 + span * frazione
+        yy = py(v)
+        out.append(f'<line x1="{ml:.1f}" y1="{yy:.1f}" x2="{w-mr:.1f}" y2="{yy:.1f}" '
+                   f'stroke="rgba(233,240,236,.06)" stroke-width="1"/>')
+        out.append(f'<text x="{ml-8:.1f}" y="{yy+3:.1f}" text-anchor="end" '
+                   f'class="sv-ax">{v:.2f}</text>')
+    out.append(f'<text x="0" y="12" class="sv-ax">gol + assist attesi per 90&rsquo;'
+               f'{" (l&rsquo;asse non parte da zero)" if y0 > 0 else ""}</text>')
+    out.append(f'<line x1="{ml:.1f}" y1="{mt:.1f}" x2="{ml:.1f}" y2="{h-mb:.1f}" '
+               f'stroke="rgba(233,240,236,.14)" stroke-width="1"/>')
+    out.append(f'<line x1="{px(0):.1f}" y1="{py(ys[0]):.1f}" x2="{px(len(bins)-1):.1f}" '
+               f'y2="{py(ys[-1]):.1f}" stroke="rgba(233,240,236,.22)" stroke-width="1" '
                f'stroke-dasharray="3 4"/>')
     pts = " ".join(f"{px(i):.1f},{py(v):.1f}" for i, v in enumerate(ys))
     out.append(f'<polyline points="{pts}" fill="none" stroke="var(--orng)" stroke-width="1.6"/>')
     for i, v in enumerate(ys):
         out.append(f'<circle cx="{px(i):.1f}" cy="{py(v):.1f}" r="3" fill="var(--orng)"/>')
+    # I decili che scendono sotto il precedente: cerchiati, cosi' lo scalino di
+    # cui parla la didascalia si trova a colpo d'occhio invece di doverlo cercare.
+    for d in cali_decili(m):
+        i = d - 1
+        if 0 <= i < len(ys):
+            out.append(f'<circle cx="{px(i):.1f}" cy="{py(ys[i]):.1f}" r="6.5" fill="none" '
+                       f'stroke="var(--orng)" stroke-width="1" stroke-dasharray="2 2" '
+                       f'opacity=".75"/>')
     out.append(f'<text x="{ml}" y="{h-10}" class="sv-ax">1&ordm; decile</text>')
     out.append(f'<text x="{w-mr}" y="{h-10}" text-anchor="end" class="sv-ax">10&ordm; decile</text>')
-    out.append(f'<text x="{px(len(bins)-1)-6:.1f}" y="{py(y1)-10:.1f}" text-anchor="end" '
-               f'class="sv-val">rendimento reale</text>')
     out.append("</svg>")
     return "".join(out)
 
