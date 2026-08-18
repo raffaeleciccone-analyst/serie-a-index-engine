@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from functools import lru_cache
 import sys
 import warnings
 from pathlib import Path
@@ -331,17 +332,12 @@ _POS_BUCKET = {
 }
 
 
-def derive_understat_roles(min_minutes: int = 200) -> dict[str, str]:
-    """Ruolo per giocatore dalle posizioni Understat realmente giocate (dai JSON
-    in cache). Somma i minuti per bucket-ruolo e prende il maggiore. I minuti da
-    wing-back (DML/DMR) sono assegnati a CEN se il giocatore è prevalentemente
-    centrale/offensivo (mezzala schierata esterna, es. McKennie), altrimenti a
-    DIF (terzino fluidificante, es. Estupiñán). Gestisce i giocatori versatili
-    meglio della posizione singola modale."""
-    import glob as _g, json as _j, html as _h, unicodedata as _u, collections as _c
-
-    def _nm(s):
-        return _u.normalize("NFKD", _h.unescape(str(s or ""))).encode("ascii", "ignore").decode().lower().strip()
+@lru_cache(maxsize=1)
+def _understat_posmin() -> dict[str, dict[str, int]]:
+    """Minuti per posizione, giocatore per giocatore, dai JSON Understat in
+    cache. Estratti una volta sola: la lettura della cache è la parte lenta, e
+    da questi minuti si ricavano poi tutte le soglie che servono."""
+    import glob as _g, json as _j, html as _h, collections as _c
 
     cache_dir = os.path.join(os.path.expanduser("~/soccerdata"), "data", "Understat")
     posmin: dict[str, _c.Counter] = _c.defaultdict(_c.Counter)
@@ -355,8 +351,26 @@ def derive_understat_roles(min_minutes: int = 200) -> dict[str, str]:
                 pos = info.get("position")
                 t = int(info.get("time", 0) or 0)
                 if pos and pos != "Sub" and t > 0:
-                    posmin[_nm(info.get("player"))][pos] += t
+                    posmin[_role_key(info.get("player"))][pos] += t
+    return {k: dict(v) for k, v in posmin.items()}
 
+
+def derive_understat_roles(min_minutes: int = 200) -> dict[str, str]:
+    """Ruolo per giocatore dalle posizioni Understat realmente giocate (dai JSON
+    in cache). Somma i minuti per bucket-ruolo e prende il maggiore. I minuti da
+    wing-back (DML/DMR) sono assegnati a CEN se il giocatore è prevalentemente
+    centrale/offensivo (mezzala schierata esterna, es. McKennie), altrimenti a
+    DIF (terzino fluidificante, es. Estupiñán). Gestisce i giocatori versatili
+    meglio della posizione singola modale.
+
+    `min_minutes` alto = ruolo affidabile, ma lascia scoperte le riserve. Con
+    la soglia a 1 il ruolo è quello di poche apparizioni: buono come ripiego
+    per chi altrimenti resterebbe senza — un dodicesimo portiere con 90 minuti
+    in tutta la stagione va comunque riconosciuto come portiere.
+    """
+    import collections as _c
+
+    posmin = {k: _c.Counter(v) for k, v in _understat_posmin().items()}
     roles: dict[str, str] = {}
     for nm, cnt in posmin.items():
         if sum(cnt.values()) < min_minutes:
@@ -380,6 +394,84 @@ def derive_understat_roles(min_minutes: int = 200) -> dict[str, str]:
         if bucket:
             roles[nm] = bucket.most_common(1)[0][0]
     return roles
+
+
+def _role_key(s: Any) -> str:
+    """Nome ridotto a chiave confrontabile: via accenti ed entità HTML, tutto
+    minuscolo. Serve ad agganciare i nomi Understat a quelli dell'anagrafica."""
+    import unicodedata as _u, html as _h
+
+    return (
+        _u.normalize("NFKD", _h.unescape(str(s or "")))
+        .encode("ascii", "ignore")
+        .decode()
+        .lower()
+        .strip()
+    )
+
+
+def apply_role_pipeline(
+    df: pd.DataFrame,
+    us_roles: dict[str, str],
+    cfg: Any,
+    etichetta: str = "",
+    ripiego: dict[str, str] | None = None,
+) -> pd.DataFrame:
+    """Ruolo definitivo su un dataframe con colonna `ruolo` e una di nome.
+
+    Gerarchia:  1) DB (base)  2) posizione reale Understat (default oggettivo)
+                3) override manuale (ULTIMA PAROLA).
+
+    Girava solo su df_pa. Il roster — che è il blocco pubblicato come rosa —
+    restava con il ruolo grezzo del DB, e i due si contraddicevano nella stessa
+    build: Alex Meret usciva DIF nella rosa del Napoli e POR fra i qualificati.
+    """
+    if df.empty or "ruolo" not in df.columns:
+        return df
+    cols = [c for c in ("nome_anagrafico", "giocatore", "nome") if c in df.columns]
+    if not cols:
+        return df
+    tag = f" [{etichetta}]" if etichetta else ""
+
+    # 2) Understat = default per tutti i giocatori con posizione affidabile
+    if us_roles:
+        applied = 0
+        keymap = df[cols[0]].map(_role_key)
+        for idx, k in keymap.items():
+            if k in us_roles and df.at[idx, "ruolo"] != us_roles[k]:
+                df.at[idx, "ruolo"] = us_roles[k]
+                applied += 1
+        log.info(f"Ruolo Understat (posizione reale){tag}: {applied} correzioni")
+
+    # 2-bis) Ripiego per chi resta senza ruolo: posizione Understat presa anche
+    # su pochi minuti. Non entra nell'analisi (chi ha cosi' pochi minuti non si
+    # qualifica), ma decide se uno finisce nella rosa pubblicata e con quale
+    # etichetta — ed e' l'unico modo di riconoscere il dodicesimo portiere, che
+    # in anagrafica ha il ruolo vuoto e nella rosa compariva senza ruolo.
+    if ripiego:
+        vuoti = df["ruolo"].isna() | df["ruolo"].astype(str).str.strip().isin(["", "nan", "None"])
+        riempiti = 0
+        if vuoti.any():
+            keymap = df.loc[vuoti, cols[0]].map(_role_key)
+            for idx, k in keymap.items():
+                if k in ripiego:
+                    df.at[idx, "ruolo"] = ripiego[k]
+                    riempiti += 1
+        log.info(f"Ruolo di ripiego (pochi minuti){tag}: {riempiti} su {int(vuoti.sum())} senza ruolo")
+
+    # 3) Override manuale = ultima parola (vince su Understat e DB)
+    overridden = 0
+    for nome, ruolo_corretto in (getattr(cfg, "ruolo_override", None) or {}).items():
+        for col in cols:
+            mask = df[col] == nome
+            if not mask.any():
+                mask = df[col].astype(str).str.lower() == nome.lower()
+            if mask.any():
+                df.loc[mask, "ruolo"] = ruolo_corretto
+                overridden += int(mask.sum())
+                break
+    log.info(f"Override manuale (ultima parola){tag}: {overridden} giocatori")
+    return df
 
 
 # ════════════════════════════════════════════════════════════════
@@ -660,13 +752,12 @@ class DatabaseLayer:
                                               AND sc.calendario_id  = gp.calendario_id
             LEFT JOIN t_squadra_game_log  sgl ON  sgl.squadra_id   = g.squadra_id
                                               AND sgl.calendario_id = gp.calendario_id
-            -- Niente portieri: questo e' un indice di impatto OFFENSIVO, e un
-            -- portiere non ne ha per definizione. Restavano dentro con il solo
-            -- peso di ruolo a 0.20, e siccome gli z-score si calcolano DENTRO
-            -- il ruolo bastava un portiere che produce 0.03 xG+xA per 90 per
-            -- essere un +3 sigma fra portieri, saturare il tetto e finire 77o
-            -- su 381. Il roster li escludeva gia': ora lo fa anche l'analisi.
-            WHERE g.ruolo <> 'POR'{sw}
+            -- I portieri restano fuori dall'indice (e' un indice di impatto
+            -- OFFENSIVO), ma l'esclusione NON si fa qui: `g.ruolo` e' proprio
+            -- il campo inaffidabile che ci ha dato Meret difensore e Idzes
+            -- portiere. Si filtra in main(), dopo aver risolto i ruoli sulle
+            -- posizioni Understat.
+            WHERE 1=1{sw}
             """,
             self.engine,
         )
@@ -795,7 +886,7 @@ class DatabaseLayer:
                 -- da dire in una pagina di scouting, e finiva in elenco solo
                 -- perche' l'anagrafica lo tiene ancora in quella squadra: era
                 -- il caso dei giocatori ceduti l'estate prima.
-                WHERE  g.ruolo != 'POR' AND agg.minuti > 0
+                WHERE  agg.minuti > 0   -- i portieri escono dopo, sul ruolo risolto
                 ORDER  BY sq.nome, g.ruolo, ISNULL(agg.minuti), agg.minuti DESC
                 """,
                 self.engine,
@@ -2062,37 +2153,30 @@ def main(max_giornata: int | None = None,
     # ── Ruoli: gerarchia di precedenza ─────────────────────────
     #   1) DB (base)  2) posizione reale Understat (default oggettivo)
     #   3) override manuale (ULTIMA PAROLA — correzioni deliberate dell'esperto)
-    nome_col = "giocatore" if "giocatore" in df_pa.columns else df_pa.columns[0]
-    import unicodedata as _ud2, html as _h2
-    def _nm2(s):
-        return _ud2.normalize("NFKD", _h2.unescape(str(s or ""))).encode("ascii", "ignore").decode().lower().strip()
-
-    # 2) Understat = default per tutti i giocatori con posizione affidabile
     us_roles = derive_understat_roles()
-    if us_roles:
-        applied = 0
-        col = "nome_anagrafico" if "nome_anagrafico" in df_pa.columns else nome_col
-        keymap = df_pa[col].map(_nm2)
-        for idx, k in keymap.items():
-            if k in us_roles and df_pa.at[idx, "ruolo"] != us_roles[k]:
-                df_pa.at[idx, "ruolo"] = us_roles[k]
-                applied += 1
-        log.info(f"Ruolo Understat (posizione reale): {applied} correzioni")
+    us_ripiego = derive_understat_roles(min_minutes=1)
+    df_pa = apply_role_pipeline(df_pa, us_roles, CFG, "analisi", ripiego=us_ripiego)
 
-    # 3) Override manuale = ultima parola (vince su Understat e DB)
-    overridden = 0
-    for nome, ruolo_corretto in CFG.ruolo_override.items():
-        for col in ["nome_anagrafico", nome_col]:
-            if col not in df_pa.columns:
-                continue
-            mask = df_pa[col] == nome
-            if not mask.any():
-                mask = df_pa[col].str.lower() == nome.lower()
-            if mask.any():
-                df_pa.loc[mask, "ruolo"] = ruolo_corretto
-                overridden += mask.sum()
-                break
-    log.info(f"Override manuale (ultima parola): {overridden} giocatori")
+    # 4) I portieri escono ADESSO, non nella query. Filtrarli su `g.ruolo`
+    #    voleva dire filtrarli sul campo che sappiamo sbagliato: Meret, che in
+    #    anagrafica è DIF, passava il filtro e restava fra i qualificati con
+    #    TPI None (329° su 329); Idzes, che è un difensore etichettato POR,
+    #    veniva buttato via insieme ai portieri veri. Dopo la risoluzione il
+    #    ruolo è quello giocato davvero, e l'esclusione colpisce chi deve.
+    _por = df_pa["ruolo"].astype(str).str.upper().eq("POR")
+    if _por.any():
+        _ids_por = {int(x) for x in df_pa.loc[_por, "giocatore_id"]}
+        _nomi = ", ".join(
+            str(n) for n in df_pa.loc[_por, "giocatore"].head(5)
+        ) if "giocatore" in df_pa.columns else ""
+        log.info(
+            f"Portieri esclusi dopo la risoluzione dei ruoli: {int(_por.sum())}"
+            + (f" (es. {_nomi})" if _nomi else "")
+        )
+        df_pa = df_pa[~_por].copy().reset_index(drop=True)
+        df_gp_raw = df_gp_raw[
+            ~df_gp_raw["giocatore_id"].astype("Int64").isin(_ids_por)
+        ].copy()
 
     # ── SOS per partita ────────────────────────────────────────
     df_gp_raw["sos_avv"] = df_gp_raw["avversario_id"].map(sos_map).astype(float)
@@ -2581,13 +2665,19 @@ def main(max_giornata: int | None = None,
 
     # ── Roster completo ────────────────────────────────────────
     df_roster = db.load_roster()
-    if not df_roster.empty and CFG.ruolo_override:
-        nc = "giocatore"
-        for nome, ruolo_c in CFG.ruolo_override.items():
-            mask = df_roster[nc] == nome
-            if not mask.any():
-                mask = df_roster[nc].str.lower() == nome.lower()
-            df_roster.loc[mask, "ruolo"] = ruolo_c
+    if not df_roster.empty:
+        # Stessa gerarchia dell'analisi, sullo stesso dizionario Understat: la
+        # rosa pubblicata e la classifica devono dire lo stesso ruolo per la
+        # stessa persona. Prima qui girava solo l'override manuale, e il resto
+        # della rosa usciva con il ruolo grezzo dell'anagrafica: 237 difensori
+        # su 456, i portieri sparsi fra DIF e ATT.
+        df_roster = apply_role_pipeline(
+            df_roster, us_roles, CFG, "roster", ripiego=us_ripiego
+        )
+        _por_r = df_roster["ruolo"].astype(str).str.upper().eq("POR")
+        if _por_r.any():
+            log.info(f"Portieri fuori dal roster: {int(_por_r.sum())}")
+            df_roster = df_roster[~_por_r].copy().reset_index(drop=True)
 
     analyzed_ids = {entry["id"] for entry in payload}
     roster_list = [
@@ -2595,7 +2685,12 @@ def main(max_giornata: int | None = None,
             "id": int(r.get("giocatore_id") or 0),
             "nome": clean_str(r.get("nome_anagrafico") or r.get("giocatore") or "—"),
             "squadra": clean_str(r["squadra"]),
-            "ruolo": clean_str(r["ruolo"] or ""),
+            # `or ""` non bastava: un NaN di pandas e' vero, e finiva nel JSON
+            # come il letterale NaN — JSON non valido, e "NaN" scritto in
+            # chiaro accanto al nome nella rosa. Chi non ha un ruolo
+            # risolvibile (fringe con pochi minuti, nessuna posizione
+            # Understat) esce con la stringa vuota, e la pagina scrive "—".
+            "ruolo": ("" if pd.isna(r["ruolo"]) else clean_str(r["ruolo"] or "")),
             "minuti": int(r["minuti"]),
             "is_analyzed": int(r.get("giocatore_id") or 0) in analyzed_ids,
         }

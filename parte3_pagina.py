@@ -115,6 +115,45 @@ def svg_calibrazione(m: dict) -> str:
     return "".join(out)
 
 
+def dida_calibrazione(m: dict) -> tuple[str, str]:
+    """Didascalia del grafico dei decili, scritta dalla curva che sta sopra.
+
+    Era una frase fissa — "l'ordine coincide, il passo no" — vera finche' la
+    monotonia misurava 1.000. Basta che il campione cambi (i portieri fuori, i
+    ruoli risolti sulle posizioni vere) perche' un decile scenda sotto il
+    precedente e la didascalia smentisca il proprio grafico. Ora i cali li
+    conta.
+    """
+    bins = [b for b in (m or {}).get("bins", []) if b.get("realized_mean") is not None]
+    ys = [b["realized_mean"] for b in bins]
+    cali = [i + 2 for i in range(len(ys) - 1) if ys[i + 1] < ys[i]]  # decile che scende
+    rho = m.get("monotonia_rho") if m else None
+    testa_it = ("Rendimento medio realizzato dal primo all&rsquo;ultimo decile di TPI. La linea "
+                "tratteggiata &egrave; la salita costante che avrebbe un indice calibrato: ")
+    testa_en = ("Mean realized output from the first to the last TPI decile. The dashed line is "
+                "the steady rise a calibrated index would show: ")
+    if not cali:
+        coda_it = "l&rsquo;ordine coincide, il passo no."
+        coda_en = "the order matches, the spacing does not."
+    elif len(cali) == 1:
+        d = cali[0]
+        coda_it = (f"l&rsquo;ordine coincide dappertutto tranne fra il {d-1}&ordm; e il "
+                   f"{d}&ordm; decile, dove scende; e il passo non coincide mai.")
+        coda_en = (f"the order matches everywhere except between deciles {d-1} and {d}, where it "
+                   f"drops; and the spacing never matches.")
+    else:
+        elenco_it = ", ".join(f"{d-1}&ordm;&ndash;{d}&ordm;" for d in cali)
+        elenco_en = ", ".join(f"{d-1}&ndash;{d}" for d in cali)
+        coda_it = (f"l&rsquo;ordine si inverte in {len(cali)} punti ({elenco_it}), e il passo non "
+                   f"coincide mai.")
+        coda_en = (f"the order reverses at {len(cali)} points ({elenco_en}), and the spacing never "
+                   f"matches.")
+    if rho is not None:
+        coda_it += f" Monotonia &rho; = {rho:+.3f}."
+        coda_en += f" Monotonicity &rho; = {rho:+.3f}."
+    return testa_it + coda_it, testa_en + coda_en
+
+
 def svg_ablation(o: dict) -> str:
     """Quanto cambia la previsione togliendo una dimensione per volta.
 
@@ -354,11 +393,7 @@ def _cap_regge(d: dict) -> str:
     graf_blk = (f'{graf}<p class="didascalia" {bi(dida_it, dida_en)}>{dida_it}</p>'
                 if graf else "")
     cal = svg_calibrazione(m)
-    cal_it = ("Rendimento medio realizzato dal primo all&rsquo;ultimo decile di TPI. La linea "
-              "tratteggiata &egrave; la salita costante che avrebbe un indice calibrato: "
-              "l&rsquo;ordine coincide, il passo no.")
-    cal_en = ("Mean realized output from the first to the last TPI decile. The dashed line is the "
-              "steady rise a calibrated index would show: the order matches, the spacing does not.")
+    cal_it, cal_en = dida_calibrazione(m)
     cal_blk = (f'<h3 {bi("Dal primo al decimo decile", "From the first to the tenth decile")}>'
                f'Dal primo al decimo decile</h3>{cal}'
                f'<p class="didascalia" {bi(cal_it, cal_en)}>{cal_it}</p>' if cal else "")

@@ -634,7 +634,7 @@ const RC   = __RC_JS__;
 const RL   = __RL_JS__;
 /* nome-ruolo localizzato: usa i18n se disponibile, fallback a RL (italiano) */
 const _ROLE_KEY={POR:"dash_role_full_POR",DIF:"dash_role_full_DIF",CEN:"dash_role_full_CEN",ATT:"dash_role_full_ATT"};
-function roleName(code){ return T(_ROLE_KEY[code], RL[code]||code); }
+function roleName(code){ if(!code) return "—"; return T(_ROLE_KEY[code], RL[code]||code); }
 /* Badge forma recente (ultime N gare): caldo / freddo. Tooltip coi numeri. */
 function formBadge(p){
  const r=p&&p.recent; if(!r||!r.label) return "";
@@ -1337,7 +1337,7 @@ function buildDrop(){
    var dn2=r.nome;
    return'<div class="fpk-item" style="opacity:.5"><div class="fpk-dot" style="background:'+(RC[r.ruolo]||"#636366")+'"></div>'
     +'<div class="fpk-bd"><div class="fpk-nm" title="'+r.nome+'">'+dn2+'</div>'
-    +'<div class="fpk-sub">'+r.squadra+' &middot; '+(RL[r.ruolo]||r.ruolo)+' &middot; '+r.minuti+'\' min</div></div>'
+    +'<div class="fpk-sub">'+r.squadra+' &middot; '+esc(roleName(r.ruolo))+' &middot; '+r.minuti+'\' min</div></div>'
     +'<div class="fpk-rt" style="font-size:10px;color:var(--lt)">n/a</div></div>';
   }).join("");
  pd.innerHTML=html;
