@@ -396,6 +396,78 @@ def derive_understat_roles(min_minutes: int = 200) -> dict[str, str]:
     return roles
 
 
+# Nome leggibile di ogni dimensione del TPI. Sta qui, accanto ai pesi, perche'
+# da qui esce il blocco `metodo` del payload: il sito e l'assistente devono
+# leggere l'elenco delle dimensioni dal motore, non riscriverselo a mano. Il
+# dataset dell'assistente ne elencava sei, con dentro l'AII (che e' un
+# modulatore del Pro) e senza finishing (peso 0.20).
+DIM_NOMI = {
+    "output_adj":  ("Output offensivo", "Attacking output", "(xG + xA) / 90 / SOS"),
+    "finishing":   ("Finalizzazione", "Finishing", "(gol - xG) / radice(xG), rigori esclusi"),
+    "centralita":  ("Centralita offensiva", "Attacking centrality",
+                    "(xG + xA del giocatore) / xG della squadra"),
+    "form":        ("Forma recente", "Recent form", "EWMA dell'output per-90"),
+    "buildup_adj": ("Buildup", "Buildup", "xGBuildup / 90 / SOS, senza tiro ne' assist"),
+    "consistenza": ("Consistenza", "Consistency", "media / (media + deviazione standard)"),
+    "boost_ratio": ("Effetto squadra", "Team effect", "log-ratio xG con lui / senza lui, shrinkato"),
+}
+
+MOD_PRO_NOMI = {
+    "aii": ("Indice eta (AII)", "Age index (AII)"),
+    "pri": ("Affidabilita fisica (PRI)", "Physical reliability (PRI)"),
+    "ctx_stab": ("Stabilita fra i contesti", "Cross-context stability"),
+    "form_trend": ("Direzione della forma", "Form direction"),
+    "early_momentum": ("Momentum iniziale", "Early momentum"),
+}
+
+
+def blocco_metodo(cfg: Any) -> dict:
+    """Come e' costruito il punteggio, preso dalla configurazione che gira.
+
+    Serve a chi consuma il payload senza leggere il codice — la guida, e
+    soprattutto il dataset dell'assistente, che prima riportava a mano sei
+    dimensioni, il picco d'eta a 27 anni (qui e' 23) e una consistenza
+    calcolata con l'IQR, rimossa da mesi.
+    """
+    pesi = dict(cfg.tpi_weights)
+    dims = [
+        {
+            "chiave": k,
+            "nome_it": DIM_NOMI.get(k, (k, k, ""))[0],
+            "nome_en": DIM_NOMI.get(k, (k, k, ""))[1],
+            "formula": DIM_NOMI.get(k, (k, k, ""))[2],
+            "peso": round(float(v), 4),
+        }
+        for k, v in sorted(pesi.items(), key=lambda kv: -kv[1])
+    ]
+    return {
+        "dimensioni": dims,
+        "modulatori_pro": [
+            {"chiave": k, "nome_it": it, "nome_en": en}
+            for k, (it, en) in MOD_PRO_NOMI.items()
+        ],
+        "contesti": ["totale", "casa", "trasferta", "vs_top6", "vs_forti"],
+        "z": {
+            "dentro_il_ruolo": bool(cfg.z_per_ruolo),
+            "winsor_pct": 0.05,
+            "clamp_sigma": 3.0,
+            "nota_it": ("Gli z-score si calcolano dentro il ruolo: 0.00 e' il giocatore "
+                        "medio del SUO ruolo, non della lega."
+                        if cfg.z_per_ruolo else
+                        "Gli z-score si calcolano su tutta la lega."),
+        },
+        "consistenza_formula": "media / (media + deviazione standard) dell'output per-90",
+        "eta": {"picco": float(cfg.age_peak), "sigma": float(cfg.age_sigma)},
+        "shrinkage": {
+            "output_prior_minuti": float(cfg.output_prior_minutes),
+            "confidence_floor": float(cfg.confidence_floor),
+        },
+        "peso_offensivo_per_ruolo": {k: float(v) for k, v in cfg.offensive_role_weight.items()},
+        "ewma_alpha": float(cfg.ewma_alpha),
+        "portieri": "esclusi dall'indice, che misura l'impatto offensivo",
+    }
+
+
 def _role_key(s: Any) -> str:
     """Nome ridotto a chiave confrontabile: via accenti ed entità HTML, tutto
     minuscolo. Serve ad agganciare i nomi Understat a quelli dell'anagrafica."""
@@ -2773,6 +2845,7 @@ def main(max_giornata: int | None = None,
         "players": payload,
         "roster": roster_list,
         "tpi_pro_showcase": tpi_pro_showcase,   # ← NUOVO: showcase TPI Pro
+        "metodo": blocco_metodo(CFG),
     }
 
     # `payload.json` E' la stagione corrente: e' il file che parte2 e parte3

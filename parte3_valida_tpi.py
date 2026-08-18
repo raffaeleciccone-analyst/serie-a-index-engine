@@ -10,7 +10,7 @@ Fix v3:
   · Sezione E — Validazione TPI Pro (AII + PRI + confronto ranking)
 """
 from __future__ import annotations
-import json, logging, os, sys, time, warnings, webbrowser
+import json, logging, os, subprocess, sys, time, warnings, webbrowser
 from pathlib import Path
 
 try:
@@ -2571,6 +2571,74 @@ tr:hover td{background:rgba(233,240,236,.03)}
 # che riceve i risultati gia' calcolati e non sa niente di come sono stati
 # ottenuti. Questo file torna a fare una cosa sola: misurare.
 
+def sintesi_validazione(dati: dict) -> dict:
+    """I titoli delle verifiche, in una manciata di byte.
+
+    Il dump completo e' 160 KB: troppo per il system prompt dell'assistente,
+    che pero' e' esattamente il posto dove i numeri non devono essere scritti a
+    mano. Qui ci sono solo quelli che il sito pubblica in grande.
+    """
+    def g(k, *campi, d=None):
+        v = dati.get(k) or {}
+        for c in campi:
+            v = (v or {}).get(c) if isinstance(v, dict) else None
+        return v if v is not None else d
+
+    l = dati.get("l") or {}
+    pv = [r for r in (l.get("per_vintage") or []) if r.get("spearman_rho") is not None]
+    o = dati.get("o") or {}
+    ris = sorted((o.get("results") or []), key=lambda r: r.get("delta_predict", 0))
+    q = dati.get("q") or {}
+    criteri = q.get("criteri") or {}
+
+    def arrotonda(v):
+        """Tre decimali dappertutto: il dump interno tiene la precisione piena,
+        qui serve un numero da leggere, non da ricalcolare."""
+        if isinstance(v, float):
+            return round(v, 3)
+        if isinstance(v, dict):
+            return {k: arrotonda(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [arrotonda(x) for x in v]
+        return v
+
+    return arrotonda({
+        "n_verifiche": g("meta", "n_verifiche"),
+        "n_giocatori": g("meta", "n_giocatori"),
+        "prima_meta_vs_seconda": {
+            "rho": g("c", "r"), "n": g("c", "n"),
+            "ic": [g("c", "ci_lo"), g("c", "ci_hi")],
+            "cosa_misura": "output offensivo grezzo, non il TPI composito",
+        },
+        "decili": {
+            "monotonia_rho": g("m", "monotonia_rho"),
+            "errore_calibrazione": g("m", "calibration_error"),
+        },
+        "convergenza": {
+            "prima_giornata": (pv[0].get("vintage_giornata") if pv else None),
+            "rho_prima": (pv[0].get("spearman_rho") if pv else None),
+            "rho_ultima": (pv[-1].get("spearman_rho") if pv else None),
+        },
+        "a_livello_di_squadra": {"r": g("f", "r"), "n": g("f", "n")},
+        "overlap_whoscored_pct": g("b", "overlap_pct"),
+        "sensibilita_pesi_rho_mediana": g("h", "spearman_median"),
+        "ablation": {
+            "dimensione_piu_utile": (ris[0].get("dim") if ris else None),
+            "dimensione_meno_utile": (ris[-1].get("dim") if ris else None),
+        },
+        "contro_le_baseline": {
+            nome: {
+                "battute": (criteri.get(nome) or {}).get("tpi_batte"),
+                "su": (criteri.get(nome) or {}).get("n_baselines"),
+            }
+            for nome in ("livello", "improvement")
+            if criteri.get(nome)
+        },
+        "avvertenza": ("Il TPI e' descrittivo: ordina, non predice. Le verifiche "
+                       "pubblicate includono quelle che l'indice non supera."),
+    })
+
+
 def main():
     log.info("=" * 58)
     log.info("Validazione TPI v3.0 — Serie A 25/26")
@@ -2684,6 +2752,41 @@ def main():
         log.info(f"  Risultati → {_dump}")
     except OSError as e:
         log.warning(f"  Dump risultati fallito: {e}")
+
+    # Sintesi: i soli numeri che servono a chi non puo' leggersi 160 KB di dump,
+    # cioe' l'assistente AI. Il suo dataset riportava a memoria "rho = 0.70" e
+    # non e' mai stato riallineato; da qui i numeri li prende dalla stessa
+    # esecuzione che scrive la pagina.
+    sintesi = sintesi_validazione(dati)
+    _sint = OUTPUT_DIR / "validazione_sintesi.json"
+    try:
+        _sint.write_text(json.dumps(sintesi, ensure_ascii=False, indent=1),
+                         encoding="utf-8")
+        log.info(f"  Sintesi → {_sint}")
+        if DEMO_DIR.is_dir():
+            (DEMO_DIR / _sint.name).write_text(
+                json.dumps(sintesi, ensure_ascii=False, indent=1), encoding="utf-8")
+            log.info(f"  Sintesi → {DEMO_DIR / _sint.name}  (copia per repo demo)")
+    except OSError as e:
+        log.warning(f"  Sintesi fallita: {e}")
+
+    # Il dataset dell'assistente si rigenera qui, con tutto il resto: e' l'unico
+    # modo perche' non resti indietro. Il controllo in CI e nel pre-commit e' la
+    # rete sotto, non il meccanismo — quando il file lo scriveva una persona,
+    # e' rimasto vecchio di otto giorni con dentro pesi che non esistevano piu'.
+    _build = DEMO_DIR / "build_ai_dataset.py"
+    if _build.is_file():
+        try:
+            import sys as _sys  # `sys` e' rilegato piu' sotto dentro main()
+            _r = subprocess.run([_sys.executable, str(_build)], cwd=str(DEMO_DIR),
+                                capture_output=True, text=True, timeout=120)
+            if _r.returncode == 0:
+                log.info(f"  Dataset assistente → {(_r.stdout or '').strip()}")
+            else:
+                log.warning(f"  build_ai_dataset ha fallito: "
+                            f"{(_r.stderr or _r.stdout or '').strip()[:300]}")
+        except (OSError, subprocess.SubprocessError) as e:
+            log.warning(f"  build_ai_dataset non eseguito: {e}")
 
     log.info("\nGenerazione HTML...")
     import parte3_pagina
