@@ -44,6 +44,19 @@ def el(tag: str, it: str, en: str, cls: str = "", extra: str = "") -> str:
     return f"<{tag}{c}{x} {bi(it, en)}>{it}</{tag}>"
 
 
+def cali_decili(m: dict) -> list[int]:
+    """I decili che scendono sotto il precedente nel grafico di calibrazione.
+
+    Serve a non scrivere "l'ordine tiene" quando in un punto non tiene: la
+    frase era fissa su tutte e tre le pagine, ed era vera solo finche' la
+    monotonia misurava 1.000. Restituisce il numero d'ordine dei decili bassi
+    (2 = il secondo e' sotto il primo).
+    """
+    ys = [b["realized_mean"] for b in (m or {}).get("bins", [])
+          if b.get("realized_mean") is not None]
+    return [i + 2 for i in range(len(ys) - 1) if ys[i + 1] < ys[i]]
+
+
 def evidenza(fig: str, lab_it: str, lab_en: str, it: str, en: str) -> str:
     """La riga-tipo della pagina: il numero nel margine, la frase accanto.
 

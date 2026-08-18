@@ -22,7 +22,7 @@ try:
 except Exception:
     pass
 
-from pagina_stile import _f, bi, el, evidenza, guscio
+from pagina_stile import _f, bi, cali_decili, el, evidenza, guscio
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     datefmt="%H:%M:%S")
@@ -227,12 +227,29 @@ def _quanto_regge(val: dict) -> str:
     m, l, q = (val.get(k) or {} for k in ("m", "l", "q"))
     ev = []
     if m.get("monotonia_rho") is not None:
+        # La frase era fissa: "li dispone nell'ordine del rendimento realizzato".
+        # Con un decile che scende sotto il precedente e' falsa, e la homepage
+        # e' l'ultimo posto dove serve una frase ottimista scritta a mano.
+        cali = cali_decili(m)
+        if not cali:
+            corpo_it = ("Diviso in dieci gruppi, l&rsquo;indice li dispone nell&rsquo;ordine del "
+                        "rendimento realizzato in campo.")
+            corpo_en = ("Split into ten groups, the index lines them up in the order of output "
+                        "actually produced on the pitch.")
+        else:
+            quali_it = ", ".join(f"{d-1}&ordm;&ndash;{d}&ordm;" for d in cali)
+            quali_en = ", ".join(f"{d-1}&ndash;{d}" for d in cali)
+            corpo_it = (f"Diviso in dieci gruppi, l&rsquo;indice li dispone quasi nell&rsquo;ordine "
+                        f"del rendimento realizzato in campo: l&rsquo;ordine si inverte fra "
+                        f"{quali_it}.")
+            corpo_en = (f"Split into ten groups, the index lines them up almost in the order of "
+                        f"output actually produced on the pitch: the order reverses between "
+                        f"deciles {quali_en}.")
         ev.append(evidenza(
-            f'&rho; {_f(m["monotonia_rho"], 3)}', "L&rsquo;ordine tiene", "The order holds",
-            "Diviso in dieci gruppi, l&rsquo;indice li dispone nell&rsquo;ordine del rendimento "
-            "realizzato in campo.",
-            "Split into ten groups, the index lines them up in the order of output actually "
-            "produced on the pitch."))
+            f'&rho; {_f(m["monotonia_rho"], 3)}',
+            "L&rsquo;ordine tiene" + ("" if not cali else " quasi ovunque"),
+            "The order holds" + ("" if not cali else " almost everywhere"),
+            corpo_it, corpo_en))
     pv = [r for r in l.get("per_vintage", []) if r.get("spearman_rho") is not None]
     if pv:
         ev.append(evidenza(

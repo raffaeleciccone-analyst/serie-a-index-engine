@@ -11,7 +11,7 @@ dei test restano solo nella tabella finale, come riferimento.
 """
 from __future__ import annotations
 
-from pagina_stile import (CSS, _SVG_OPEN, _f, _ic, bi, el, evidenza,
+from pagina_stile import (CSS, _SVG_OPEN, _f, _ic, bi, cali_decili, el, evidenza,
                           guscio, nav, footer)
 
 
@@ -124,9 +124,7 @@ def dida_calibrazione(m: dict) -> tuple[str, str]:
     precedente e la didascalia smentisca il proprio grafico. Ora i cali li
     conta.
     """
-    bins = [b for b in (m or {}).get("bins", []) if b.get("realized_mean") is not None]
-    ys = [b["realized_mean"] for b in bins]
-    cali = [i + 2 for i in range(len(ys) - 1) if ys[i + 1] < ys[i]]  # decile che scende
+    cali = cali_decili(m)
     rho = m.get("monotonia_rho") if m else None
     testa_it = ("Rendimento medio realizzato dal primo all&rsquo;ultimo decile di TPI. La linea "
                 "tratteggiata &egrave; la salita costante che avrebbe un indice calibrato: ")
@@ -230,9 +228,12 @@ def _hero(d: dict) -> str:
     # la lettera greca sta nella cifra, che resta in minuscolo.
     cifre = []
     if m.get("monotonia_rho") is not None:
+        _cali = cali_decili(m)
         cifre.append((f'&rho; {_f(m["monotonia_rho"], 3)}',
-                      "diviso in dieci gruppi, l&rsquo;ordine tiene",
-                      "split into ten groups, the order holds"))
+                      "diviso in dieci gruppi, l&rsquo;ordine tiene"
+                      + ("" if not _cali else " quasi ovunque"),
+                      "split into ten groups, the order holds"
+                      + ("" if not _cali else " almost everywhere")))
     if primo:
         cifre.append((f'&rho; {_f(primo["spearman_rho"], 3)}',
                       f"la graduatoria di giornata {primo['vintage_giornata']} "
