@@ -22,7 +22,8 @@ try:
 except Exception:
     pass
 
-from pagina_stile import _f, bi, cali_decili, el, evidenza, guscio
+from pagina_stile import (_f, bi, cali_decili, el, evidenza, guscio,
+                          primo_vintage, quando_regge)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     datefmt="%H:%M:%S")
@@ -495,16 +496,27 @@ def _quanto_regge(val: dict) -> str:
             "L&rsquo;ordine tiene" + ("" if not cali else " quasi ovunque"),
             "The order holds" + ("" if not cali else " almost everywhere"),
             corpo_it, corpo_en))
-    pv = [r for r in l.get("per_vintage", []) if r.get("spearman_rho") is not None]
-    if pv:
+    reggeva = quando_regge(l)
+    inizio = primo_vintage(l)
+    if reggeva:
         ev.append(evidenza(
-            f'&rho; {_f(pv[0]["spearman_rho"], 3)}',
-            f"Gi&agrave; alla giornata {pv[0]['vintage_giornata']}",
-            f"Already by matchday {pv[0]['vintage_giornata']}",
-            "A met&agrave; stagione la graduatoria &egrave; gi&agrave; quasi quella di fine "
-            "anno: non serve aspettare maggio per usarla.",
-            "Halfway through the season the ranking is already close to the final one: you do "
-            "not have to wait for May to use it."))
+            f'&rho; {_f(reggeva["spearman_rho"], 3)}',
+            f"Regge dalla giornata {reggeva['vintage_giornata']}",
+            f"Holds from matchday {reggeva['vintage_giornata']}",
+            (f"Da quella giornata la graduatoria &egrave; gi&agrave; vicina a quella di fine "
+             f"anno, e non serve aspettare maggio per usarla. Prima no, e lo diciamo con un "
+             f"numero: alla giornata {inizio['vintage_giornata']} vale "
+             f"{_f(inizio['spearman_rho'], 2)}, e dei primi venticinque ne sopravvive il "
+             f"{inizio.get('overlap_top25', 0) * 100:.0f}%."
+             if inizio else
+             "Da quella giornata la graduatoria &egrave; gi&agrave; vicina a quella di fine anno."),
+            (f"From that matchday the ranking is already close to the final one, and you do not "
+             f"have to wait for May to use it. Before that it is not, and we say so with a "
+             f"number: at matchday {inizio['vintage_giornata']} it is worth "
+             f"{_f(inizio['spearman_rho'], 2)}, and only "
+             f"{inizio.get('overlap_top25', 0) * 100:.0f}% of the top twenty-five survives."
+             if inizio else
+             "From that matchday the ranking is already close to the final one.")))
     liv = (q.get("criteri") or {}).get("livello", {}).get("baselines", [])
     b_out = next((b for b in liv if b["key"] == "output_grezzo"), None)
     if b_out is not None and not b_out.get("tpi_better"):

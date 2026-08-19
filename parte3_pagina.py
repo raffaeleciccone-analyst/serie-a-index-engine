@@ -11,7 +11,7 @@ dei test restano solo nella tabella finale, come riferimento.
 """
 from __future__ import annotations
 
-from pagina_stile import (CSS, _SVG_OPEN, _f, _ic, bi, cali_decili, el, evidenza,
+from pagina_stile import (CSS, _SVG_OPEN, _f, _ic, bi, cali_decili, quando_regge, el, evidenza,
                           guscio, nav, footer)
 
 
@@ -286,7 +286,9 @@ def _esito_q(b: dict) -> tuple[str, str]:
 def _hero(d: dict) -> str:
     meta, m, l, q = d["meta"], d.get("m") or {}, d.get("l") or {}, d.get("q") or {}
     pv = [r for r in l.get("per_vintage", []) if r.get("spearman_rho") is not None]
-    primo = pv[0] if pv else None
+    # Non il vintage piu' vecchio che esiste, ma quello da cui la graduatoria
+    # regge: con g3 in lista, "il primo" dava 0.321 come cifra dell'eroe.
+    primo = quando_regge(l)
     # Le etichette vanno in maiuscolo via CSS, e una &rho; maiuscola e' una P:
     # la lettera greca sta nella cifra, che resta in minuscolo.
     cifre = []
@@ -299,9 +301,10 @@ def _hero(d: dict) -> str:
                       + ("" if not _cali else " almost everywhere")))
     if primo:
         cifre.append((f'&rho; {_f(primo["spearman_rho"], 3)}',
-                      f"la graduatoria di giornata {primo['vintage_giornata']} "
-                      f"contro quella finale",
-                      f"matchday-{primo['vintage_giornata']} ranking against the final one"))
+                      f"da cui la graduatoria regge: giornata "
+                      f"{primo['vintage_giornata']} contro quella finale",
+                      f"where the ranking starts holding: matchday "
+                      f"{primo['vintage_giornata']} against the final one"))
     if q.get("has_data"):
         cifre.append((f'{q.get("n", 0)}',
                       f"confronti fuori campione su {q.get('n_giocatori', 0)} giocatori",

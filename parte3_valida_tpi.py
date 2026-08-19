@@ -251,6 +251,24 @@ def load_payload() -> dict:
         return json.load(f)
 
 
+def vintage_ordinati(cartella):
+    """I file payload_g{N}.json in ordine di giornata, non di nome.
+
+    `sorted(glob(...))` ordina stringhe: con i soli vintage a due cifre sembrava
+    giusto, ma appena sono arrivati g3, g5 e g8 l'ordine e' diventato
+    12, 15, 20, 22, 25, 28, 3, 30, 33, 36, 5, 8 — e la curva di convergenza,
+    che e' un grafico in cui l'asse x E' la giornata, veniva disegnata a
+    zig-zag. Il numero si legge dal nome e si ordina come numero.
+    """
+    import re as _re
+    fuori = []
+    for f in cartella.glob("payload_g*.json"):
+        m = _re.search(r"payload_g(\d+)\.json$", f.name)
+        if m:
+            fuori.append((int(m.group(1)), f))
+    return [f for _, f in sorted(fuori)]
+
+
 def load_player_games():
     try:
         from sqlalchemy import create_engine, text
@@ -1071,7 +1089,7 @@ def _vintage_paths(min_giornata: int) -> list[tuple[int, Path]]:
     import re
     trovati: list[int] = []
     tenuti: list[tuple[int, Path]] = []
-    for vp in OUTPUT_DIR.glob("payload_g*.json"):
+    for vp in vintage_ordinati(OUTPUT_DIR):
         m = re.search(r"payload_g(\d+)\.json$", vp.name)
         if not m:
             continue
@@ -1549,7 +1567,7 @@ def valida_persistence(players: list, df_gp: pd.DataFrame) -> dict | None:
     # rumore se mescolato col TPI completo. Test (1) è la VERA misura di
     # persistence robusta.
     within_vintages = []
-    for vp in OUTPUT_DIR.glob("payload_g*.json"):
+    for vp in vintage_ordinati(OUTPUT_DIR):
         m = _re_p.match(r"payload_g(\d+)\.json$", vp.name)
         if m and int(m.group(1)) >= 25:
             within_vintages.append(("g" + m.group(1), vp))
@@ -2042,7 +2060,7 @@ def valida_convergenza() -> dict:
     import re
     # Vintage WITHIN-SEASON (payload_g{N}.json nella cartella output) + cross-season
     # se esistono snapshot in snapshots/<season>/giornata_NN/payload.json
-    vintages = sorted(OUTPUT_DIR.glob("payload_g*.json"))
+    vintages = vintage_ordinati(OUTPUT_DIR)
     cross_season = []
     # 1) Snapshot stagionali in snapshots/<season>/giornata_NN/payload.json
     snap_root = BASE_DIR / "snapshots"

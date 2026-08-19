@@ -44,6 +44,34 @@ def el(tag: str, it: str, en: str, cls: str = "", extra: str = "") -> str:
     return f"<{tag}{c}{x} {bi(it, en)}>{it}</{tag}>"
 
 
+SOGLIA_USABILE = 0.85   # dichiarata prima di guardare la curva
+
+
+def quando_regge(l: dict, soglia: float = SOGLIA_USABILE) -> dict | None:
+    """La prima giornata in cui la graduatoria e' abbastanza vicina a quella finale.
+
+    Prima le pagine prendevano il vintage piu' vecchio disponibile e lo
+    presentavano come buona notizia ("gia' alla giornata 20"). Finche' il piu'
+    vecchio era g20 la frase reggeva per caso; appena sono arrivati g3, g5 e g8
+    diceva "gia' alla giornata 3" con rho 0.32, che e' l'opposto del vero.
+    Adesso la giornata la sceglie la soglia, e la soglia e' scritta qui sopra.
+    """
+    pv = [r for r in (l or {}).get("per_vintage", []) if r.get("spearman_rho") is not None]
+    if not pv:
+        return None
+    pv = sorted(pv, key=lambda r: r["vintage_giornata"])
+    for r in pv:
+        if r["spearman_rho"] >= soglia:
+            return r
+    return pv[-1]        # non ci arriva mai: si dice quanto ci si avvicina
+
+
+def primo_vintage(l: dict) -> dict | None:
+    """Il vintage piu' PRECOCE, che serve a dire quanto vale poco all'inizio."""
+    pv = [r for r in (l or {}).get("per_vintage", []) if r.get("spearman_rho") is not None]
+    return min(pv, key=lambda r: r["vintage_giornata"]) if pv else None
+
+
 def cali_decili(m: dict) -> list[int]:
     """I decili che scendono sotto il precedente nel grafico di calibrazione.
 
