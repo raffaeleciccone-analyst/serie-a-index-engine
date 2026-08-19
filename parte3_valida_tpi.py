@@ -41,12 +41,34 @@ sys.path.insert(0, str(BASE_DIR))
 from config import db_url as _cfg_db_url  # carica .env + fail-fast
 import valida_stats as vs  # helper statistici puri (bootstrap, skill, PCA, placebo…)
 
-# Pesi nominali del TPI (specchio di Config.tpi_weights in parte1_analisi.py)
+# Pesi nominali del TPI. Erano una copia a mano di Config.tpi_weights, tenuta
+# allineata da un commento: due fonti per lo stesso numero, e chi cambia il peso
+# nel motore non ha modo di accorgersi che qui era rimasto quello vecchio. Ora
+# questo resta solo il ripiego, e i pesi veri arrivano dal blocco `metodo` che
+# il motore scrive nel payload (vedi allinea_pesi_al_motore).
 TPI_WEIGHTS = {
     "output_adj": 0.32, "buildup_adj": 0.10, "centralita": 0.18,
-    "boost_ratio": 0.02, "consistenza": 0.07, "finishing": 0.20,
+    "boost_ratio": 0.05, "consistenza": 0.07, "finishing": 0.20,
     "form":       0.11,
 }
+
+
+def allinea_pesi_al_motore(meta: dict) -> None:
+    """Prende i pesi dal payload, cioe' da chi li ha davvero usati."""
+    dims = ((meta or {}).get("metodo") or {}).get("dimensioni") or []
+    pesi = {d["chiave"]: float(d["peso"]) for d in dims if "chiave" in d and "peso" in d}
+    if not pesi:
+        log.warning("  Payload senza blocco `metodo`: uso i pesi di ripiego "
+                    "scritti in questo file. Rigenera con parte1_analisi.py.")
+        return
+    diversi = {k: (TPI_WEIGHTS.get(k), v) for k, v in pesi.items() if TPI_WEIGHTS.get(k) != v}
+    TPI_WEIGHTS.clear()
+    TPI_WEIGHTS.update(pesi)
+    if diversi:
+        log.info("  Pesi presi dal motore (diversi dal ripiego): "
+                 + ", ".join(f"{k} {a}→{b}" for k, (a, b) in diversi.items()))
+    else:
+        log.info("  Pesi presi dal motore (identici al ripiego)")
 # dim TPI → chiave z-score nel payload
 TPI_ZKEYS = {
     "output_adj": "z_output", "buildup_adj": "z_buildup", "centralita": "z_centralita",
@@ -2648,6 +2670,7 @@ def main():
     meta    = load_payload()
     players = meta["players"]
     log.info(f"  {len(players)} giocatori")
+    allinea_pesi_al_motore(meta)
 
     log.info("Connessione DB...")
     df_gp = load_player_games()

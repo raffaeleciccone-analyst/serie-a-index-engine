@@ -588,9 +588,38 @@ def _cap_prova(d: dict) -> str:
                "ambra sono le dimensioni che servono.")
     dida_en = ("Loss in forecast accuracy when each dimension is removed: amber bars are the "
                "dimensions that matter.")
+    # Il pezzo piu' scomodo della pagina, e va scritto proprio sotto il grafico
+    # che lo riguarda: questo test aveva gia' toccato il modello una volta.
+    circ_it = ("Una nota su questo test. Fino al 18 agosto 2026 il peso di "
+               "<strong>Effetto squadra</strong> era 0.02, e valeva 0.02 <em>perch&eacute; "
+               "questo grafico</em> lo indicava come la dimensione meno utile: il modello era "
+               "stato tarato sulla propria verifica, e una verifica che ha gi&agrave; corretto "
+               "il modello non lo sta pi&ugrave; controllando. L&rsquo;ho rimesso al valore che "
+               "aveva prima che il test lo guardasse, 0.05. Il ritorno indietro &egrave; costato "
+               "quanto si vede: &rho; di Spearman <strong>0.9989</strong> fra la graduatoria di "
+               "prima e quella di adesso, prime venticinque <strong>identiche</strong>, tre nomi "
+               "diversi nei primi cento, e la capacit&agrave; predittiva misurata qui sopra "
+               "invariata (0.553 in tutti e due i casi). Anche il verdetto non cambia: con il "
+               "peso pi&ugrave; alto, togliere Effetto squadra costa &minus;0.0008 invece di "
+               "&minus;0.0010, e resta in fondo alla lista. Il peso che aveva creato il problema "
+               "non spostava niente &mdash; ed &egrave; esattamente il motivo per cui rimetterlo "
+               "a posto era gratis.")
+    circ_en = ("A note on this test. Until 18 August 2026 the weight of <strong>Team effect</strong> "
+               "was 0.02, and it was 0.02 <em>because this chart</em> flagged it as the least "
+               "useful dimension: the model had been tuned on its own check, and a check that has "
+               "already corrected the model is no longer checking it. I put it back to the value "
+               "it had before the test looked at it, 0.05. Going back cost exactly this much: "
+               "Spearman &rho; <strong>0.9989</strong> between the old ranking and the current "
+               "one, the top twenty-five <strong>identical</strong>, three different names in the "
+               "top hundred, and the forecasting ability measured above unchanged (0.553 either "
+               "way). The verdict does not move either: at the higher weight, removing Team "
+               "effect costs &minus;0.0008 instead of &minus;0.0010, and it stays at the bottom "
+               "of the list. The weight that created the problem was moving nothing &mdash; which "
+               "is exactly why putting it back was free.")
     graf_blk = (f'<h3 {bi("Le sette dimensioni, una alla volta", "The seven dimensions, one at a time")}>'
                 f'Le sette dimensioni, una alla volta</h3>{graf}'
-                f'<p class="didascalia" {bi(dida_it, dida_en)}>{dida_it}</p>' if graf else "")
+                f'<p class="didascalia" {bi(dida_it, dida_en)}>{dida_it}</p>'
+                f'<p class="prosa" {bi(circ_it, circ_en)}>{circ_it}</p>' if graf else "")
     return f"""<section class="cap riga">
   <div class="cap-num">02</div>
   <div>

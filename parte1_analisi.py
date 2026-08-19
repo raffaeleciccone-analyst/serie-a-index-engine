@@ -113,9 +113,18 @@ class Config:
     #     della sua squadra. Misura (xG_giocatore + xA_giocatore) / xG_squadra,
     #     con Bayesian shrinkage. Usa xA (expected) quindi un giocatore che fa
     #     un ottimo passaggio non viene penalizzato se il compagno sbaglia.
-    #   - boost_ratio 0.05 → 0.02 (ridotto): ablation l'ha indicato come
-    #     dimensione meno impattante (Δ predittivo minore). Mantenuto > 0
-    #     per non perdere segnale "team con/senza" sui giocatori con campione adeguato.
+    #   - boost_ratio 0.05 → 0.02 → 0.05 di nuovo (19/08/2026). L'ablation
+    #     (Test O) l'aveva indicato come la dimensione meno impattante e il
+    #     peso era stato abbassato di conseguenza — ma quel test lo
+    #     PUBBLICHIAMO come verifica del modello, e un modello tarato sulla
+    #     propria verifica rende la verifica non indipendente. Rimesso al
+    #     valore che aveva prima che il test lo guardasse.
+    #     Costo misurato del ritorno indietro: ρ di Spearman 0.9989 fra le due
+    #     graduatorie, top 25 identica, tre nomi diversi nella top 100, e la
+    #     capacità predittiva del test O invariata (0.553 in entrambi i casi).
+    #     Il verdetto dell'ablation su boost non cambia: resta in fondo con
+    #     Δ = -0.0008 invece di -0.0010. Si paga quasi niente per avere un
+    #     test che non ha mai toccato il modello.
     #   - output_adj 0.34 → 0.32, buildup 0.11 → 0.10, consistenza 0.09 → 0.07,
     #     form 0.12 → 0.11: leggera riduzione per compensare l'aumento centralità.
     # Somma = 1.0. Re-normalizzati sui dim effettivamente disponibili.
@@ -123,7 +132,7 @@ class Config:
         "output_adj":  0.32,   # qualità: xG+xA/90 SOS-adj — segnale dominante
         "buildup_adj": 0.10,   # coinvolgimento nella manovra (xGBuildup, no tiro/assist)
         "centralita":  0.18,   # quota produzione squadra (RADDOPPIATA — feedback utente)
-        "boost_ratio": 0.02,   # team con/senza (ridotto su ablation)
+        "boost_ratio": 0.05,   # team con/senza (valore pre-ablation, vedi sopra)
         "consistenza": 0.07,   # regolarità intra-stagione
         "finishing":   0.20,   # gol vs npxG (conversione)
         "form":        0.11,   # EWMA xG+xA/90 (trend recente)
