@@ -169,6 +169,128 @@ def _classifica(pay: dict) -> str:
 </section>"""
 
 
+def _letture(pay: dict) -> str:
+    """Sei frasi al posto di sei numeri.
+
+    Sono le stesse regole che la pagina TPI Pro usa per i suoi "Insights
+    automatici", che pero' stanno in fondo alla pagina piu' tecnica del sito.
+    Il direttore sportivo le ha chiamate "la cosa piu' vicina a un report di
+    scouting che c'e' qui dentro", e ha aggiunto che se la prima schermata
+    fossero sei frasi cosi' invece dei numeri, il suo giudizio sarebbe diverso.
+    Le regole restano quelle: cambia dove si leggono.
+    """
+    gioc = [p for p in (pay.get("players") or [])
+            if (p.get("tpi") or {}).get("totale") is not None]
+    if not gioc:
+        return ""
+
+    def migliore(filtro, chiave):
+        cand = [p for p in gioc if filtro(p) and chiave(p) is not None]
+        return max(cand, key=chiave) if cand else None
+
+    def eta_cat(p):
+        return (p.get("physical") or {}).get("eta_cat")
+
+    def eta(p):
+        e = (p.get("physical") or {}).get("eta")
+        return f"{e:.0f}" if isinstance(e, (int, float)) else "?"
+
+    def pro(p):
+        return (p.get("tpi_ext") or {}).get("totale")
+
+    def delta_pro(p):
+        a, b = pro(p), (p.get("tpi") or {}).get("totale")
+        return None if a is None or b is None else a - b
+
+    prospetto = migliore(lambda p: eta_cat(p) == "prospetto",
+                         lambda p: p.get("z_early_momentum"))
+    veterano = migliore(lambda p: eta_cat(p) == "veterano" and p["tpi"]["totale"] >= 0.5,
+                        lambda p: (p.get("physical") or {}).get("affidabilita"))
+    crescita = migliore(lambda p: True, lambda p: p.get("z_form_trend"))
+    stabile = migliore(lambda p: True, lambda p: p.get("z_ctx_stab"))
+    nascosto = migliore(lambda p: (p.get("rank") or {}).get("TPI", 0) >= 20
+                        and (pro(p) or -9) >= 0.5, pro)
+    salito = migliore(lambda p: eta_cat(p) == "prospetto", delta_pro)
+
+    voci = []
+
+    def aggiungi(p, lab_it, lab_en, it, en):
+        if p:
+            voci.append(evidenza(f'<span class="let-nm">{p["nome"]}</span>',
+                                 lab_it, lab_en, it, en))
+
+    if prospetto:
+        aggiungi(prospetto, "Il pi&ugrave; precoce", "The earliest",
+                 f"{prospetto['squadra']}, {eta(prospetto)} anni. Rende sopra quello che la sua "
+                 f"et&agrave; farebbe aspettare: indice "
+                 f"{_f(prospetto.get('z_early_momentum'), 2, True)} contro i coetanei, con un TPI "
+                 f"di {_f(prospetto['tpi']['totale'], 2, True)}.",
+                 f"{prospetto['squadra']}, {eta(prospetto)} years old. He delivers above what his "
+                 f"age would suggest: index {_f(prospetto.get('z_early_momentum'), 2, True)} "
+                 f"against his peers, with a TPI of {_f(prospetto['tpi']['totale'], 2, True)}.")
+    if veterano:
+        aff = (veterano.get("physical") or {}).get("affidabilita")
+        aggiungi(veterano, "Il pi&ugrave; affidabile", "The most available",
+                 f"{veterano['squadra']}, {eta(veterano)} anni. Disponibilit&agrave; {_f(aff, 2)} "
+                 f"su 1 e TPI {_f(veterano['tpi']['totale'], 2, True)}: continuit&agrave; e "
+                 f"rendimento insieme, che alla sua et&agrave; &egrave; la parte difficile.",
+                 f"{veterano['squadra']}, {eta(veterano)} years old. Availability {_f(aff, 2)} out "
+                 f"of 1 and a TPI of {_f(veterano['tpi']['totale'], 2, True)}: continuity and "
+                 f"output together, which at his age is the hard part.")
+    if crescita:
+        aggiungi(crescita, "In crescita", "On the way up",
+                 f"{crescita['squadra']}. &Egrave; il giocatore la cui forma sale pi&ugrave; "
+                 f"in fretta di tutta la lista: indice "
+                 f"{_f(crescita.get('z_form_trend'), 2, True)}.",
+                 f"{crescita['squadra']}. His form is rising faster than anyone else&rsquo;s on "
+                 f"the list: index {_f(crescita.get('z_form_trend'), 2, True)}.")
+    if stabile:
+        aggiungi(stabile, "Lo stesso ovunque", "The same everywhere",
+                 f"{stabile['squadra']}. Casa, trasferta, contro le prime sei e contro le difese "
+                 f"pi&ugrave; solide: rende uguale in tutti e cinque i contesti (indice "
+                 f"{_f(stabile.get('z_ctx_stab'), 2, True)}).",
+                 f"{stabile['squadra']}. Home, away, against the top six and against the tightest "
+                 f"defences: he performs the same in all five contexts (index "
+                 f"{_f(stabile.get('z_ctx_stab'), 2, True)}).")
+    if nascosto:
+        pos = (nascosto.get("rank") or {}).get("TPI")
+        # "23th" no: l'inglese vuole st/nd/rd, e il caso 11-13 fa eccezione.
+        suff = ("th" if 11 <= (pos or 0) % 100 <= 13
+                else {1: "st", 2: "nd", 3: "rd"}.get((pos or 0) % 10, "th"))
+        aggiungi(nascosto, "Sotto il radar", "Under the radar",
+                 f"{nascosto['squadra']}. In classifica sta {pos}&ordm;, ma tenendo conto anche "
+                 f"di et&agrave;, tenuta fisica e costanza sale a {_f(pro(nascosto), 2, True)}.",
+                 f"{nascosto['squadra']}. He sits {pos}{suff} in the ranking, but once age, "
+                 f"durability and steadiness are counted he rises to {_f(pro(nascosto), 2, True)}.")
+    if salito and salito is not prospetto:
+        aggiungi(salito, "Chi guadagna di pi&ugrave;", "Biggest riser",
+                 f"{salito['squadra']}. Da {_f(salito['tpi']['totale'], 2, True)} a "
+                 f"{_f(pro(salito), 2, True)} nella versione che guarda anche il profilo: "
+                 f"{_f(delta_pro(salito), 2, True)}, il salto pi&ugrave; grande fra i giovani.",
+                 f"{salito['squadra']}. From {_f(salito['tpi']['totale'], 2, True)} to "
+                 f"{_f(pro(salito), 2, True)} in the version that also looks at the profile: "
+                 f"{_f(delta_pro(salito), 2, True)}, the biggest jump among the young ones.")
+    if not voci:
+        return ""
+
+    p_it = ("Le stesse regole che girano sulla pagina Pro, lette qui. Nessuno di questi nomi "
+            "&egrave; scelto a mano: ognuno &egrave; il primo di una classifica diversa &mdash; "
+            "chi cresce pi&ugrave; in fretta, chi regge in ogni contesto, chi sale di pi&ugrave; "
+            "quando si guardano anche et&agrave; e tenuta fisica.")
+    p_en = ("The same rules that run on the Pro page, read here. None of these names is "
+            "hand-picked: each is the top of a different ranking &mdash; who is rising fastest, "
+            "who holds up in every context, who gains the most once age and durability are "
+            "counted.")
+    return f"""<section class="cap riga">
+  <div class="cap-num">02</div>
+  <div>
+    {el("h2", "Sei nomi, non un numero", "Six names, not a number")}
+    <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
+    <div class="ev-g">{"".join(voci)}</div>
+  </div>
+</section>"""
+
+
 def _costruzione(pay: dict) -> str:
     ctx = len((pay.get("players") or [{}])[0].get("tpi", {})) or 5
     ev = [
@@ -211,7 +333,7 @@ def _costruzione(pay: dict) -> str:
     p_en = ("The score is not an average of raw statistics. Each piece answers a specific "
             "problem you hit when you look at football numbers.")
     return f"""<section class="cap riga">
-  <div class="cap-num">02</div>
+  <div class="cap-num">03</div>
   <div>
     {el("h2", "Come &egrave; costruito", "How it is built")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
@@ -279,7 +401,7 @@ def _quanto_regge(val: dict) -> str:
     p_en = ("An index is judged by what survives testing, not by how good it sounds. The checks "
             "are published in full, including the ones built to fail it.")
     return f"""<section class="cap riga">
-  <div class="cap-num">03</div>
+  <div class="cap-num">04</div>
   <div>
     {el("h2", "Quanto regge", "How well it holds")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
@@ -293,6 +415,11 @@ def _quanto_regge(val: dict) -> str:
 # Pagina
 # ══════════════════════════════════════════════════════════════════
 CSS_EXTRA = """
+/* Le letture automatiche: il nome al posto della cifra. La colonna di sinistra
+   dell'impianto editoriale porta sempre un numero — qui porta la persona, che
+   e' il dato della frase. */
+.let-nm{font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.002em;
+  line-height:1.1;display:block}
 /* Classifica in apertura: numero, nome, barra, punteggio. La barra e' larga in
    proporzione al primo, e serve a far vedere le distanze senza leggerle. */
 .clas{margin-top:6px;border-top:1px solid var(--sep2)}
@@ -376,7 +503,8 @@ CSS_EXTRA = """
 
 def render(pay: dict, val: dict | None) -> str:
     corpo = "\n".join(x for x in (_hero(pay, val or {}), _porte(pay, val or {}),
-                                  _classifica(pay), _costruzione(pay),
+                                  _classifica(pay), _letture(pay),
+                                  _costruzione(pay),
                                   _quanto_regge(val or {})) if x)
     html = guscio(
         "Serie A Scout Index &mdash; Raffaele Ciccone",
