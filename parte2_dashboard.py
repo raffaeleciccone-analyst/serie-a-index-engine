@@ -701,6 +701,20 @@ function padRange(vals){
  const pad=Math.max(.3,(hi-lo)*.22);
  return [lo-pad,hi+pad];
 }
+/* La barra dei filtri scorre in orizzontale con la scrollbar nascosta: su
+  telefono si vedono 390px di 828, le pastiglie sono tagliate a meta' e niente
+  dice che si trascinano. La sfumatura in coda lo dice, e sparisce quando sei
+  arrivato in fondo — un'indicazione che mente e' peggio di nessuna. */
+function segnalaScorrimento(el){
+ if(!el) return;
+ const agg=()=>{
+  const altro = el.scrollWidth - el.clientWidth - el.scrollLeft > 4;
+  el.classList.toggle("scorre-ancora", altro);
+ };
+ agg();
+ el.addEventListener("scroll", agg, {passive:true});
+ window.addEventListener("resize", agg, {passive:true});
+}
 const CTX_L = __CTX_L_JS__;
 const SPIEG = __SPIEG_JS__;
 const TOP6  = __TOP6_JS__;
@@ -1114,7 +1128,8 @@ function buildLeaderboard(){
   /* dispNm() → cognome (o "Iniz. Cognome" se duplicato) */
   const dn=dispNm(p);
   const extra = m.rowExtra ? m.rowExtra(p) : "";
-  return'<div class="lb-row'+(i<3?' lb-top':'')+'">'
+  return'<div class="lb-row'+(i<3?' lb-top':'')+'" onclick="pick('+p.id+')" '
+   +'role="button" tabindex="0" title="'+esc(T("dash_row_tip","Apri il profilo"))+'">'
    +'<span class="lb-rank">'+(i+1)+'</span>'
    +'<div class="lb-dot" style="background:'+rc+'"></div>'
    +'<div class="lb-info">'
@@ -1126,8 +1141,8 @@ function buildLeaderboard(){
    +'<div class="lb-bar-wrap"><div class="lb-bar-fill" style="width:'+barW+'%"></div></div>'
    +'<span class="lb-val">'+m.fmt(v)+'</span>'
    +'<div class="lb-actions">'
-    +'<button class="lb-btn lb-btn-prof" onclick="pick('+p.id+')">&#x2192; '+esc(T("dash_btn_profile","Profilo"))+'</button>'
-    +'<button class="lb-btn lb-btn-cmp" id="cmpbtn-'+p.id+'" onclick="showDiff('+p.id+')">'+esc(T("dash_btn_diff","Scarto"))+'</button>'
+    +'<button class="lb-btn lb-btn-prof" onclick="event.stopPropagation();pick('+p.id+')">&#x2192; '+esc(T("dash_btn_profile","Profilo"))+'</button>'
+    +'<button class="lb-btn lb-btn-cmp" id="cmpbtn-'+p.id+'" onclick="event.stopPropagation();showDiff('+p.id+')">'+esc(T("dash_btn_diff","Scarto"))+'</button>'
    +'</div></div>';
  }).join("")+'</div>';
 
@@ -2018,6 +2033,9 @@ window.addEventListener("orientationchange", () => {
   }
   drawHero();
   document.addEventListener("i18n:changed", drawHero);
+  /* La sfumatura in coda alla barra dei filtri, che dice che c'e' altro a
+     destra. Sta qui perche' e' l'ultimo script che gira a pagina montata. */
+  if (typeof segnalaScorrimento === "function") segnalaScorrimento(document.getElementById("ctrl-bar"));
 
   </script>
 <!-- ── Watermark ── -->

@@ -43,7 +43,10 @@
   --gl-shadow:0 8px 32px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.35),inset 0 1px 0 rgba(233,240,236,.12);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html{scroll-behavior:smooth}
+/* La nav e' appiccicata in cima: senza questo margine ogni salto a un'ancora
+   (e il ripristino della posizione al ritorno da un profilo) lascia la prima
+   riga sotto la barra — su telefono spariva proprio il primo della classifica. */
+html{scroll-behavior:smooth;scroll-padding-top:68px}
 body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px;
   line-height:1.47;-webkit-font-smoothing:antialiased;overflow-x:hidden;
   /* In una classifica le cifre devono incolonnarsi: senza questo, "1.79" e
@@ -207,6 +210,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   /* Il fondo e' opaco: il blur non aveva piu' niente da sfocare. */
   background:var(--bg)}
 .ctrl-bar::-webkit-scrollbar{display:none}
+/* Quando resta roba a destra la coda sfuma: e' l'unico segno che la barra si
+   trascina, visto che la scrollbar e' nascosta. La classe la mette il JS, e la
+   toglie appena sei in fondo. */
+.ctrl-bar.scorre-ancora{
+  -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
+  mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
 .ctrl-div{width:1px;height:20px;background:rgba(233,240,236,.1);flex-shrink:0;margin:0 1px}
 
 /* Pill base — liquid glass */
@@ -527,8 +536,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 .fpk-role-grp{font-size:10px;font-weight:700;color:var(--lt);text-transform:uppercase;
   letter-spacing:.7px;padding:10px 10px 4px}
 .fpk-empty{padding:24px;text-align:center;font-size:13px;color:var(--lt)}
+/* Il pannello era all'88% di opacita' senza niente che sfocasse dietro: sotto
+   "AC Milan" si leggeva "Lautaro Martinez" della classifica. Un menu deve
+   coprire quello che sta sotto. */
 .sq-fpk-box{position:fixed;z-index:700;width:250px;max-height:380px;overflow-y:auto;
-  border-radius:16px;padding:6px;display:none;background:rgba(18,18,20,.88);
+  border-radius:16px;padding:6px;display:none;background:#121214;
+  backdrop-filter:saturate(140%) blur(18px);
   border:1px solid var(--gl-border);border-top-color:var(--gl-edge);
   box-shadow:0 24px 64px rgba(0,0,0,.85), 0 4px 16px rgba(0,0,0,.5), inset 0 1px 0 rgba(233,240,236,.1);
   animation:sqIn .18s cubic-bezier(.4,0,.2,1);
@@ -558,6 +571,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 /* Righe separate da un filetto invece che da card sovrapposte: dodici riquadri
    di vetro in colonna facevano rumore e nascondevano la gerarchia. */
 .lb-list{display:flex;flex-direction:column}
+/* La riga intera apre il profilo: su telefono i due bottoni scendevano su una
+   riga loro e ogni giocatore mangiava tre righe di schermo. */
+.lb-row{cursor:pointer}
+/* Le barre in cima non devono finire sotto la nav appiccicata quando la lista
+   viene portata a schermo da un filtro o da un link. */
+.lb-list,.lb-wrap,#meth-home{scroll-margin-top:72px}
 .lb-row{display:flex;align-items:center;gap:14px;padding:11px 12px;cursor:default;
   border-bottom:1px solid var(--sep);transition:background .15s}
 .lb-row:hover{background:var(--bg1)}
@@ -833,16 +852,16 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   .lb-pct .pf-pbar{display:none}
   /* Su schermo stretto resta il solo numero: l'etichetta la porta il tooltip. */
   .lb-pct .pf-plab{display:none}
-  /* I due pulsanti scendono su una riga loro invece di comprimere il
-     nome a una manciata di pixel. */
-  .lb-row{flex-wrap:wrap}
-  .lb-info{min-width:0}
-  .lb-actions{flex-basis:100%;justify-content:flex-end;margin-top:5px}
-  .lb-actions{gap:4px}
-  .lb-btn{height:26px;padding:0 7px;font-size:10px}
-  /* "Confronto" → "+" su phone */
-  .lb-btn-cmp .cmp-full{display:none}
-  .lb-btn-cmp::before{content:"\2295"}
+  /* UNA riga per giocatore: nome a sinistra, punteggio a destra, il resto nel
+     profilo. Prima la riga andava a capo e i due bottoni scendevano sotto —
+     cinque righe di schermo a testa, 12542px di scorrimento per cento
+     giocatori e sette nomi visibili per schermata. Adesso la riga intera apre
+     il profilo (i bottoni ripetevano quel gesto e ne aggiungevano uno che sul
+     telefono nessuno usa), e ne entrano il doppio abbondante. */
+  .lb-row{flex-wrap:nowrap;min-height:46px;padding:7px 10px}
+  .lb-info{min-width:0;flex:1}
+  .lb-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb-actions{display:none}
 
   /* Hero player */
   .hero{padding:10px 12px;gap:8px}
