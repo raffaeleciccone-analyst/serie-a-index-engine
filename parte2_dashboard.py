@@ -654,6 +654,19 @@ const RL   = __RL_JS__;
 /* nome-ruolo localizzato: usa i18n se disponibile, fallback a RL (italiano) */
 const _ROLE_KEY={POR:"dash_role_full_POR",DIF:"dash_role_full_DIF",CEN:"dash_role_full_CEN",ATT:"dash_role_full_ATT"};
 function roleName(code){ if(!code) return "—"; return T(_ROLE_KEY[code], RL[code]||code); }
+/* Il ruolo come lo direbbe uno scout: quinto, mezzala, trequartista. Sta
+   accanto ad ATT/CEN/DIF, non al suo posto — i confronti dell'indice restano
+   dentro i tre gruppi grossi, e mescolarli sarebbe un altro indice. */
+const RF = __RF_JS__;
+function ruoloFine(p){
+ const k = p && p.ruolo_fine;
+ if(!k || !RF[k]) return "";
+ return (typeof EN !== "undefined" && EN) ? RF[k].nome_en : RF[k].nome_it;
+}
+function ruoloScritto(p){
+ const fine = ruoloFine(p);
+ return fine || roleName(p && p.ruolo);
+}
 /* Badge forma recente (ultime N gare): caldo / freddo. Tooltip coi numeri. */
 function formBadge(p){
  const r=p&&p.recent; if(!r||!r.label) return "";
@@ -758,7 +771,7 @@ function esportaVista(){
  const righe = (VISTA.righe||[]);
  if(!righe.length) return;
  const ACAPO = String.fromCharCode(10), BOM = String.fromCharCode(65279);
- const col = ["rank","nome","squadra","ruolo","minuti","tpi_totale","tpi_casa",
+ const col = ["rank","nome","squadra","ruolo","ruolo_specifico","minuti","tpi_totale","tpi_casa",
    "tpi_trasferta","tpi_vs_top6","tpi_vs_forti","valore_colonna",
    "z_output","z_buildup","z_centralita","z_boost","z_consistenza","z_finishing","z_form",
    "xg_p90","xa_p90","goal_p90","sos","conv_ratio","confidence","eta","forma"];
@@ -775,7 +788,7 @@ function esportaVista(){
  const linee = [col.join(",")];
  righe.forEach(function(x,i){
   const p=x.p, t=p.tpi||{}, k=p.kpi||{}, c=p.conv||{}, ph=p.physical||{}, r=p.recent||{};
-  linee.push([i+1,p.nome,p.squadra,p.ruolo,Math.round(p.minuti||0),
+  linee.push([i+1,p.nome,p.squadra,p.ruolo,ruoloFine(p),Math.round(p.minuti||0),
    t.totale,t.casa,t.trasferta,t.vs_top6,t.vs_forti,x.v,
    p.z_output,p.z_buildup,p.z_centralita,p.z_boost,p.z_consistenza,p.z_finishing,p.z_form,
    k.xg_p90,k.xa_p90,k.goal_p90,k.sos,c.conv_ratio,p.confidence,ph.eta,r.label].map(q).join(","));
@@ -1207,7 +1220,7 @@ function buildLeaderboard(){
    +'<div class="lb-dot" style="background:'+rc+'"></div>'
    +'<div class="lb-info">'
     +'<div class="lb-nm" title="'+esc(p.nome)+'">'+dn+wb+formBadge(p)+extra+'</div>'
-    +'<div class="lb-team">'+esc(p.squadra)+' &middot; '+esc(roleName(p.ruolo))+'</div>'
+    +'<div class="lb-team">'+esc(p.squadra)+' &middot; '+esc(ruoloScritto(p))+'</div>'
    +'</div>'
    +profStrip(p)
    +pctCell(p)
@@ -1410,9 +1423,12 @@ function selForm(el){const wasOn=el.classList.contains("on");document.querySelec
 function buildDrop(){
  const base=ACTIVE_TEAMS.size>0?DATA.filter(p=>ACTIVE_TEAMS.has(p.squadra)):DATA;
  /* Ricerca su nome completo, squadra, ruolo */
+ /* La ricerca guarda anche il ruolo specifico: "quinto" o "trequartista"
+    restringono la lista, che e' il modo in cui uno scout cerca un sostituto. */
  const analyzed=base.filter(p=>(!PR||p.ruolo===PR)&&(!PQ||
   nrm(p.nome).includes(PQ)||
-  nrm(p.squadra).includes(PQ)));
+  nrm(p.squadra).includes(PQ)||
+  nrm(ruoloFine(p)).includes(PQ)));
  let rosterExtra=[];
  if((ACTIVE_TEAMS.size>0||PQ)&&ROSTER&&ROSTER.length){
   const aIds=new Set(analyzed.map(p=>p.id));
@@ -1434,7 +1450,7 @@ function buildDrop(){
    +'<div class="fpk-dot" style="background:'+rc+'"></div>'
    +'<div class="fpk-bd">'
     +'<div class="fpk-nm" title="'+esc(p.nome)+'">'+dn+wb+'</div>'
-    +'<div class="fpk-sub">'+esc(p.squadra)+' &middot; '+esc(roleName(p.ruolo))+(cr?' &middot; G/xG '+cr.toFixed(2):'')+'</div>'
+    +'<div class="fpk-sub">'+esc(p.squadra)+' &middot; '+esc(ruoloScritto(p))+(cr?' &middot; G/xG '+cr.toFixed(2):'')+'</div>'
    +'</div>'
    +'<div class="fpk-rt"><div class="fpk-tpi '+tc+'">'+ts+'</div><span style="color:'+ac+'">'+ar+'</span></div></div>';
  }).join("");
@@ -1473,7 +1489,12 @@ function updateHero(p){
  av.textContent=p.ruolo==="ATT"?"":p.ruolo==="DIF"?"":p.ruolo==="CEN"?"":"";
  const wb=p.is_winter?' <span class="tag tag-snow" title="Acquisto invernale: soglia minuti ridotta ('+p.first_giornata+'ª gg)">❄️ dal gg '+p.first_giornata+'</span>':"";
  document.getElementById("h-nm").innerHTML=esc(p.nome)+wb;
- document.getElementById("h-sub").innerHTML=esc(p.squadra)+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos);
+ /* Il ruolo specifico con la quota di minuti: "Quinto 93%" dice due cose —
+    che ruolo fa e quanto e' vero che lo fa. Senza la quota, un ruolo dichiarato
+    al 34% sembrerebbe sicuro quanto uno al 93%. */
+ const _rf=ruoloFine(p), _rq=p.ruolo_fine_quota;
+ const _rfTxt=_rf?(" · "+esc(_rf)+(_rq!=null?' <span style="color:var(--lq)">'+Math.round(_rq*100)+"%</span>":"")):"";
+ document.getElementById("h-sub").innerHTML=esc(p.squadra)+_rfTxt+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos);
  // ── Forma recente (ultime N gare) ──
  const hf=document.getElementById("h-form"), r=p.recent||{};
  if(hf){
@@ -2172,6 +2193,9 @@ def inject_data(template: str, meta: dict) -> str:
     "__DATA_JS__":   jsdump(payload),
     "__RC_JS__":    jsdump(RUOLO_COLORS),
     "__RL_JS__":    jsdump(RUOLO_LABELS),
+    # Il vocabolario dei ruoli specifici viene dal motore (blocco `metodo`):
+    # la pagina non se lo riscrive, come per i pesi e le dimensioni.
+    "__RF_JS__":    jsdump((meta.get("metodo") or {}).get("ruoli_specifici") or {}),
     "__CTX_L_JS__":   jsdump(CTX_LABELS),
     "__SPIEG_JS__":   jsdump(SPIEGAZIONI),
     "__TOP6_JS__":   jsdump([clean(n) for n in top6_names]),

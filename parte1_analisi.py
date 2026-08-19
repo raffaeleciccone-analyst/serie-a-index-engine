@@ -474,7 +474,103 @@ def blocco_metodo(cfg: Any) -> dict:
         "peso_offensivo_per_ruolo": {k: float(v) for k, v in cfg.offensive_role_weight.items()},
         "ewma_alpha": float(cfg.ewma_alpha),
         "portieri": "esclusi dall'indice, che misura l'impatto offensivo",
+        # Cosi' chi legge il payload (le pagine, l'assistente) non deve
+        # indovinare cosa vuol dire QUINTO o ESTERNO_C.
+        "ruoli_specifici": {k: {"nome_it": it, "nome_en": en}
+                            for k, (it, en) in RUOLI_FINI.items()},
+        "ruoli_specifici_nota": ("Ricavati dalle posizioni Understat realmente "
+                                 "giocate. Sono presentazione: gli z-score "
+                                 "restano dentro ATT/CEN/DIF."),
     }
+
+
+# ATT/CEN/DIF non e' una tassonomia, e' un abbozzo: il direttore sportivo l'ha
+# detto senza giri di parole ("senza questo non posso costruire nessuna lista di
+# sostituzione, che e' il 90% del mio lavoro"). Le posizioni Understat, che
+# leggiamo gia' per correggere i ruoli, bastano a dire di piu': queste sono le
+# otto caselle che servono a lui, piu' il portiere.
+#
+# ATTENZIONE: il ruolo fine e' SOLO presentazione. Gli z-score restano dentro
+# ATT/CEN/DIF — cambiare i gruppi di confronto vorrebbe dire rifare l'indice e
+# tutte le verifiche, e non e' questo che e' stato chiesto.
+_POS_FINE = {
+    "GK": "POR",
+    "DC": "CENTRALE",
+    "DL": "TERZINO", "DR": "TERZINO",
+    "DML": "QUINTO", "DMR": "QUINTO",
+    "DMC": "MEDIANO",
+    "MC": "MEZZALA",
+    "ML": "ESTERNO_C", "MR": "ESTERNO_C",
+    "AMC": "TREQUARTISTA",
+    "AML": "ALA", "AMR": "ALA", "FWL": "ALA", "FWR": "ALA",
+    "FW": "CENTRAVANTI",
+}
+
+RUOLI_FINI = {
+    "POR": ("Portiere", "Goalkeeper"),
+    "CENTRALE": ("Centrale", "Centre-back"),
+    "TERZINO": ("Terzino", "Full-back"),
+    "QUINTO": ("Quinto", "Wing-back"),
+    "MEDIANO": ("Mediano", "Holding midfielder"),
+    "MEZZALA": ("Mezzala", "Central midfielder"),
+    "ESTERNO_C": ("Esterno di centrocampo", "Wide midfielder"),
+    "TREQUARTISTA": ("Trequartista", "Attacking midfielder"),
+    "ALA": ("Ala", "Winger"),
+    "CENTRAVANTI": ("Centravanti", "Centre-forward"),
+    "SECONDA_PUNTA": ("Seconda punta", "Second striker"),
+}
+
+
+def derive_ruoli_specifici(min_minutes: int = 200) -> dict[str, dict]:
+    """Ruolo specifico dalle posizioni realmente giocate, con la sua quota.
+
+    Somma i minuti per casella e prende la piu' battuta. Unica regola composta:
+    chi gioca soprattutto da centravanti ma passa almeno un quarto del tempo sulla
+    trequarti non e' un centravanti, e' una seconda punta — che e' esattamente la
+    distinzione che serve a chi cerca un sostituto.
+
+    La quota viene esposta perche' un ruolo dichiarato al 91% e uno al 34% non
+    sono la stessa affermazione, e chi legge deve poterlo vedere.
+    """
+    import collections as _c
+
+    fuori = {}
+    for nome, cnt in _understat_posmin().items():
+        totale = sum(cnt.values())
+        if totale < min_minutes:
+            continue
+        secchi: _c.Counter = _c.Counter()
+        for pos, minuti in cnt.items():
+            casella = _POS_FINE.get(pos)
+            if casella:
+                secchi[casella] += minuti
+        if not secchi:
+            continue
+        casella, minuti = secchi.most_common(1)[0]
+        quota = minuti / max(1, totale)
+        if casella == "CENTRAVANTI" and secchi.get("TREQUARTISTA", 0) / max(1, totale) >= 0.25:
+            casella = "SECONDA_PUNTA"
+            quota = (minuti + secchi["TREQUARTISTA"]) / totale
+        fuori[nome] = {"ruolo": casella, "quota": round(quota, 3),
+                       "minuti_posizione": int(totale)}
+    return fuori
+
+
+def applica_ruoli_specifici(df: pd.DataFrame, fini: dict[str, dict],
+                            ripiego: dict[str, dict] | None = None) -> pd.DataFrame:
+    """Attacca ruolo specifico e quota al dataframe, agganciando per nome."""
+    if df.empty:
+        return df
+    cols = [c for c in ("nome_anagrafico", "giocatore", "nome") if c in df.columns]
+    if not cols:
+        return df
+    chiavi = df[cols[0]].map(_role_key)
+    tabella = {**(ripiego or {}), **(fini or {})}
+    df["ruolo_fine"] = chiavi.map(lambda k: (tabella.get(k) or {}).get("ruolo"))
+    df["ruolo_fine_quota"] = chiavi.map(lambda k: (tabella.get(k) or {}).get("quota"))
+    noti = int(df["ruolo_fine"].notna().sum())
+    log.info(f"Ruolo specifico: {noti}/{len(df)} giocatori")
+    return df
 
 
 def _role_key(s: Any) -> str:
@@ -2045,6 +2141,15 @@ def build_payload(
             "nome": clean_str(row.get("nome_anagrafico") or row.get("giocatore") or f"#{gid}"),
             "squadra": clean_str(row["squadra"]),
             "ruolo": clean_str(row.get("ruolo") or ""),
+            # Il ruolo come lo direbbe uno scout, e quanto del suo tempo lo ha
+            # passato davvero li'. Serve a costruire liste di sostituzione, che
+            # con ATT/CEN/DIF non si possono fare.
+            # pd.isna prima di tutto: un NaN e' vero in Python, passa il `or`
+            # e finisce nel JSON come il letterale NaN, che JSON non e'. Stesso
+            # inciampo del ruolo grosso, e il test di regressione l'ha ripreso.
+            "ruolo_fine": (None if pd.isna(row.get("ruolo_fine"))
+                           else clean_str(row.get("ruolo_fine") or "") or None),
+            "ruolo_fine_quota": safe_json(row.get("ruolo_fine_quota")),
             "minuti": safe_json(row["minuti"]),
             "avg_min_partita": safe_json(row.get("avg_min_per_partita")),
             "k_subst_mult": safe_json(row.get("k_subst_mult")),
@@ -2237,6 +2342,11 @@ def main(max_giornata: int | None = None,
     us_roles = derive_understat_roles()
     us_ripiego = derive_understat_roles(min_minutes=1)
     df_pa = apply_role_pipeline(df_pa, us_roles, CFG, "analisi", ripiego=us_ripiego)
+
+    # Ruolo specifico: presentazione, non modello (vedi _POS_FINE).
+    ruoli_fini = derive_ruoli_specifici()
+    ruoli_fini_ripiego = derive_ruoli_specifici(min_minutes=1)
+    df_pa = applica_ruoli_specifici(df_pa, ruoli_fini, ruoli_fini_ripiego)
 
     # 4) I portieri escono ADESSO, non nella query. Filtrarli su `g.ruolo`
     #    voleva dire filtrarli sul campo che sappiamo sbagliato: Meret, che in
@@ -2755,6 +2865,7 @@ def main(max_giornata: int | None = None,
         df_roster = apply_role_pipeline(
             df_roster, us_roles, CFG, "roster", ripiego=us_ripiego
         )
+        df_roster = applica_ruoli_specifici(df_roster, ruoli_fini, ruoli_fini_ripiego)
         _por_r = df_roster["ruolo"].astype(str).str.upper().eq("POR")
         if _por_r.any():
             log.info(f"Portieri fuori dal roster: {int(_por_r.sum())}")
@@ -2772,6 +2883,8 @@ def main(max_giornata: int | None = None,
             # risolvibile (fringe con pochi minuti, nessuna posizione
             # Understat) esce con la stringa vuota, e la pagina scrive "—".
             "ruolo": ("" if pd.isna(r["ruolo"]) else clean_str(r["ruolo"] or "")),
+            "ruolo_fine": (None if pd.isna(r.get("ruolo_fine"))
+                           else clean_str(r.get("ruolo_fine") or "") or None),
             "minuti": int(r["minuti"]),
             "is_analyzed": int(r.get("giocatore_id") or 0) in analyzed_ids,
         }
@@ -2893,7 +3006,7 @@ def main(max_giornata: int | None = None,
     # ── Salvataggio CSV ───────────────────────────────────────
     csv_cols = [
         c for c in [
-            "giocatore", "squadra", "ruolo", "minuti",
+            "giocatore", "squadra", "ruolo", "ruolo_fine", "minuti",
             "TPI_totale", "TPI_casa", "TPI_trasferta", "TPI_vs_top6", "TPI_vs_forti",
             "TPI_ext_totale",
             "totale_output_adj", "totale_centralita", "totale_boost_ratio", "totale_consistenza",

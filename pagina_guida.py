@@ -268,7 +268,36 @@ def _cap_dimensioni(cfg) -> str:
 
 def _cap_composito(cfg, val: dict) -> str:
     rw = " &middot; ".join(f"{k} {v:.2f}" for k, v in cfg.offensive_role_weight.items())
+    # I ruoli specifici sono nuovi (19/08) e vanno spiegati qui, o in pagina
+    # compaiono parole — quinto, mezzala, trequartista — che il lettore non sa
+    # da dove escano ne' fino a che punto fidarsene.
+    # Il vocabolario arriva dal motore: se domani si aggiunge una casella, la
+    # guida se ne accorge da sola.
+    import parte1_analisi as p1
+    voci_fini = [v for k, v in p1.RUOLI_FINI.items() if k != "POR"]
+    fini = " &middot; ".join(it.lower() for it, _ in voci_fini)
+    fini_en = " &middot; ".join(en.lower() for _, en in voci_fini)
     ev = [
+        evidenza(str(len(voci_fini)), "Ruoli, quelli veri",
+                 "Roles, the real ones",
+                 f"Accanto ad ATT/CEN/DIF ogni giocatore porta il ruolo che fa davvero "
+                 f"({fini}), ricavato dai <strong>minuti per posizione</strong> di Understat: si "
+                 f"somma quanto tempo ha passato in ogni zona e vince la piu' battuta. Accanto al "
+                 f"nome c'&egrave; la quota, perch&eacute; un ruolo al 93% e uno al 34% non sono "
+                 f"la stessa affermazione. Chi gioca da centravanti ma passa almeno un quarto del "
+                 f"tempo sulla trequarti diventa <em>seconda punta</em>. "
+                 f"<strong>Non entrano nel punteggio</strong>: gli z-score restano dentro i tre "
+                 f"gruppi grossi. Cambiare i gruppi di confronto vorrebbe dire un altro indice e "
+                 f"un'altra validazione, non un'etichetta pi&ugrave; fine.",
+                 f"Next to FWD/MID/DEF every player carries the role he actually plays "
+                 f"({fini_en}), derived from Understat&rsquo;s <strong>minutes per position</strong>: "
+                 f"time spent in each zone is summed and the most-played one wins. The share is "
+                 f"shown next to it, because a role held 93% of the time and one held 34% are not "
+                 f"the same claim. A player used as a centre-forward who spends at least a quarter "
+                 f"of his time behind the striker becomes a <em>second striker</em>. "
+                 f"<strong>They do not enter the score</strong>: z-scores stay inside the three "
+                 f"broad groups. Changing the comparison groups would mean a different index and a "
+                 f"different validation, not a finer label."),
         evidenza("&plusmn;&sigma;", "Confrontato con chi gioca dove gioca lui",
                  "Compared with players in his own role",
                  "Gli z-score si calcolano <strong>dentro il ruolo</strong>: un difensore &egrave; "
