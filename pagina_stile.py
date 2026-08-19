@@ -223,10 +223,23 @@ h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
 .nomi .pos{font-family:var(--mono);font-size:12.5px;color:var(--lt);white-space:nowrap}
 .nomi+.didascalia{margin-top:12px}
 
-.graf{display:block;width:100%;height:auto;margin:26px 0 4px;overflow:visible}
-.sv-ax{font-family:var(--mono);font-size:9.5px;fill:var(--lt)}
-.sv-val{font-family:var(--mono);font-size:10px;fill:var(--ls)}
-.sv-dim{font-family:var(--mono);font-size:10.5px;fill:var(--ls)}
+/* Il testo dentro un SVG con viewBox scala col disegno: le stesse etichette da
+   9.5px venivano rese a 5.2px su un telefono da 390px e a 16.1px su un monitor
+   da 1920 — piu' grandi della didascalia da 12.5px che spiega il grafico. Una
+   tipografia che varia di tre volte non e' una tipografia.
+   Due mosse: il disegno smette di ingrandirsi oltre 760px (in alto il fattore
+   si ferma a 1.19), e sotto quella soglia le etichette crescono di quanto il
+   disegno rimpicciolisce. Il risultato e' ~11px renderizzati a ogni larghezza,
+   misurati, invece di 5.2 su telefono. */
+:root{--sv-scala:1}
+@media(max-width:780px){:root{--sv-scala:1.21}}
+@media(max-width:600px){:root{--sv-scala:1.47}}
+@media(max-width:460px){:root{--sv-scala:2.05}}
+.graf{display:block;width:100%;max-width:760px;height:auto;margin:26px 0 4px;
+  overflow:visible}
+.sv-ax{font-family:var(--mono);font-size:calc(9.5px * var(--sv-scala));fill:var(--lt)}
+.sv-val{font-family:var(--mono);font-size:calc(10px * var(--sv-scala));fill:var(--ls)}
+.sv-dim{font-family:var(--mono);font-size:calc(10.5px * var(--sv-scala));fill:var(--ls)}
 .didascalia{font-size:12.5px;color:var(--lt);line-height:1.6;max-width:36em;margin-top:6px}
 
 table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}

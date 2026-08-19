@@ -738,6 +738,15 @@ const BL={paper_bgcolor:"transparent",plot_bgcolor:"transparent",
  xaxis:{gridcolor:"rgba(255,255,255,.05)",color:"rgba(235,235,245,.28)",tickfont:{size:10},zeroline:false},
  yaxis:{gridcolor:"rgba(255,255,255,.05)",color:"rgba(235,235,245,.28)",tickfont:{size:10},zeroline:false}};
 
+/* Le tacche dell'asse x. dtick:1 vuol dire una tacca per giornata: su desktop
+  e' leggibile, su un telefono da 390px sono trentotto etichette sovrapposte —
+  il valutatore l'ha chiamato "uno scarabocchio nero illeggibile". Sotto i
+  620px si lascia decidere a Plotly quante ne stanno, con un tetto di sei. */
+function assiGiornate(extra){
+ const stretto = window.innerWidth < 620;
+ return Object.assign({}, BL.xaxis, stretto ? {nticks:6} : {dtick:1}, extra||{});
+}
+
 /* ── Utils ── */
 const fv=(v,d=2)=>(v==null)?"\u2014":(+v).toFixed(d);
 const fvs=(v,d=2)=>(v==null)?"\u2014":(v>=0?"+":"")+v.toFixed(d);
@@ -1764,7 +1773,7 @@ function drawCharts(p){
    {x:p.form.g,y:p.form.ewma_s,name:"EWMA",mode:"lines",
     line:{color:rc,width:2.5},fill:"tozeroy",fillcolor:"rgba("+rb+",.07)"},
   ],{...BL,margin:{t:4,b:28,l:34,r:4},height:180,
-   xaxis:{...BL.xaxis,dtick:1},legend:{orientation:"h",y:-.38,font:{size:10},bgcolor:"transparent"}},PL);
+   xaxis:assiGiornate(),legend:{orientation:"h",y:-.38,font:{size:10},bgcolor:"transparent"}},PL);
  }
  // TPI 5 contesti
  const ce=document.getElementById("c-ctx");
@@ -1789,7 +1798,7 @@ function drawCharts(p){
   if(tr.senza&&tr.senza.some(v=>v!=null))trs.push({x:tr.g,y:tr.senza,name:T("dash_ch_without","Senza")+(tr.media_senza?" (avg "+tr.media_senza.toFixed(2)+")":""),mode:"lines+markers",line:{color:"rgba(255,255,255,.3)",width:1.5,dash:"dot"},marker:{size:4,color:"rgba(255,255,255,.18)"},connectgaps:true});
   if(tr.media_con)trs.push({x:tr.g,y:Array(tr.g.length).fill(tr.media_con),name:T("dash_ch_avg_with","Media con")+" ("+tr.media_con.toFixed(2)+")",mode:"lines",hoverinfo:"skip",line:{color:"rgba(10,132,255,.28)",width:1,dash:"dash"}});
   Plotly.newPlot(te,trs,{...BL,margin:{t:8,b:46,l:42,r:8},height:360,
-   xaxis:{...BL.xaxis,title:T("dash_ch_matchday","Giornata"),dtick:1},yaxis:{...BL.yaxis,title:T("dash_ch_team_xg","xG squadra")},
+   xaxis:assiGiornate({title:T("dash_ch_matchday","Giornata")}),yaxis:{...BL.yaxis,title:T("dash_ch_team_xg","xG squadra")},
    legend:{orientation:"h",y:-.2,font:{size:10},bgcolor:"transparent"}},PL);
  }
  // Radar
@@ -1814,7 +1823,7 @@ function drawCharts(p){
    {type:"bar",name:"xG",x:cv.giornate,y:cv.xg_pg,marker:{color:"rgba(255,255,255,.11)"},hovertemplate:"%{x}gg: %{y:.2f} xG<extra></extra>"},
    {type:"bar",name:T("dash_ch_goals","Goal"),x:cv.giornate,y:cv.goal_pg,marker:{color:"rgba("+rb+",.73)"},hovertemplate:"%{x}gg: %{y} "+T("dash_ch_goals_low","goal")+"<extra></extra>"},
   ],{...BL,barmode:"overlay",margin:{t:4,b:32,l:32,r:4},height:230,
-   xaxis:{...BL.xaxis,dtick:1},legend:{orientation:"h",y:-.28,font:{size:10},bgcolor:"transparent"}},PL);
+   xaxis:assiGiornate(),legend:{orientation:"h",y:-.28,font:{size:10},bgcolor:"transparent"}},PL);
  }
  // Conv cumulativo
  const cvc=document.getElementById("c-ccum");
@@ -1824,7 +1833,7 @@ function drawCharts(p){
    {type:"scatter",name:T("dash_ch_xg_cum","xG cumulativo"),x:cv.giornate,y:cv.xg_cum,mode:"lines",line:{color:"rgba(255,255,255,.22)",width:2,dash:"dot"}},
    {type:"scatter",name:T("dash_ch_goal_cum","Goal cumulativi"),x:cv.giornate,y:cv.goal_cum,mode:"lines+markers",line:{color:rc,width:2.5},marker:{size:4},fill:"tonexty",fillcolor:"rgba("+rb+",.07)"},
   ],{...BL,margin:{t:4,b:32,l:32,r:4},height:190,
-   xaxis:{...BL.xaxis,dtick:1},legend:{orientation:"h",y:-.3,font:{size:10},bgcolor:"transparent"}},PL);
+   xaxis:assiGiornate(),legend:{orientation:"h",y:-.3,font:{size:10},bgcolor:"transparent"}},PL);
  }
 }
 
