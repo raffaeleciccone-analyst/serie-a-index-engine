@@ -1227,7 +1227,18 @@ function buildLeaderboard(){
  document.getElementById("lb-help").onclick=()=>openM(m.help);
  const teamSub=ACTIVE_TEAMS.size>0?" — "+[...ACTIVE_TEAMS].join(", "):"";
  const roleSub=PR?" · "+T("dash_only","Solo")+" "+T(_ROLE_KEY[PR],PR):"";
- document.getElementById("lb-sub").textContent=teamSub+roleSub;
+ /* Con una squadra sola selezionata si offre la sua pagina: e' un indirizzo
+    che si puo' mandare a qualcuno, che la dashboard filtrata non e'. */
+ const _sub=document.getElementById("lb-sub");
+ if(ACTIVE_TEAMS.size===1){
+  const sq=[...ACTIVE_TEAMS][0];
+  const file="squadra-"+sq.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/gi,"-")
+    .replace(/^-+|-+$/g,"")+".html";
+  _sub.innerHTML=esc(teamSub+roleSub)+' <a class="lb-sub-link" href="'+file+'">'
+    +esc(T("dash_team_page","pagina della squadra"))+"</a>";
+ }else{
+  _sub.textContent=teamSub+roleSub;
+ }
 
  /* Nota metodologica sotto titolo per prospect */
  let noteEl = document.getElementById("lb-note");

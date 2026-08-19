@@ -38,6 +38,8 @@ DIM = {"output_adj": ("output", "output"), "centralita": ("centralit&agrave;", "
        "boost": ("boost", "boost"), "consistenza": ("consistenza", "consistency"),
        "conv": ("G/xG", "G/xG")}
 N_CLASSIFICA = 8
+# Quanti ne pubblica la dashboard: serve a dire "entrato nei primi 100".
+N_PUBBLICATI = 100
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -167,6 +169,127 @@ def _classifica(pay: dict) -> str:
     <a class="oltre" href="dashboard_serie_a.html" {bi(coda_it, coda_en)}>{coda_it}</a>
   </div>
 </section>"""
+
+
+def _cambiamenti(pay: dict) -> str:
+    """Chi e' salito, chi e' sceso, chi e' entrato: tre nomi e via.
+
+    "Cosa farebbe tornare ogni settimana": la risposta del tifoso e' stata
+    questa, e non chiede nulla di nuovo — i vintage per il backtest sono
+    fotografie della classifica a una giornata data, e bastano a dire cosa si e'
+    mosso da allora. Confronta la graduatoria di oggi con l'ultimo vintage
+    disponibile.
+    """
+    corrente = _classifica_completa(pay)
+    prima, giornata = _ultimo_vintage()
+    if not corrente or not prima:
+        return ""
+
+    comuni = [i for i in corrente if i in prima]
+    if len(comuni) < 30:
+        return ""
+
+    mosse = sorted(((prima[i]["rank"] - corrente[i]["rank"], i) for i in comuni),
+                   reverse=True)
+    saliti = [(d, i) for d, i in mosse if d > 0][:3]
+    scesi = [(d, i) for d, i in mosse if d < 0][-3:][::-1]
+    entrati = [i for i in corrente
+               if corrente[i]["rank"] <= N_PUBBLICATI
+               and (i not in prima or prima[i]["rank"] > N_PUBBLICATI)][:3]
+
+    def riga(i, delta=None):
+        g = corrente[i]
+        nome = f'<span class="let-nm">{g["nome"]}</span>'
+        coda = f' {delta:+d}' if delta is not None else ""
+        return nome, g, coda
+
+    voci = []
+    if saliti:
+        testo_it = " &middot; ".join(
+            f'<strong>{corrente[i]["nome"]}</strong> ({corrente[i]["squadra"]}) '
+            f'{prima[i]["rank"]}&ordm; &rarr; {corrente[i]["rank"]}&ordm;' for d, i in saliti)
+        testo_en = " &middot; ".join(
+            f'<strong>{corrente[i]["nome"]}</strong> ({corrente[i]["squadra"]}) '
+            f'{prima[i]["rank"]} &rarr; {corrente[i]["rank"]}' for d, i in saliti)
+        voci.append(evidenza(f"+{saliti[0][0]}", "Chi &egrave; salito", "Who moved up",
+                             testo_it, testo_en))
+    if scesi:
+        testo_it = " &middot; ".join(
+            f'<strong>{corrente[i]["nome"]}</strong> ({corrente[i]["squadra"]}) '
+            f'{prima[i]["rank"]}&ordm; &rarr; {corrente[i]["rank"]}&ordm;' for d, i in scesi)
+        testo_en = " &middot; ".join(
+            f'<strong>{corrente[i]["nome"]}</strong> ({corrente[i]["squadra"]}) '
+            f'{prima[i]["rank"]} &rarr; {corrente[i]["rank"]}' for d, i in scesi)
+        voci.append(evidenza(f"{scesi[0][0]}", "Chi &egrave; sceso", "Who dropped",
+                             testo_it, testo_en))
+    if entrati:
+        testo_it = " &middot; ".join(
+            f'<strong>{corrente[i]["nome"]}</strong> ({corrente[i]["squadra"]}, '
+            f'{corrente[i]["rank"]}&ordm;)' for i in entrati)
+        testo_en = " &middot; ".join(
+            f'<strong>{corrente[i]["nome"]}</strong> ({corrente[i]["squadra"]}, '
+            f'{corrente[i]["rank"]})' for i in entrati)
+        voci.append(evidenza(str(len(entrati)), f"Entrati nei primi {N_PUBBLICATI}",
+                             f"Into the top {N_PUBBLICATI}", testo_it, testo_en))
+    if not voci:
+        return ""
+
+    p_it = (f"Il confronto &egrave; con la classifica come stava alla giornata {giornata}: "
+            f"la stessa fotografia che il backtest usa per verificarsi, riletta al contrario. "
+            f"Non &egrave; una notizia di mercato, &egrave; il movimento dell&rsquo;indice.")
+    p_en = (f"The comparison is with the ranking as it stood on matchday {giornata}: the same "
+            f"snapshot the backtest uses to check itself, read the other way round. It is not "
+            f"transfer news, it is the index moving.")
+    return f"""<section class="cap riga">
+  <div class="cap-num">03</div>
+  <div>
+    {el("h2", "Cosa &egrave; cambiato", "What changed")}
+    <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
+    <div class="ev-g">{"".join(voci)}</div>
+  </div>
+</section>"""
+
+
+def _classifica_completa(pay: dict) -> dict:
+    """id -> posizione e nome, dal payload piu' completo che c'e'."""
+    fonte = OUTPUT_DIR / "payload_full.json"
+    dati = pay
+    if fonte.is_file():
+        try:
+            dati = json.loads(fonte.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            dati = pay
+    fuori = {}
+    for g in dati.get("players") or []:
+        pos = (g.get("rank") or {}).get("TPI")
+        if pos:
+            fuori[g["id"]] = {"rank": int(pos), "nome": g["nome"], "squadra": g["squadra"]}
+    return fuori
+
+
+def _ultimo_vintage() -> tuple[dict, int | None]:
+    """La fotografia piu' recente fra i vintage del backtest."""
+    import re
+    migliore, giornata = None, None
+    for f in OUTPUT_DIR.glob("payload_g*.json"):
+        m = re.match(r"payload_g(\d+)\.json$", f.name)
+        if not m:
+            continue
+        n = int(m.group(1))
+        if giornata is None or n > giornata:
+            giornata, migliore = n, f
+    if not migliore:
+        return {}, None
+    try:
+        dati = json.loads(migliore.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}, None
+    fuori = {}
+    for g in dati.get("players") or []:
+        pos = (g.get("rank") or {}).get("TPI")
+        if pos:
+            fuori[g["id"]] = {"rank": int(pos), "nome": g["nome"]}
+    return fuori, giornata
 
 
 def _letture(pay: dict) -> str:
@@ -333,7 +456,7 @@ def _costruzione(pay: dict) -> str:
     p_en = ("The score is not an average of raw statistics. Each piece answers a specific "
             "problem you hit when you look at football numbers.")
     return f"""<section class="cap riga">
-  <div class="cap-num">03</div>
+  <div class="cap-num">04</div>
   <div>
     {el("h2", "Come &egrave; costruito", "How it is built")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
@@ -401,7 +524,7 @@ def _quanto_regge(val: dict) -> str:
     p_en = ("An index is judged by what survives testing, not by how good it sounds. The checks "
             "are published in full, including the ones built to fail it.")
     return f"""<section class="cap riga">
-  <div class="cap-num">04</div>
+  <div class="cap-num">05</div>
   <div>
     {el("h2", "Quanto regge", "How well it holds")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
@@ -504,7 +627,7 @@ CSS_EXTRA = """
 def render(pay: dict, val: dict | None) -> str:
     corpo = "\n".join(x for x in (_hero(pay, val or {}), _porte(pay, val or {}),
                                   _classifica(pay), _letture(pay),
-                                  _costruzione(pay),
+                                  _cambiamenti(pay), _costruzione(pay),
                                   _quanto_regge(val or {})) if x)
     html = guscio(
         "Serie A Scout Index &mdash; Raffaele Ciccone",
