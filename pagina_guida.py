@@ -278,6 +278,26 @@ def _cap_composito(cfg, val: dict) -> str:
     fini = " &middot; ".join(it.lower() for it, _ in voci_fini)
     fini_en = " &middot; ".join(en.lower() for _, en in voci_fini)
     ev = [
+        # I dati di contorno vanno dichiarati per quello che sono, o uno pensa
+        # che l'indice li usi.
+        evidenza("0", "Quello che NON entra nel punteggio",
+                 "What does NOT enter the score",
+                 "Accanto a ogni giocatore ci sono <strong>valore di mercato</strong> e "
+                 "<strong>scadenza del contratto</strong>, presi da Transfermarkt. Non entrano "
+                 "in nessun calcolo: servono a decidere se un nome &egrave; anche "
+                 "<em>raggiungibile</em>, che &egrave; una domanda diversa da quanto rende. Il "
+                 "valore ha anzi il ruolo opposto: la validazione lo usa come "
+                 "<strong>metro da battere</strong> &mdash; se il TPI non facesse meglio del "
+                 "prezzo, non servirebbe. Ingaggio e prestiti non ci sono: non esiste una fonte "
+                 "che li pubblichi in modo affidabile, e preferiamo dirlo che stimarli.",
+                 "Next to every player there are a <strong>market value</strong> and a "
+                 "<strong>contract expiry</strong>, taken from Transfermarkt. They enter no "
+                 "calculation: they are there to tell whether a name is also <em>reachable</em>, "
+                 "which is a different question from how much he delivers. The value plays the "
+                 "opposite role: the validation uses it as a <strong>baseline to beat</strong> "
+                 "&mdash; if the TPI did not do better than the price tag, it would be pointless. "
+                 "Wages and loan status are absent: no source publishes them reliably, and we "
+                 "would rather say so than estimate them."),
         evidenza(str(len(voci_fini)), "Ruoli, quelli veri",
                  "Roles, the real ones",
                  f"Accanto ad ATT/CEN/DIF ogni giocatore porta il ruolo che fa davvero "

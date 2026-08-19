@@ -514,6 +514,11 @@ window.onerror=function(m,s,l){
      <span class="sq-chevron">&#9660;</span>
     </button>
    </div>
+   <button class="rpill" id="scad-btn" onclick="filtroScadenza(this)"
+     data-i18n-title="dash_scad_tip"
+     title="Solo chi ha il contratto in scadenza entro dodici mesi">
+    <span data-i18n="dash_scad">In scadenza</span>
+   </button>
    <button class="rpill" id="tutti-btn" onclick="caricaTuttiIQualificati()"
      data-i18n-title="dash_all_tip"
      title="Carica anche i qualificati oltre i primi cento: il taglio ai cento privilegia le squadre che producono di piu'">
@@ -672,6 +677,24 @@ const RF = __RF_JS__;
    dell'indice — e' il consenso del mercato, che la validazione usa come
    baseline da battere (test Q). Va scritto accanto ai numeri nostri proprio
    perche' si veda la differenza fra le due cose. */
+/* Quanti mesi mancano alla scadenza. Un contratto che finisce fra sei mesi e
+   uno che finisce fra quattro anni sono due situazioni diverse, e per chi fa
+   mercato e' LA differenza: sotto i dodici mesi il giocatore si puo' prendere
+   a poco, sotto i sei parla gia' con chi vuole. */
+function mesiAScadenza(p){
+ const s = ((p||{}).contratto||{}).scadenza;
+ if(!s) return null;
+ const d = new Date(s + "T00:00:00");
+ if(isNaN(d)) return null;
+ const oggi = new Date();
+ return (d.getFullYear()-oggi.getFullYear())*12 + (d.getMonth()-oggi.getMonth());
+}
+function contrattoScritto(p){
+ const c = (p||{}).contratto||{};
+ if(!c.scadenza) return "";
+ const anno = c.scadenza.slice(0,4), mese = c.scadenza.slice(5,7);
+ return (mese==="06" ? "" : mese + "/") + anno;
+}
 function valoreScritto(p){
  const v = p && p.valore_mercato;
  if(!v) return "";
@@ -782,6 +805,13 @@ let CUR=null, CTX="totale", TAB="ov", PQ="", PR="";
 let ACTIVE_TEAMS=new Set(), CUR_METRIC="tpi", VIEW="home", COMPARE_POOL=[];
 let FORM_FILTER=""; /* "" tutti | "hot" solo caldi | "cold" solo in calo */
 let VISTA={righe:[],metrica:""}; /* ultima lista mostrata, per l'export CSV */
+let SOLO_SCADENZA=false; /* filtro "contratto entro dodici mesi" */
+
+function filtroScadenza(btn){
+ SOLO_SCADENZA=!SOLO_SCADENZA;
+ btn.classList.toggle("on", SOLO_SCADENZA);
+ buildLeaderboard();
+}
 
 /* Scarica quello che vedi. Il CSV completo dei 351 qualificati sta accanto alle
    pagine (serie_a_tpi_2025-26.csv, generato dal motore a ogni giro); questo
@@ -947,7 +977,7 @@ function esportaVista(){
  const righe = (VISTA.righe||[]);
  if(!righe.length) return;
  const ACAPO = String.fromCharCode(10), BOM = String.fromCharCode(65279);
- const col = ["rank","nome","squadra","ruolo","ruolo_specifico","valore_mercato_eur","minuti","tpi_totale","tpi_casa",
+ const col = ["rank","nome","squadra","ruolo","ruolo_specifico","valore_mercato_eur","contratto_scadenza","minuti","tpi_totale","tpi_casa",
    "tpi_trasferta","tpi_vs_top6","tpi_vs_forti","valore_colonna",
    "z_output","z_buildup","z_centralita","z_boost","z_consistenza","z_finishing","z_form",
    "xg_p90","xa_p90","goal_p90","sos","conv_ratio","confidence","eta","forma"];
@@ -964,7 +994,7 @@ function esportaVista(){
  const linee = [col.join(",")];
  righe.forEach(function(x,i){
   const p=x.p, t=p.tpi||{}, k=p.kpi||{}, c=p.conv||{}, ph=p.physical||{}, r=p.recent||{};
-  linee.push([i+1,p.nome,p.squadra,p.ruolo,ruoloFine(p),p.valore_mercato||"",Math.round(p.minuti||0),
+  linee.push([i+1,p.nome,p.squadra,p.ruolo,ruoloFine(p),p.valore_mercato||"",((p.contratto||{}).scadenza)||"",Math.round(p.minuti||0),
    t.totale,t.casa,t.trasferta,t.vs_top6,t.vs_forti,x.v,
    p.z_output,p.z_buildup,p.z_centralita,p.z_boost,p.z_consistenza,p.z_finishing,p.z_form,
    k.xg_p90,k.xa_p90,k.goal_p90,k.sos,c.conv_ratio,p.confidence,ph.eta,r.label].map(q).join(","));
@@ -1382,7 +1412,8 @@ function buildLeaderboard(){
  if(_noteVal){ noteEl.textContent = _noteVal; noteEl.style.display = "block"; }
  else { noteEl.style.display = "none"; }
 
- const sorted=fd.map(p=>({p,v:m.get(p)})).filter(x=>x.v!=null&&isFinite(x.v)).sort((a,b)=>b.v-a.v);
+ const fd2 = SOLO_SCADENZA ? fd.filter(function(p){ const n=mesiAScadenza(p); return n!=null && n<=12; }) : fd;
+ const sorted=fd2.map(p=>({p,v:m.get(p)})).filter(x=>x.v!=null&&isFinite(x.v)).sort((a,b)=>b.v-a.v);
  /* La vista corrente, per l'export: filtri e ordinamento applicati. Chi scarica
     si aspetta il file di quello che sta guardando, non del payload intero. */
  VISTA = {righe: sorted, metrica: (m.lbl || CUR_METRIC)};
@@ -1686,10 +1717,17 @@ function updateHero(p){
  const _rf=ruoloFine(p), _rq=p.ruolo_fine_quota;
  const _rfTxt=_rf?(" · "+esc(_rf)+(_rq!=null?' <span style="color:var(--lq)">'+Math.round(_rq*100)+"%</span>":"")):"";
  const _vm=valoreScritto(p);
+ const _mesi=mesiAScadenza(p), _con=contrattoScritto(p);
+ /* Sotto l'anno si accende: e' il momento in cui il contratto diventa la cosa
+    piu' importante della scheda. */
+ const _conTxt=_con?(' · <span title="'+esc(T("dash_contratto_tip",
+   "Scadenza del contratto (Transfermarkt). Non entra nell\'indice."))+'">'
+   +esc(T("dash_contratto","contratto"))+' <strong'
+   +((_mesi!=null&&_mesi<=12)?' style="color:var(--orng)"':'')+'>'+esc(_con)+'</strong></span>'):"";
  const _vmTxt=_vm?(' · <span title="'+esc(T("dash_valore_tip",
    "Valore di mercato Transfermarkt. Non entra nell\'indice: la validazione lo usa come baseline da battere."))
    +'">'+esc(T("dash_valore","valore"))+' <strong>'+esc(_vm)+'</strong></span>'):"";
- document.getElementById("h-sub").innerHTML=esc(p.squadra)+_rfTxt+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos)+_vmTxt;
+ document.getElementById("h-sub").innerHTML=esc(p.squadra)+_rfTxt+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos)+_vmTxt+_conTxt;
  // ── Forma recente (ultime N gare) ──
  const hf=document.getElementById("h-form"), r=p.recent||{};
  if(hf){

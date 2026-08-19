@@ -478,6 +478,9 @@ def blocco_metodo(cfg: Any) -> dict:
         # indovinare cosa vuol dire QUINTO o ESTERNO_C.
         "ruoli_specifici": {k: {"nome_it": it, "nome_en": en}
                             for k, (it, en) in RUOLI_FINI.items()},
+        "contratto_fonte": ("Transfermarkt, rosa dettagliata, letta alla data "
+                            "indicata nel file. La scadenza e' un fatto di oggi: "
+                            "chi ha lasciato la Serie A non ce l'ha."),
         "valore_mercato_fonte": ("Transfermarkt via heXI, agganciato per "
                                  "identificativo. Dato di contorno: non entra "
                                  "in nessun calcolo dell'indice."),
@@ -633,6 +636,53 @@ def carica_valore_mercato(engine) -> dict[int, float]:
             fuori[int(r["id"])] = v
     log.info(f"Valore di mercato: {len(fuori)} giocatori agganciati per tm_id "
              f"({len(per_tm)} valorizzati nella rosa heXI)")
+    return fuori
+
+
+CONTRATTI = Path(__file__).parent / "dati_esterni" / "contratti_2025-26.json"
+
+
+def carica_contratti(engine) -> dict[int, dict]:
+    """giocatore_id -> {scadenza, altezza, piede, prestito}.
+
+    Il file lo scrive estrai_contratti_transfermarkt.py, che legge la rosa
+    dettagliata di Transfermarkt. Il dato mancava del tutto — nella rosa heXI
+    i campi ci sono ma sono vuoti — e senza scadenza contrattuale, per chi fa
+    mercato, una lista non e' una lista.
+
+    Aggancio su `giocatori.tm_id`, come per il valore di mercato: un
+    identificativo, non un nome. Se il file non c'e' il campo semplicemente
+    non compare, e il motore non si ferma.
+    """
+    if not CONTRATTI.is_file():
+        log.info(f"Contratti: file assente ({CONTRATTI.name}), campo omesso. "
+                 "Si genera con estrai_contratti_transfermarkt.py")
+        return {}
+    try:
+        dati = json.loads(CONTRATTI.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning(f"Contratti: file illeggibile ({e}), campo omesso.")
+        return {}
+    per_tm = {int(k): v for k, v in (dati.get("giocatori") or {}).items() if k.isdigit()}
+    if not per_tm:
+        return {}
+    try:
+        df = pd.read_sql("SELECT id, tm_id FROM giocatori WHERE tm_id IS NOT NULL", engine)
+    except Exception as e:
+        log.warning(f"Contratti: query tm_id fallita ({e}), campo omesso.")
+        return {}
+    fuori = {}
+    for _, r in df.iterrows():
+        try:
+            v = per_tm.get(int(r["tm_id"]))
+        except (TypeError, ValueError):
+            continue
+        if v:
+            fuori[int(r["id"])] = v
+    con_scadenza = sum(1 for v in fuori.values() if v.get("contratto_scadenza"))
+    saltate = dati.get("squadre_saltate") or []
+    log.info(f"Contratti: {len(fuori)} giocatori agganciati, {con_scadenza} con scadenza"
+             + (f" (squadre saltate nella raccolta: {', '.join(saltate)})" if saltate else ""))
     return fuori
 
 
@@ -2169,7 +2219,8 @@ def record_leggero(entry: dict) -> dict:
     leggero = {
         k: entry.get(k) for k in (
             "id", "nome", "squadra", "ruolo", "ruolo_fine", "ruolo_fine_quota",
-            "minuti", "valore_mercato", "avg_min_partita", "is_winter", "first_giornata",
+            "minuti", "valore_mercato", "contratto", "avg_min_partita",
+            "is_winter", "first_giornata",
             "tpi", "tpi_ext", "rank", "kpi", "recent", "confidence",
             "z_output", "z_buildup", "z_centralita", "z_boost",
             "z_consistenza", "z_finishing", "z_form", "z_aii", "z_pri",
@@ -2201,9 +2252,11 @@ def build_payload(
     trend_cache: dict[int, dict],
     cfg: Config,
     valore_mercato: dict[int, float] | None = None,
+    contratti: dict[int, dict] | None = None,
 ) -> list[dict]:
     """Costruisce la lista di oggetti JSON per la dashboard."""
     valore_mercato = valore_mercato or {}
+    contratti = contratti or {}
     n_total = len(df_pa)
     payload: list[dict] = []
 
@@ -2258,6 +2311,14 @@ def build_payload(
             # contorno, non entra in nessun calcolo: la validazione lo usa
             # come baseline da battere, e ora chi legge puo' vederlo.
             "valore_mercato": safe_json(valore_mercato.get(gid)),
+            # Scadenza contratto, altezza e piede: Transfermarkt, rosa
+            # dettagliata. Dati di contorno, non entrano in nessun calcolo.
+            "contratto": (lambda c: {
+                "scadenza": c.get("contratto_scadenza"),
+                "altezza_cm": c.get("altezza_cm"),
+                "piede": c.get("piede"),
+                "in_prestito": c.get("in_prestito"),
+            } if c else None)(contratti.get(gid)),
             "avg_min_partita": safe_json(row.get("avg_min_per_partita")),
             "k_subst_mult": safe_json(row.get("k_subst_mult")),
             "disponibilita_rel": safe_json(row.get("disponibilita_rel")),
@@ -2447,6 +2508,7 @@ def main(max_giornata: int | None = None,
     #   1) DB (base)  2) posizione reale Understat (default oggettivo)
     #   3) override manuale (ULTIMA PAROLA — correzioni deliberate dell'esperto)
     valore_mercato = carica_valore_mercato(engine)
+    contratti = carica_contratti(engine)
 
     us_roles = derive_understat_roles()
     us_ripiego = derive_understat_roles(min_minutes=1)
@@ -2949,7 +3011,7 @@ def main(max_giornata: int | None = None,
     _top_n_richiesto = CFG.top_n_payload
     CFG.top_n_payload = 0
     payload_tutti = build_payload(df_pa, all_ctx, conv_detail, form_detail, trend_cache,
-                                 CFG, valore_mercato)
+                                 CFG, valore_mercato, contratti)
     CFG.top_n_payload = _top_n_richiesto
     payload = (payload_tutti if _top_n_richiesto <= 0
                else payload_tutti[:_top_n_richiesto])
