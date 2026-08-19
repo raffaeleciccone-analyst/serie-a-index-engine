@@ -105,7 +105,10 @@ SOGLIE = {
 }
 SOGLIE_FISSATE_IL = ("14 agosto 2026", "14 August 2026")
 
-DB_URL   = _cfg_db_url()
+# Anche qui la URL si costruisce alla prima richiesta, non all'import: leggere
+# questo file non deve pretendere un database.
+def DB_URL() -> str:
+    return _cfg_db_url()
 DB_RETRY = 3
 DB_WAIT  = 5
 
@@ -278,7 +281,7 @@ def load_player_games():
         return None
     for attempt in range(1, DB_RETRY + 1):
         try:
-            engine = create_engine(DB_URL, pool_pre_ping=True)
+            engine = create_engine(DB_URL(), pool_pre_ping=True)
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             df = pd.read_sql("""

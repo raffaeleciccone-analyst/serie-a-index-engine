@@ -73,7 +73,11 @@ class Config:
     """Tutti i parametri del sistema in un unico posto."""
 
     # Database — credenziali da .env via config.py (fail-fast)
-    db_url: str = field(default_factory=_cfg_db_url)
+    # Vuoto = "chiedila a config quando serve". Con default_factory la URL si
+    # costruiva alla creazione di CFG, cioe' all'import del modulo: bastava
+    # importare parte1 per pretendere una password, anche solo per usare una
+    # funzione pura. Chi la vuole diversa la assegna e vince lei.
+    db_url: str = ""
 
     # API (opzionale per narrativa AI)
     anthropic_api_key: str = ""
@@ -2463,7 +2467,7 @@ def main(max_giornata: int | None = None,
     log.info(f"PARTE 1 — Analisi {label}")
     log.info("=" * 58)
 
-    engine = create_engine(CFG.db_url)
+    engine = create_engine(CFG.db_url or _cfg_db_url())
     db = DatabaseLayer(engine, season=season)
 
     # ── Caricamento dati base ──────────────────────────────────
