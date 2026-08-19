@@ -50,7 +50,13 @@ def _require(name: str) -> str:
 DB_HOST: str = os.environ.get("DB_HOST", "localhost")
 DB_USER: str = os.environ.get("DB_USER", "root")
 DB_NAME: str = os.environ.get("DB_NAME", "serie_a_25_26")
-DB_PASSWORD: str = _require("DB_PASSWORD")
+# La password si pretende quando serve DAVVERO, non all'import del modulo.
+# Prima il fail-fast stava qui: importare config — e quindi parte1, parte3, i
+# test — era impossibile senza un database, anche per le funzioni che con il
+# database non c'entrano niente (risoluzione dei ruoli, formattazione, calcoli
+# puri). Il controllo non e' sparito: si e' spostato in db_url(), che e' il
+# punto in cui una password mancante e' un problema vero.
+DB_PASSWORD: str = os.environ.get("DB_PASSWORD", "")
 
 # Stagione che il sito pubblica. Da quando il DB contiene anche il backfill
 # 2024-25, "quale stagione" non e' piu' una domanda con una risposta ovvia:
@@ -65,4 +71,5 @@ def db_url(driver: str = "mysql+pymysql") -> str:
     override = os.environ.get("SERIE_A_DB_URL")
     if override:
         return override
-    return f"{driver}://{DB_USER}:{quote_plus(DB_PASSWORD)}@{DB_HOST}/{DB_NAME}"
+    pwd = DB_PASSWORD or _require("DB_PASSWORD")
+    return f"{driver}://{DB_USER}:{quote_plus(pwd)}@{DB_HOST}/{DB_NAME}"
