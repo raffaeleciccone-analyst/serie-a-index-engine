@@ -824,6 +824,125 @@ async function caricaTuttiIQualificati(){
  }
 }
 
+/* Il confronto fra due giocatori come immagine. Era l'ultima delle tre cose
+  che il tifoso ha detto che lo farebbero tornare: "il confronto fra due
+  giocatori come IMMAGINE da condividere" — perche' un link a una dashboard
+  filtrata nel gruppo non lo apre nessuno, una figura si guarda.
+
+  Si disegna su canvas, 1200x630: la misura che WhatsApp e Twitter mostrano
+  intera senza ritagliare. Niente librerie: la CSP del sito non le
+  permetterebbe, e per sette barre e due nomi non servono.
+  ULTIMO_CONFRONTO lo riempie renderDiff, cosi' l'immagine e' sempre quella
+  che stai guardando. */
+let ULTIMO_CONFRONTO = null;
+
+function _testoTagliato(ctx, testo, larghezzaMax){
+ let t = String(testo || "");
+ if(ctx.measureText(t).width <= larghezzaMax) return t;
+ while(t.length > 1 && ctx.measureText(t + "\u2026").width > larghezzaMax) t = t.slice(0, -1);
+ return t + "\u2026";
+}
+
+async function immagineConfronto(){
+ const c = ULTIMO_CONFRONTO;
+ if(!c) return;
+ const p1 = c.p1, p2 = c.p2, righe = c.righe;
+ /* I font del sito sono auto-ospitati: senza aspettarli il canvas disegna
+    con quelli di sistema e l'immagine non somiglia alla pagina. */
+ try{ if(document.fonts && document.fonts.ready) await document.fonts.ready; }catch(e){}
+
+ /* L'altezza si adatta alle righe: con otto dimensioni una tela fissa da 630
+    faceva finire le ultime due sopra il piede. La larghezza resta 1200, che e'
+    quella che le chat mostrano senza ritagliare. */
+ const W = 1200, S = 2, INIZIO = 310, PASSO = 44;
+ const H = INIZIO + righe.length * PASSO + 86;
+ const cv = document.createElement("canvas");
+ cv.width = W * S; cv.height = H * S;
+ const x = cv.getContext("2d");
+ x.scale(S, S);
+
+ const AMBRA = "#FFB020", TEAL = "#6FB4C4", INK = "#ECF2EE";
+ const SPENTO = "rgba(233,240,236,.55)", FILO = "rgba(233,240,236,.12)";
+ const disp = '"Oswald","Bahnschrift",Impact,sans-serif';
+ const mono = '"JetBrains Mono","Cascadia Mono",ui-monospace,monospace';
+ const testo = '"Archivo","Segoe UI",system-ui,sans-serif';
+
+ x.fillStyle = "#0A1512"; x.fillRect(0, 0, W, H);
+
+ /* Testata */
+ x.fillStyle = SPENTO; x.font = "500 15px " + mono;
+ /* La lingua la sa i18n: EN qui dentro non esiste, e l'errore saltava fuori
+    solo cliccando il bottone. */
+ const inglese = !!(window.SerieAi18n && window.SerieAi18n.getLang
+   && window.SerieAi18n.getLang() === "en");
+ x.fillText("SERIE A SCOUT INDEX  ·  " + (inglese ? "SEASON" : "STAGIONE") + " 25/26", 60, 58);
+ x.strokeStyle = FILO; x.lineWidth = 1;
+ x.beginPath(); x.moveTo(60, 80); x.lineTo(W - 60, 80); x.stroke();
+
+ /* I due nomi, con il punteggio sotto: il dato della figura sono loro. */
+ const colonna = (W - 200) / 2;
+ [[p1, 60, AMBRA], [p2, 60 + colonna + 80, TEAL]].forEach(function(v){
+  const p = v[0], sx = v[1], col = v[2];
+  x.fillStyle = INK; x.font = "600 44px " + disp;
+  x.fillText(_testoTagliato(x, p.nome, colonna), sx, 148);
+  x.fillStyle = SPENTO; x.font = "400 17px " + testo;
+  const sotto = [p.squadra, ruoloFine(p) || roleName(p.ruolo)].filter(Boolean).join("  \u00b7  ");
+  x.fillText(_testoTagliato(x, sotto, colonna), sx, 176);
+  const t = (p.tpi || {}).totale;
+  x.fillStyle = col; x.font = "500 54px " + mono;
+  x.fillText(t == null ? "\u2014" : (t >= 0 ? "+" : "") + t.toFixed(2), sx, 240);
+ });
+ x.fillStyle = SPENTO; x.font = "400 13px " + mono;
+ x.fillText("TPI", 60, 262); x.fillText("TPI", 60 + colonna + 80, 262);
+
+ /* Le dimensioni: una barra divergente per riga, zero al centro. Chi sta
+    sopra ha la barra dalla sua parte — si legge senza leggenda. */
+ const y0 = INIZIO, passo = PASSO, centro = W / 2, mezza = 300;
+ righe.forEach(function(r, i){
+  const y = y0 + i * passo;
+  x.fillStyle = SPENTO; x.font = "400 15px " + testo;
+  const et = _testoTagliato(x, r.lbl, 190);
+  x.fillText(et, centro - x.measureText(et).width / 2, y - 14);
+  x.strokeStyle = FILO;
+  x.beginPath(); x.moveTo(centro, y - 8); x.lineTo(centro, y + 12); x.stroke();
+  const v1 = r.v1, v2 = r.v2;
+  if(v1 != null && v2 != null){
+   const d = v1 - v2, lung = Math.min(Math.abs(d) / 2 * mezza, mezza);
+   x.fillStyle = d >= 0 ? AMBRA : TEAL;
+   if(d >= 0) x.fillRect(centro - lung, y - 4, lung, 12);
+   else x.fillRect(centro, y - 4, lung, 12);
+  }
+  x.font = "500 17px " + mono;
+  x.fillStyle = v1 == null ? SPENTO : INK;
+  const s1 = v1 == null ? "\u2014" : (v1 >= 0 ? "+" : "") + v1.toFixed(2);
+  x.fillText(s1, 60, y + 8);
+  x.fillStyle = v2 == null ? SPENTO : INK;
+  const s2 = v2 == null ? "\u2014" : (v2 >= 0 ? "+" : "") + v2.toFixed(2);
+  x.fillText(s2, W - 60 - x.measureText(s2).width, y + 8);
+ });
+
+ /* Piede: cosa sono questi numeri e dove si va a vedere. */
+ x.strokeStyle = FILO;
+ x.beginPath(); x.moveTo(60, H - 62); x.lineTo(W - 60, H - 62); x.stroke();
+ x.fillStyle = SPENTO; x.font = "400 14px " + testo;
+ x.fillText(inglese ? "z-scores within role: 0 is the average player in that role"
+              : "z-score dentro il ruolo: 0 \u00e8 il giocatore medio di quel ruolo", 60, H - 36);
+ x.fillStyle = AMBRA; x.font = "500 14px " + mono;
+ const dove = "raffaeleciccone-analyst.github.io/serie-a-scout-demo";
+ x.fillText(dove, W - 60 - x.measureText(dove).width, H - 36);
+
+ const nome = "serie-a-scout_" + [p1.nome, p2.nome].join("-vs-").toLowerCase()
+   .normalize("NFD").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "") + ".png";
+ cv.toBlob(function(blob){
+  if(!blob) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = nome;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+ }, "image/png");
+}
+
 function esportaVista(){
  const righe = (VISTA.righe||[]);
  if(!righe.length) return;
@@ -1687,6 +1806,12 @@ function showDiff(id){
    </select>
   </div>
   <div id="diff-rows"></div>
+  <div style="margin-top:14px">
+   <button class="lb-btn lb-btn-prof" onclick="immagineConfronto()"
+     data-i18n-title="dash_img_tip" title="Scarica il confronto come immagine, da mandare a qualcuno">
+    &#8595; <span data-i18n="dash_img">Immagine</span>
+   </button>
+  </div>
   <div style="font-size:10px;color:var(--lt);margin-top:14px;line-height:1.6">
    ${esc(T("dash_z_explain","Valori in z-score (σ dalla media lega)."))} <strong style="color:var(--green)">${esc(T("dash_advantage","vantaggio"))}</strong> /
    <strong style="color:var(--red)">${esc(T("dash_disadvantage","svantaggio"))}</strong>.
@@ -1745,6 +1870,8 @@ function renderDiff(id1,id2){
  });
  html+="</div>";
  document.getElementById("diff-rows").innerHTML=html;
+ /* Quello che si vede e' quello che si scarica. */
+ ULTIMO_CONFRONTO = {p1:p1, p2:p2, righe:dims};
 }
 
 /* ── HTML builders ── */
