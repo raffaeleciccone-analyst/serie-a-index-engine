@@ -117,7 +117,7 @@ a{color:inherit}
 .nav-brand{display:flex;align-items:center;gap:10px;flex-shrink:0;
   font-family:var(--disp);font-size:19px;font-weight:600;letter-spacing:.4px;
   text-transform:uppercase;white-space:nowrap;text-decoration:none;color:var(--lp)}
-.nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;
+.nav-brand small{font-family:var(--mono);font-size:var(--t-lab);font-weight:400;
   letter-spacing:.16em;color:var(--lt);padding-left:10px;
   border-left:1px solid var(--sep)}
 /* Sotto i 560px il marchio esce per fare posto alle cinque voci, e la barra
@@ -155,24 +155,31 @@ a{color:inherit}
    Prima le scritte cadevano su quattro rientri diversi — hero a filo
    pagina, capitoli a +84, frasi a +176, voci del metodo a +108 — e da
    fuori si legge come sciatteria, non come gerarchia. */
-:root{--marg:150px;--gutter:26px}
+/* La scala tipografica sotto i 15px era undici corpi diversi in sei pixel
+   (14.5, 14, 13.5, 12.5, 12, 11.5, 11, 10.5, 10, 9.5, 9): si legge come
+   incoerenza, non come gerarchia. Restano tre gradini, piu' il corpo:
+     16.5  prosa        15  testo secondario
+     13    didascalie e tabelle      11  etichette e sigle
+   Chi ha bisogno di un quarto gradino ha un problema di struttura, non di CSS. */
+:root{--marg:150px;--gutter:26px;
+  --t-corpo:16.5px;--t-sec:15px;--t-cap:13px;--t-lab:11px}
 .doc{max-width:1040px;margin:0 auto;padding:0 clamp(20px,5vw,40px) 80px}
 .riga{display:grid;grid-template-columns:var(--marg) minmax(0,1fr);gap:0 var(--gutter)}
-.prosa{max-width:36em;font-size:16.5px;line-height:1.75;color:var(--ls)}
+.prosa{max-width:36em;font-size:var(--t-corpo);line-height:1.75;color:var(--ls)}
 .prosa strong{color:var(--lp);font-weight:600}
 .prosa+.prosa{margin-top:14px}
 .prosa.chiusa{margin-top:30px;padding-top:22px;border-top:1px solid var(--sep2);
   font-size:17px;color:var(--lp)}
 
 .hero{padding:clamp(46px,9vw,96px) 0 clamp(30px,5vw,52px);align-items:start}
-.eyebrow{font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--lt);
+.eyebrow{font-size:var(--t-lab);letter-spacing:.24em;text-transform:uppercase;color:var(--lt);
   margin-bottom:20px}
 h1{font-family:var(--disp);font-weight:500;text-transform:uppercase;
   font-size:clamp(38px,8.4vw,84px);line-height:.92;letter-spacing:-.012em;margin-bottom:24px}
 h1 em{font-style:normal;color:var(--orng)}
 .lede{max-width:31em;font-size:clamp(16.5px,2.1vw,19px);line-height:1.62;color:var(--ls)}
 .lede strong{color:var(--lp);font-weight:600}
-.lede.sec{margin-top:16px;font-size:15px;color:var(--lt);max-width:33em}
+.lede.sec{margin-top:16px;font-size:var(--t-sec);color:var(--lt);max-width:33em}
 
 /* Niente piu' righe verticali fra le cifre: il testo della colonna dopo le
    toccava, e con il ritorno a capo restava un bordo appeso a meta' riga. */
@@ -181,30 +188,34 @@ h1 em{font-style:normal;color:var(--orng)}
 .cifra{min-width:0}
 .cifra b{display:block;font-family:var(--mono);font-weight:500;font-size:clamp(26px,4vw,34px);
   color:var(--orng);letter-spacing:-.03em;line-height:1}
-.cifra span{display:block;margin-top:8px;font-size:11px;letter-spacing:.1em;
+.cifra span{display:block;margin-top:8px;font-size:var(--t-lab);letter-spacing:.1em;
   text-transform:uppercase;color:var(--lt);line-height:1.5}
 /* Le cifre sono il terzo figlio della griglia dell'eroe, ma finche' le colonne
    sono due restano dove stavano: in fondo alla colonna di lettura. */
 .hero .cifre{grid-column:2}
 
 .cap{padding:clamp(38px,6vw,64px) 0;border-top:1px solid var(--sep)}
-.cap-num{font-family:var(--mono);font-size:11.5px;letter-spacing:.16em;color:var(--orng);
+.cap-num{font-family:var(--mono);font-size:var(--t-lab);letter-spacing:.16em;color:var(--orng);
   padding-top:9px}
 h2{font-family:var(--disp);font-weight:500;text-transform:uppercase;
   font-size:clamp(23px,3.4vw,34px);line-height:1.06;letter-spacing:.004em;margin-bottom:18px}
-h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
-  margin:38px 0 10px}
+/* h3 era 12px maiuscoletto, cioe' PIU' PICCOLO del corpo: non un livello, una
+   etichetta. Con un solo gradino di titolazione il capitolo con la tabella da
+   sedici righe pesava quanto l'argomento portante di quello prima. Adesso e' un
+   sotto-capitolo vero, e sta fra i 34 del capitolo e i 16.5 della prosa. */
+h3{font-size:24px;font-family:var(--disp);font-weight:600;letter-spacing:.002em;
+  line-height:1.16;color:var(--lp);text-transform:none;margin:34px 0 12px}
 
 .ev{padding:17px 0;border-top:1px solid var(--sep)}
 .ev:first-of-type{border-top:1px solid var(--sep2)}
 .ev-fig{font-family:var(--mono);font-weight:500;font-size:23px;color:var(--orng);
   letter-spacing:-.03em;line-height:1.1}
-.ev-lbl{display:block;margin-top:7px;font-family:var(--font);font-size:9.5px;
+.ev-lbl{display:block;margin-top:7px;font-family:var(--font);font-size:var(--t-lab);
   letter-spacing:.12em;text-transform:uppercase;color:var(--lt);line-height:1.5}
-.ev-txt{font-size:15px;line-height:1.68;color:var(--ls);padding-top:2px;max-width:36em}
+.ev-txt{font-size:var(--t-sec);line-height:1.68;color:var(--ls);padding-top:2px;max-width:36em}
 /* Nel capitolo delle conseguenze il margine porta un titolo, non una cifra:
    stesso impianto, font di testo perche' una parola in mono si legge peggio. */
-.ev-fig.ev-txtfig{font-family:var(--font);font-size:14.5px;font-weight:600;
+.ev-fig.ev-txtfig{font-family:var(--font);font-size:var(--t-sec);font-weight:600;
   color:var(--lp);line-height:1.45;padding-top:3px}
 .ev-txt strong{color:var(--lp);font-weight:600}
 .ev.muta .ev-fig{color:var(--ls)}
@@ -213,14 +224,14 @@ h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
    a destra, una riga sottile a separarli. */
 .nomi{list-style:none;margin:2px 0 0;max-width:36em}
 .nomi li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 18px;align-items:baseline;
-  padding:9px 0;border-bottom:1px solid var(--sep);font-size:14.5px;color:var(--ls)}
+  padding:9px 0;border-bottom:1px solid var(--sep);font-size:var(--t-sec);color:var(--ls)}
 .nomi li:last-child{border-bottom:0}
 .nomi li.hd{padding:0 0 6px;border-bottom:1px solid var(--sep2)}
-.nomi li.hd .pos{font-family:var(--font);font-size:9.5px;letter-spacing:.12em;
+.nomi li.hd .pos{font-family:var(--font);font-size:var(--t-lab);letter-spacing:.12em;
   text-transform:uppercase}
 .nomi b{font-weight:600;color:var(--lp)}
-.nomi small{margin-left:9px;font-size:11.5px;color:var(--lt)}
-.nomi .pos{font-family:var(--mono);font-size:12.5px;color:var(--lt);white-space:nowrap}
+.nomi small{margin-left:9px;font-size:var(--t-lab);color:var(--lt)}
+.nomi .pos{font-family:var(--mono);font-size:var(--t-cap);color:var(--lt);white-space:nowrap}
 .nomi+.didascalia{margin-top:12px}
 
 /* Il testo dentro un SVG con viewBox scala col disegno: le stesse etichette da
@@ -239,17 +250,21 @@ h3{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--lt);
   overflow:visible}
 .sv-ax{font-family:var(--mono);font-size:calc(9.5px * var(--sv-scala));fill:var(--lt)}
 .sv-val{font-family:var(--mono);font-size:calc(10px * var(--sv-scala));fill:var(--ls)}
-.sv-dim{font-family:var(--mono);font-size:calc(10.5px * var(--sv-scala));fill:var(--ls)}
-.didascalia{font-size:12.5px;color:var(--lt);line-height:1.6;max-width:36em;margin-top:6px}
+/* Il nome della dimensione ha una colonna di larghezza fissa: se crescesse
+   come le altre etichette, su telefono uscirebbe dal riquadro. Cresce fino a
+   meta' strada e li' si ferma. */
+.sv-dim{font-family:var(--mono);font-size:calc(10.5px * min(var(--sv-scala),1.5));
+  fill:var(--ls)}
+.didascalia{font-size:var(--t-cap);color:var(--lt);line-height:1.6;max-width:36em;margin-top:6px}
 
-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px}
-th{text-align:left;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+table{width:100%;border-collapse:collapse;font-size:var(--t-cap);margin-top:6px}
+th{text-align:left;font-size:var(--t-lab);letter-spacing:.13em;text-transform:uppercase;
   color:var(--lt);font-weight:500;padding:0 14px 10px 0;border-bottom:1px solid var(--sep2)}
 td{padding:13px 14px 13px 0;border-bottom:1px solid var(--sep);color:var(--ls);
   vertical-align:top;line-height:1.55}
 tr:hover td{color:var(--lp)}
-.t-let{font-family:var(--mono);font-size:11px;color:var(--orng);width:26px;padding-top:15px}
-.t-mis{font-family:var(--mono);font-size:12px;color:var(--lp);white-space:nowrap}
+.t-let{font-family:var(--mono);font-size:var(--t-lab);color:var(--orng);width:26px;padding-top:15px}
+.t-mis{font-family:var(--mono);font-size:var(--t-cap);color:var(--lp);white-space:nowrap}
 
 /* Il marcatore sta nella colonna di margine, cosi' il titolo del blocco e il
    testo che si apre sotto partono dallo stesso bordo di tutto il resto. */
@@ -257,17 +272,17 @@ details{border-top:1px solid var(--sep);padding:15px 0}
 details[open]{padding-bottom:22px}
 /* Titolo nella colonna di margine e testo in quella di lettura, come le voci
    del capitolo precedente: erano l'unico blocco con un rientro suo. */
-summary{cursor:pointer;list-style:none;font-size:14.5px;font-weight:600;color:var(--lp);
+summary{cursor:pointer;list-style:none;font-size:var(--t-sec);font-weight:600;color:var(--lp);
   line-height:1.45}
 summary::-webkit-details-marker{display:none}
-summary::before{content:"+ ";font-family:var(--mono);color:var(--orng);font-size:14px}
+summary::before{content:"+ ";font-family:var(--mono);color:var(--orng);font-size:var(--t-sec)}
 details[open] summary::before{content:"\\2212 "}
 details.riga>summary{grid-column:1}
 details.riga>.prosa{grid-column:2;margin-top:0}
-details .prosa{font-size:14.5px}
+details .prosa{font-size:var(--t-sec)}
 
 footer{border-top:1px solid var(--sep);padding:30px 0 0;margin-top:20px;
-  font-size:12px;color:var(--lt)}
+  font-size:var(--t-cap);color:var(--lt)}
 footer>div{display:flex;flex-wrap:wrap;justify-content:center;text-align:center;
   gap:14px 26px}
 footer a{color:var(--ls);text-decoration:none;border-bottom:1px solid var(--lq)}
@@ -285,7 +300,7 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
   .cifre{grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 30px}
   details.riga>summary,details.riga>.prosa{grid-column:auto}
   details .prosa{margin-top:10px}
-  table{font-size:12.5px}
+  table{font-size:var(--t-cap)}
   .t-mis{white-space:normal}
   /* Qui la griglia e' a colonna unica: una seconda colonna non esiste. */
   .hero .cifre{grid-column:auto}

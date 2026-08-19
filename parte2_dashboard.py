@@ -464,39 +464,49 @@ window.onerror=function(m,s,l){
   </div>
  </div>
 
- <!-- Control bar -->
+ <!-- Control bar — due livelli: cosa ORDINA e cosa FILTRA -->
+ <!-- Sedici controlli in 42px avevano tutti la stessa forma: la pastiglia che
+      sceglie il criterio di ordinamento (scelta singola, primaria) e quelle che
+      filtrano chi vedi (cumulative, secondarie) erano indistinguibili, e le
+      etichettine da 8.5px al 42% di alfa non bastavano a separarle. -->
  <div class="ctrl-bar" id="ctrl-bar">
-  <button class="mpill on" data-m="tpi" onclick="selMetric(this)"><span data-i18n="dash_chip_tpi">TPI</span></button>
-  <button class="mpill" data-m="prospect" onclick="selMetric(this)"><span data-i18n="dash_chip_prospect">Giovani &#x2605;</span></button>
-  <button class="mpill" data-m="out" onclick="selMetric(this)"><span data-i18n="dash_chip_output">Output</span></button>
-  <button class="mpill" data-m="cen" onclick="selMetric(this)"><span data-i18n="dash_chip_cen">Centralit&agrave;</span></button>
-  <button class="mpill" data-m="boo" onclick="selMetric(this)"><span data-i18n="dash_chip_boo">Boost</span></button>
-  <button class="mpill" data-m="con" onclick="selMetric(this)"><span data-i18n="dash_chip_con">Consistenza</span></button>
-  <button class="mpill" data-m="conv" onclick="selMetric(this)"><span data-i18n="dash_chip_conv">G/xG</span></button>
-  <span class="ctrl-lbl" data-it="Ruolo" data-en="Role">Ruolo</span>
-  <button class="rpill" data-r="ATT" onclick="selRole(this)" data-i18n="dash_role_fwd_s">ATT</button>
-  <button class="rpill" data-r="CEN" onclick="selRole(this)" data-i18n="dash_role_mid_s">CEN</button>
-  <button class="rpill" data-r="DIF" onclick="selRole(this)" data-i18n="dash_role_def_s">DIF</button>
-  <span class="ctrl-lbl" data-it="Forma" data-en="Form">Forma</span>
-  <button class="rpill" data-f="hot" onclick="selForm(this)" title="Solo in forma"><span data-i18n="dash_filter_hot">In forma</span></button>
-  <button class="rpill" data-f="cold" onclick="selForm(this)" title="Solo in calo"><span data-i18n="dash_filter_cold">In calo</span></button>
-  <span class="ctrl-lbl" data-it="Cerca" data-en="Find">Cerca</span>
-  <div class="sq-wrap" id="sq-wrap">
-   <button class="sq-btn" id="sq-btn" onclick="toggleSqFpk()">
-    <span id="sq-lbl" data-i18n="dash_filter_team">Squadra</span>
-    <span class="sq-chevron">&#9660;</span>
+  <div class="ctrl-riga ctrl-ordina" id="ctrl-ordina">
+   <span class="ctrl-lbl ctrl-lbl-capo" data-it="Ordina per" data-en="Sort by">Ordina per</span>
+   <button class="mpill on" data-m="tpi" onclick="selMetric(this)"><span data-i18n="dash_chip_tpi">TPI</span></button>
+   <button class="mpill" data-m="prospect" onclick="selMetric(this)"><span data-i18n="dash_chip_prospect">Giovani &#x2605;</span></button>
+   <button class="mpill" data-m="out" onclick="selMetric(this)"><span data-i18n="dash_chip_output">Output</span></button>
+   <button class="mpill" data-m="cen" onclick="selMetric(this)"><span data-i18n="dash_chip_cen">Centralit&agrave;</span></button>
+   <button class="mpill" data-m="boo" onclick="selMetric(this)"><span data-i18n="dash_chip_boo">Boost</span></button>
+   <button class="mpill" data-m="con" onclick="selMetric(this)"><span data-i18n="dash_chip_con">Consistenza</span></button>
+   <button class="mpill" data-m="conv" onclick="selMetric(this)"><span data-i18n="dash_chip_conv">G/xG</span></button>
+   <div class="ctrl-sp"></div>
+   <button class="cpill" onclick="selMetric(document.querySelector('.mpill[data-m=tpi]'));showCompare()">
+    <span data-i18n="dash_btn_compare">Confronta</span>
    </button>
   </div>
-  <div class="sq-wrap" id="fpk-wrap">
-   <button class="sq-btn" id="fpk-btn" onclick="toggleFpk()">
-    <span id="fpk-lbl" data-i18n="term_player">Giocatore</span>
-    <span class="sq-chevron">&#9660;</span>
-   </button>
+  <div class="ctrl-riga ctrl-filtra" id="ctrl-filtra">
+   <span class="ctrl-lbl ctrl-lbl-capo" data-it="Filtra" data-en="Filter">Filtra</span>
+   <span class="ctrl-lbl" data-it="Ruolo" data-en="Role">Ruolo</span>
+   <button class="rpill" data-r="ATT" onclick="selRole(this)" data-i18n="dash_role_fwd_s">ATT</button>
+   <button class="rpill" data-r="CEN" onclick="selRole(this)" data-i18n="dash_role_mid_s">CEN</button>
+   <button class="rpill" data-r="DIF" onclick="selRole(this)" data-i18n="dash_role_def_s">DIF</button>
+   <span class="ctrl-lbl" data-it="Forma" data-en="Form">Forma</span>
+   <button class="rpill" data-f="hot" onclick="selForm(this)" title="Solo in forma"><span data-i18n="dash_filter_hot">In forma</span></button>
+   <button class="rpill" data-f="cold" onclick="selForm(this)" title="Solo in calo"><span data-i18n="dash_filter_cold">In calo</span></button>
+   <span class="ctrl-lbl" data-it="Cerca" data-en="Find">Cerca</span>
+   <div class="sq-wrap" id="sq-wrap">
+    <button class="sq-btn" id="sq-btn" onclick="toggleSqFpk()">
+     <span id="sq-lbl" data-i18n="dash_filter_team">Squadra</span>
+     <span class="sq-chevron">&#9660;</span>
+    </button>
+   </div>
+   <div class="sq-wrap" id="fpk-wrap">
+    <button class="sq-btn" id="fpk-btn" onclick="toggleFpk()">
+     <span id="fpk-lbl" data-i18n="term_player">Giocatore</span>
+     <span class="sq-chevron">&#9660;</span>
+    </button>
+   </div>
   </div>
-  <div class="ctrl-div"></div>
-  <button class="cpill" onclick="selMetric(document.querySelector('.mpill[data-m=tpi]'));showCompare()">
-   <span data-i18n="dash_btn_compare">Confronta</span>
-  </button>
  </div>
 
  <!-- Floating pickers -->
@@ -2044,7 +2054,8 @@ window.addEventListener("orientationchange", () => {
   document.addEventListener("i18n:changed", drawHero);
   /* La sfumatura in coda alla barra dei filtri, che dice che c'e' altro a
      destra. Sta qui perche' e' l'ultimo script che gira a pagina montata. */
-  if (typeof segnalaScorrimento === "function") segnalaScorrimento(document.getElementById("ctrl-bar"));
+  if (typeof segnalaScorrimento === "function")
+    document.querySelectorAll(".ctrl-riga").forEach(segnalaScorrimento);
 
   </script>
 <!-- ── Watermark ── -->

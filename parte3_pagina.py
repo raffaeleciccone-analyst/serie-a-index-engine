@@ -123,8 +123,11 @@ def svg_calibrazione(m: dict) -> str:
                    f'stroke="rgba(233,240,236,.06)" stroke-width="1"/>')
         out.append(f'<text x="{ml-8:.1f}" y="{yy+3:.1f}" text-anchor="end" '
                    f'class="sv-ax">{v:.2f}</text>')
-    out.append(f'<text x="0" y="12" class="sv-ax">gol + assist attesi per 90&rsquo;'
-               f'{" (l&rsquo;asse non parte da zero)" if y0 > 0 else ""}</text>')
+    zero_it = " (l&rsquo;asse non parte da zero)" if y0 > 0 else ""
+    zero_en = " (the axis does not start at zero)" if y0 > 0 else ""
+    titolo_it = f"gol + assist attesi per 90&rsquo;{zero_it}"
+    titolo_en = f"expected goals + assists per 90&rsquo;{zero_en}"
+    out.append(f'<text x="0" y="12" class="sv-ax" {bi(titolo_it, titolo_en)}>{titolo_it}</text>')
     out.append(f'<line x1="{ml:.1f}" y1="{mt:.1f}" x2="{ml:.1f}" y2="{h-mb:.1f}" '
                f'stroke="rgba(233,240,236,.14)" stroke-width="1"/>')
     out.append(f'<line x1="{px(0):.1f}" y1="{py(ys[0]):.1f}" x2="{px(len(bins)-1):.1f}" '
@@ -142,8 +145,10 @@ def svg_calibrazione(m: dict) -> str:
             out.append(f'<circle cx="{px(i):.1f}" cy="{py(ys[i]):.1f}" r="6.5" fill="none" '
                        f'stroke="var(--orng)" stroke-width="1" stroke-dasharray="2 2" '
                        f'opacity=".75"/>')
-    out.append(f'<text x="{ml}" y="{h-10}" class="sv-ax">1&ordm; decile</text>')
-    out.append(f'<text x="{w-mr}" y="{h-10}" text-anchor="end" class="sv-ax">10&ordm; decile</text>')
+    out.append(f'<text x="{ml}" y="{h-10}" class="sv-ax" '
+               f'{bi("1&ordm; decile", "1st decile")}>1&ordm; decile</text>')
+    out.append(f'<text x="{w-mr}" y="{h-10}" text-anchor="end" class="sv-ax" '
+               f'{bi("10&ordm; decile", "10th decile")}>10&ordm; decile</text>')
     out.append("</svg>")
     return "".join(out)
 
@@ -185,6 +190,24 @@ def dida_calibrazione(m: dict) -> tuple[str, str]:
     return testa_it + coda_it, testa_en + coda_en
 
 
+# I nomi delle dimensioni come li scrive il motore sono chiavi di programma
+# (output_adj, boost_ratio, centralita). In pagina vanno i nomi leggibili: era
+# uno dei punti del rilievo sul gergo, e qui era rimasto perche' l'etichetta
+# arriva dal dizionario dei risultati, non da una stringa scritta a mano.
+# Corti per forza: l'etichetta sta in 132 unita' di viewBox, che su un telefono
+# diventano una settantina di pixel. Sono gli stessi nomi delle pastiglie della
+# classifica, cosi' chi arriva da li' li riconosce.
+NOMI_DIM = {
+    "output_adj":  ("Output", "Output"),
+    "finishing":   ("Finishing", "Finishing"),
+    "centralita":  ("Centralit&agrave;", "Centrality"),
+    "form":        ("Forma", "Form"),
+    "buildup_adj": ("Buildup", "Buildup"),
+    "consistenza": ("Consistenza", "Consistency"),
+    "boost_ratio": ("Boost", "Boost"),
+}
+
+
 def svg_ablation(o: dict) -> str:
     """Quanto cambia la previsione togliendo una dimensione per volta.
 
@@ -203,7 +226,7 @@ def svg_ablation(o: dict) -> str:
     res = sorted((o or {}).get("results", []), key=lambda r: r.get("delta_predict", 0))
     if not res:
         return ""
-    w, rowh, ml = 640, 27, 118
+    w, rowh, ml = 640, 27, 132
     testa = 16                      # riga per le due diciture d'asse
     h = rowh * len(res) + 14 + testa
     lim = max(abs(r["delta_predict"]) for r in res) or 1e-9
@@ -212,17 +235,24 @@ def svg_ablation(o: dict) -> str:
     mezza = (w - 8 - ml) / 2 - lab  # lunghezza massima di una barra
 
     out = [_SVG_OPEN.format(w=w, h=h)]
-    out.append(f'<text x="{x0-8:.0f}" y="11" text-anchor="end" class="sv-ax">'
-               f'toglierla peggiora &#8592;</text>')
-    out.append(f'<text x="{x0+8:.0f}" y="11" class="sv-ax">'
-               f'&#8594; toglierla migliora</text>')
+    # Le due intestazioni delle meta' restavano in italiano anche sulla pagina
+    # inglese: sono testo dentro un SVG, e ci vuole la coppia data-it/data-en
+    # come per il resto della prosa generata.
+    sx_it, sx_en = "toglierla peggiora &#8592;", "removing it hurts &#8592;"
+    dx_it, dx_en = "&#8594; toglierla migliora", "&#8594; removing it helps"
+    out.append(f'<text x="{x0-8:.0f}" y="11" text-anchor="end" class="sv-ax" '
+               f'{bi(sx_it, sx_en)}>{sx_it}</text>')
+    out.append(f'<text x="{x0+8:.0f}" y="11" class="sv-ax" '
+               f'{bi(dx_it, dx_en)}>{dx_it}</text>')
     for i_, r in enumerate(res):
         y = 7 + testa + i_ * rowh
         v = r["delta_predict"]
         lung = min(abs(v) / lim * mezza, mezza)
         serve = v < -0.005
         col = "var(--orng)" if serve else "rgba(233,240,236,.28)"
-        out.append(f'<text x="{ml-12}" y="{y+14}" text-anchor="end" class="sv-dim">{r["dim"]}</text>')
+        nome_it, nome_en = NOMI_DIM.get(r["dim"], (r["dim"], r["dim"]))
+        out.append(f'<text x="{ml-12}" y="{y+14}" text-anchor="end" class="sv-dim" '
+                   f'{bi(nome_it, nome_en)}>{nome_it}</text>')
         if v < 0:
             bx, tx, anc = x0 - lung, x0 - lung - 6, "end"
         else:

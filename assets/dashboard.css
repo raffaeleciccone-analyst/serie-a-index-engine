@@ -169,7 +169,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
    fondo. */
 .nav-mark{display:none;align-items:center;flex-shrink:0;color:var(--orng);
   text-decoration:none;line-height:0}
-.nav-brand small{font-family:var(--mono);font-size:9px;font-weight:400;letter-spacing:.16em;
+.nav-brand small{font-family:var(--mono);font-size:11px;font-weight:400;letter-spacing:.16em;
   text-transform:uppercase;color:var(--lt);margin-left:0;
   padding-left:10px;border-left:1px solid var(--sep)}
 
@@ -210,6 +210,29 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   /* Il fondo e' opaco: il blur non aveva piu' niente da sfocare. */
   background:var(--bg)}
 .ctrl-bar::-webkit-scrollbar{display:none}
+/* Due livelli: sopra COSA ORDINA (scelta singola, primaria), sotto CHI VEDI
+   (filtri cumulativi, secondari). Prima erano sedici controlli in fila con la
+   stessa forma e lo stesso peso. Ogni riga scorre per conto suo. */
+.ctrl-bar{flex-direction:column;align-items:stretch;gap:0;overflow-x:visible}
+.ctrl-riga{display:flex;align-items:center;gap:7px;min-width:0;
+  overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.ctrl-riga::-webkit-scrollbar{display:none}
+.ctrl-riga.scorre-ancora{
+  -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
+  mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
+.ctrl-sp{flex:1;min-width:12px}
+/* La riga dei filtri e' piu' bassa, piu' spenta e senza fondo pieno: si vede
+   che e' un secondo livello prima ancora di leggerla. */
+.ctrl-filtra{padding-top:6px;margin-top:6px;border-top:1px solid rgba(233,240,236,.06)}
+.ctrl-filtra .rpill,.ctrl-filtra .sq-btn{height:28px;font-size:11.5px}
+.ctrl-filtra .rpill:not(.on),.ctrl-filtra .sq-btn{background:transparent;
+  border-color:rgba(233,240,236,.10);color:var(--lt)}
+.ctrl-filtra .rpill:not(.on):hover,.ctrl-filtra .sq-btn:hover{color:var(--lp);
+  border-color:rgba(233,240,236,.2)}
+/* L'etichetta di testa della riga non ha il filetto verticale davanti: non
+   separa due gruppi, apre la riga. */
+.ctrl-lbl-capo{padding-left:0;margin-left:0;border-left:0;color:var(--ls);
+  min-width:66px}
 /* Quando resta roba a destra la coda sfuma: e' l'unico segno che la barra si
    trascina, visto che la scrollbar e' nascosta. La classe la mette il JS, e la
    toglie appena sei in fondo. */
@@ -624,13 +647,24 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
 .lb-val{font-size:18px;font-weight:500;font-family:var(--mono);width:66px;
   text-align:right;flex-shrink:0;letter-spacing:-.03em;color:var(--lp)}
 .lb-actions{display:flex;gap:5px;flex-shrink:0}
+/* Duecento bottoni sempre accesi: due per ognuna delle cento righe, e la
+   pagina diventava chrome quanto dato. Ora la riga intera apre il profilo (e
+   lo dice il cursore), e i due bottoni compaiono solo quando servono — al
+   passaggio del mouse o arrivandoci col tab. Su telefono non ci sono proprio. */
+.lb-actions{opacity:0;pointer-events:none;transition:opacity .12s}
+.lb-row:hover .lb-actions,.lb-row:focus-within .lb-actions{opacity:1;pointer-events:auto}
+/* Senza mouse (telefoni, tablet) non c'e' passaggio: restano visibili invece
+   di diventare irraggiungibili. */
+@media (hover:none){.lb-actions{opacity:1;pointer-events:auto}}
 .lb-btn{display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;
   border-radius:8px;font:11px var(--font);font-weight:600;cursor:pointer;
   transition:all .15s;white-space:nowrap;border:1px solid transparent}
+/* Era l'unico blu della pagina, fuori dalla palette ambra/turchese. */
 .lb-btn-prof{color:var(--ls);
-  background:rgba(10,132,255,.08);
-  border-color:rgba(10,132,255,.22);border-top-color:rgba(10,132,255,.35)}
-.lb-btn-prof:hover{background:rgba(10,132,255,.16);transform:translateY(-1px);
+  background:rgba(233,240,236,.05);
+  border-color:rgba(233,240,236,.14);border-top-color:rgba(233,240,236,.22)}
+.lb-btn-prof:hover{background:rgba(255,176,32,.12);color:var(--lp);
+  border-color:rgba(255,176,32,.32);transform:translateY(-1px);
   box-shadow:inset 0 1px 0 rgba(233,240,236,.08)}
 .lb-btn-prof:active{transform:translateY(0)}
 .lb-btn-cmp{color:var(--ls);
