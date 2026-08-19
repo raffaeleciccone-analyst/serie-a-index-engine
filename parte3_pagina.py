@@ -11,7 +11,7 @@ dei test restano solo nella tabella finale, come riferimento.
 """
 from __future__ import annotations
 
-from pagina_stile import (CSS, _SVG_OPEN, _f, _ic, bi, cali_decili, quando_regge, el, evidenza,
+from pagina_stile import (CSS, _SVG_OPEN, _f, _ic, bi, cali_decili, primo_vintage, quando_regge, el, evidenza,
                           guscio, nav, footer)
 
 
@@ -65,11 +65,17 @@ def svg_convergenza(l: dict) -> str:
     x0, x1 = min(xs), max(xs)
     def px(v):
         return ml + (v - x0) / max(1e-9, (x1 - x0)) * (w - ml - mr)
-    def py(v):  # scala fissa 0.5–1.0: ancorare a min/max gonfierebbe la salita
-        return mt + (1.0 - (v - 0.5) / 0.5) * (h - mt - mb)
+    # La scala resta FISSA — ancorarla a min/max gonfierebbe la salita e
+    # renderebbe il grafico incomparabile fra una rigenerazione e l'altra — ma
+    # 0.5-1.0 non basta piu': con i vintage a inizio stagione rho scende a 0.32,
+    # e il primo punto finiva sotto il riquadro con l'etichetta dentro la
+    # didascalia. Per una correlazione la scala naturale e' 0-1: ci sta tutto e
+    # non esagera niente.
+    def py(v):
+        return mt + (1.0 - v) * (h - mt - mb)
     pts = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in zip(xs, ys))
     out = [_SVG_OPEN.format(w=w, h=h)]
-    for g in (0.5, 0.75, 1.0):
+    for g in (0.0, 0.25, 0.5, 0.75, 1.0):
         out.append(f'<line x1="{ml}" y1="{py(g):.1f}" x2="{w-mr}" y2="{py(g):.1f}" '
                    f'stroke="rgba(233,240,236,.08)"/>')
         out.append(f'<text x="{ml-8}" y="{py(g)+3:.1f}" text-anchor="end" '
@@ -79,7 +85,9 @@ def svg_convergenza(l: dict) -> str:
     for x, y in zip(xs, ys):
         out.append(f'<circle cx="{px(x):.1f}" cy="{py(y):.1f}" r="3" fill="var(--orng)"/>')
         out.append(f'<text x="{px(x):.1f}" y="{h-10}" text-anchor="middle" class="sv-ax">{x}</text>')
-    out.append(f'<text x="{px(xs[0]):.1f}" y="{py(ys[0])-12:.1f}" class="sv-val">{ys[0]:.2f}</text>')
+    # Il valore d'apertura si scrive SOTTO il punto: con rho basso il punto sta
+    # in fondo, e sopra ci passa la curva.
+    out.append(f'<text x="{px(xs[0]):.1f}" y="{py(ys[0])+16:.1f}" class="sv-val">{ys[0]:.2f}</text>')
     out.append(f'<text x="{px(xs[-1]):.1f}" y="{py(ys[-1])-12:.1f}" text-anchor="end" '
                f'class="sv-val">{ys[-1]:.2f}</text>')
     out.append("</svg>")
@@ -354,7 +362,12 @@ def _cap_regge(d: dict) -> str:
             f"the distances are not</strong>. It says who comes first, not how many times better."))
     pv = [r for r in l.get("per_vintage", []) if r.get("spearman_rho") is not None]
     if len(pv) >= 2:
-        a, z = pv[0], pv[-1]
+        # `a` NON e' il vintage piu' vecchio ma quello da cui la graduatoria
+        # regge. Con g3 in lista, "gia' alla giornata 3: e' quasi quella di fine
+        # anno" veniva scritto sopra un rho di 0.32 — la stessa frase che
+        # l'hero diceva prima, nascosta in una seconda copia.
+        a, z = (quando_regge(l) or pv[0]), pv[-1]
+        inizio = primo_vintage(l)
         # A che punto della stagione sta quel vintage: calcolato, non stimato a
         # occhio. Diceva "a un terzo di stagione" per una giornata che sta a
         # meta', perche' il campo giornata arriva a 40 e non a 38.
@@ -368,15 +381,24 @@ def _cap_regge(d: dict) -> str:
             q_it, q_en = "A met&agrave; stagione", "Halfway through the season"
         else:
             q_it, q_en = "A stagione avanzata", "Late in the season"
+        prima_it = (f" Prima non lo &egrave;, e si vede nel grafico qui sopra: alla giornata "
+                    f"{inizio['vintage_giornata']} vale {_f(inizio['spearman_rho'], 2)}."
+                    if inizio and inizio["vintage_giornata"] < a["vintage_giornata"] else "")
+        prima_en = (f" Before that it is not, and the chart above shows it: at matchday "
+                    f"{inizio['vintage_giornata']} it is worth {_f(inizio['spearman_rho'], 2)}."
+                    if inizio and inizio["vintage_giornata"] < a["vintage_giornata"] else "")
         ev.append(evidenza(
             _f(a["spearman_rho"], 3),
-            f"Gi&agrave; alla giornata {a['vintage_giornata']}", f"Already by matchday {a['vintage_giornata']}",
+            f"Regge dalla giornata {a['vintage_giornata']}",
+            f"Holds from matchday {a['vintage_giornata']}",
             f"{q_it} la graduatoria &egrave; gi&agrave; quasi quella di fine anno, e sale a "
-            f"{_f(z['spearman_rho'], 3)} alla giornata {z['vintage_giornata']}. "
-            f"<strong>Non serve aspettare maggio per usarla.</strong>",
+            f"{_f(z['spearman_rho'], 3)} alla giornata {z['vintage_giornata']}."
+            f"{prima_it} <strong>Non serve aspettare maggio, ma nemmeno fidarsi a "
+            f"settembre.</strong>",
             f"{q_en} the ranking is already close to the final one, rising to "
-            f"{_f(z['spearman_rho'], 3)} by matchday {z['vintage_giornata']}. "
-            f"<strong>You do not have to wait for May to use it.</strong>"))
+            f"{_f(z['spearman_rho'], 3)} by matchday {z['vintage_giornata']}."
+            f"{prima_en} <strong>You do not have to wait for May &mdash; but you cannot "
+            f"trust it in September either.</strong>"))
     if h.get("has_data"):
         pct = int(round((h.get("pct") or 0.2) * 100))
         ev.append(evidenza(
@@ -954,11 +976,18 @@ def _tabella(d: dict) -> str:
     if pv:
         r.append(riga_tab("L", "Quanto presto la graduatoria si stabilizza?",
                           "How early does the ranking settle?",
-                          f'&rho; {_f(pv[0]["spearman_rho"], 3)}',
-                          f"Gi&agrave; alla giornata {pv[0]['vintage_giornata']}; "
-                          f"{_f(pv[-1]['spearman_rho'], 3)} alla {pv[-1]['vintage_giornata']}.",
-                          f"Already by matchday {pv[0]['vintage_giornata']}; "
-                          f"{_f(pv[-1]['spearman_rho'], 3)} by {pv[-1]['vintage_giornata']}."))
+                          # Quarta e ultima copia della stessa frase. Tutte
+                          # prendevano il vintage piu' vecchio: finche' era g20
+                          # sembravano giuste, con g3 dicevano il contrario.
+                          f'&rho; {_f((quando_regge(l) or pv[0])["spearman_rho"], 3)}',
+                          f"Dalla giornata {(quando_regge(l) or pv[0])['vintage_giornata']}; "
+                          f"a {pv[0]['vintage_giornata']} vale "
+                          f"{_f(pv[0]['spearman_rho'], 2)}, a {pv[-1]['vintage_giornata']} "
+                          f"{_f(pv[-1]['spearman_rho'], 3)}.",
+                          f"From matchday {(quando_regge(l) or pv[0])['vintage_giornata']}; "
+                          f"at {pv[0]['vintage_giornata']} it is "
+                          f"{_f(pv[0]['spearman_rho'], 2)}, at {pv[-1]['vintage_giornata']} "
+                          f"{_f(pv[-1]['spearman_rho'], 3)}."))
     if h.get("has_data"):
         r.append(riga_tab("H", "La graduatoria dipende dai pesi scelti?",
                           "Does the ranking depend on the chosen weights?",
