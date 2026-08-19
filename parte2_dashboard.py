@@ -483,6 +483,14 @@ window.onerror=function(m,s,l){
    <button class="cpill" onclick="selMetric(document.querySelector('.mpill[data-m=tpi]'));showCompare()">
     <span data-i18n="dash_btn_compare">Confronta</span>
    </button>
+   <button class="rpill" onclick="esportaVista()" data-i18n-title="dash_csv_view_tip"
+     title="Scarica in CSV la lista che stai vedendo, con i filtri applicati">
+    &#8595; <span data-i18n="dash_csv_view">CSV</span>
+   </button>
+   <a class="ctrl-link" href="serie_a_tpi_2025-26.csv" download
+     data-i18n-title="dash_csv_all_tip" title="Il file completo generato dal motore: 351 giocatori, 49 colonne">
+    <span data-i18n="dash_csv_all">tutti i 351</span>
+   </a>
   </div>
   <div class="ctrl-riga ctrl-filtra" id="ctrl-filtra">
    <span class="ctrl-lbl ctrl-lbl-capo" data-it="Filtra" data-en="Filter">Filtra</span>
@@ -740,6 +748,49 @@ const NMIN = 4;
 let CUR=null, CTX="totale", TAB="ov", PQ="", PR="";
 let ACTIVE_TEAMS=new Set(), CUR_METRIC="tpi", VIEW="home", COMPARE_POOL=[];
 let FORM_FILTER=""; /* "" tutti | "hot" solo caldi | "cold" solo in calo */
+let VISTA={righe:[],metrica:""}; /* ultima lista mostrata, per l'export CSV */
+
+/* Scarica quello che vedi. Il CSV completo dei 351 qualificati sta accanto alle
+   pagine (serie_a_tpi_2025-26.csv, generato dal motore a ogni giro); questo
+   invece e' la vista corrente, con i filtri applicati e nell'ordine scelto —
+   e' quello che serve a chi ha appena ristretto la lista a otto nomi. */
+function esportaVista(){
+ const righe = (VISTA.righe||[]);
+ if(!righe.length) return;
+ const ACAPO = String.fromCharCode(10), BOM = String.fromCharCode(65279);
+ const col = ["rank","nome","squadra","ruolo","minuti","tpi_totale","tpi_casa",
+   "tpi_trasferta","tpi_vs_top6","tpi_vs_forti","valore_colonna",
+   "z_output","z_buildup","z_centralita","z_boost","z_consistenza","z_finishing","z_form",
+   "xg_p90","xa_p90","goal_p90","sos","conv_ratio","confidence","eta","forma"];
+ /* Virgolette e separatori vanno protetti, o una squadra con la virgola nel
+    nome spezza la riga in due colonne. */
+ const q = function(v){
+  if(v==null) return "";
+  const t = String(v);
+  const va_protetto = t.indexOf(String.fromCharCode(34))>=0 || t.indexOf(",")>=0
+    || t.indexOf(";")>=0 || t.indexOf(ACAPO)>=0;
+  return va_protetto ? String.fromCharCode(34) + t.split(String.fromCharCode(34))
+    .join(String.fromCharCode(34,34)) + String.fromCharCode(34) : t;
+ };
+ const linee = [col.join(",")];
+ righe.forEach(function(x,i){
+  const p=x.p, t=p.tpi||{}, k=p.kpi||{}, c=p.conv||{}, ph=p.physical||{}, r=p.recent||{};
+  linee.push([i+1,p.nome,p.squadra,p.ruolo,Math.round(p.minuti||0),
+   t.totale,t.casa,t.trasferta,t.vs_top6,t.vs_forti,x.v,
+   p.z_output,p.z_buildup,p.z_centralita,p.z_boost,p.z_consistenza,p.z_finishing,p.z_form,
+   k.xg_p90,k.xa_p90,k.goal_p90,k.sos,c.conv_ratio,p.confidence,ph.eta,r.label].map(q).join(","));
+ });
+ /* Il BOM davanti serve a Excel: senza, gli accenti dei nomi si rompono. */
+ const testo = BOM + linee.join(ACAPO);
+ const etichetta = String(VISTA.metrica||"vista").toLowerCase()
+   .normalize("NFD").replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"");
+ const url = URL.createObjectURL(new Blob([testo], {type:"text/csv;charset=utf-8"}));
+ const a = document.createElement("a");
+ a.href = url; a.download = "serie-a-scout_" + etichetta + "_" + righe.length + ".csv";
+ document.body.appendChild(a); a.click(); document.body.removeChild(a);
+ setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+}
+
 
 /* ── Plotly base ── */
 const PL={responsive:true,displayModeBar:false};
@@ -1132,6 +1183,9 @@ function buildLeaderboard(){
  else { noteEl.style.display = "none"; }
 
  const sorted=fd.map(p=>({p,v:m.get(p)})).filter(x=>x.v!=null&&isFinite(x.v)).sort((a,b)=>b.v-a.v);
+ /* La vista corrente, per l'export: filtri e ordinamento applicati. Chi scarica
+    si aspetta il file di quello che sta guardando, non del payload intero. */
+ VISTA = {righe: sorted, metrica: (m.lbl || CUR_METRIC)};
  const el=document.getElementById("lb-chart");
  const elR=document.getElementById("lb-roster");
  if(!sorted.length){
@@ -2159,6 +2213,45 @@ def parse_args() -> argparse.Namespace:
   return parser.parse_args()
 
 
+def controlla_javascript(html: str) -> None:
+  """Il JS della pagina si parsa? Se no, la pagina e' morta e non si vede.
+
+  E' successo il 19/08: una sequenza di escape sbagliata ha spezzato
+  un'espressione regolare, il blocco da 700 KB non e' stato eseguito e la
+  classifica e' rimasta vuota. Nessun errore in console (un SyntaxError uccide
+  il blocco prima di qualunque log) e nessun segno nella build: sembrava tutto
+  a posto. Serve node; se non c'e', il controllo si salta dicendolo.
+  """
+  import re, shutil, subprocess, tempfile
+  node = shutil.which("node")
+  if not node:
+    log.debug("node non disponibile: salto il controllo di sintassi del JS")
+    return
+  blocchi = re.findall(r"<script(?![^>]*src=)[^>]*>(.*?)</script>", html, re.S)
+  for n, blocco in enumerate(blocchi, 1):
+    if len(blocco.strip()) < 40:
+      continue
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False,
+                                     encoding="utf-8") as fh:
+      fh.write(blocco)
+      percorso = fh.name
+    try:
+      esito = subprocess.run([node, "--check", percorso], capture_output=True,
+                             text=True, timeout=60)
+    finally:
+      try:
+        os.unlink(percorso)
+      except OSError:
+        pass
+    if esito.returncode != 0:
+      log.error(f"Il blocco JS #{n} della pagina NON si parsa:")
+      for riga in (esito.stderr or "").strip().splitlines()[:6]:
+        log.error(f"   {riga}")
+      raise SystemExit("Generazione interrotta: la pagina uscirebbe con il "
+                       "JavaScript rotto e la classifica vuota.")
+  log.info(f"✓ JavaScript: {len(blocchi)} blocchi, sintassi ok")
+
+
 def main() -> None:
   args = parse_args()
   log.info("=" * 60)
@@ -2172,6 +2265,8 @@ def main() -> None:
 
   log.info("Iniezione dati nel template...")
   html = inject_data(HTML_TEMPLATE, meta)
+
+  controlla_javascript(html)
 
   html_out.parent.mkdir(parents=True, exist_ok=True)
   with open(html_out, "wb") as fh:
@@ -2250,6 +2345,17 @@ def main() -> None:
           log.info(f"✓ Payload demo: {DEMO_DIR / fname}")
         except OSError as e:
           log.warning(f"Copia {fname} fallita: {e}")
+
+    # Il CSV di TUTTI i qualificati, non dei cento pubblicati: e' il file che
+    # un analista si porta via per farci le sue cose. Lo produce gia' parte1 a
+    # ogni giro, mancava solo di finire accanto alle pagine.
+    _csv = OUTPUT_DIR / "summary_stats.csv"
+    if _csv.is_file():
+      try:
+        (DEMO_DIR / "serie_a_tpi_2025-26.csv").write_bytes(_csv.read_bytes())
+        log.info(f"✓ CSV demo: {DEMO_DIR / 'serie_a_tpi_2025-26.csv'}")
+      except OSError as e:
+        log.warning(f"Copia CSV fallita: {e}")
 
   log.info("=" * 60)
 

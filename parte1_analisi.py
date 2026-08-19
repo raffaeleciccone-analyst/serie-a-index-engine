@@ -2911,7 +2911,10 @@ def main(max_giornata: int | None = None,
         if c in df_pa.columns
     ]
     csv_path = os.path.join(CFG.output_dir, f"summary_stats{suffix}.csv")
-    df_pa[csv_cols].to_csv(csv_path, index=False)
+    # Quattro decimali: il CSV e' un file che qualcuno apre e legge, non uno
+    # stato interno. Uscivano numeri come 0.8300438286321808, che non sono piu'
+    # precisi — sono solo piu' lunghi della precisione che il dato ha davvero.
+    df_pa[csv_cols].round(4).to_csv(csv_path, index=False)
     log.info(f"✓ CSV: {csv_path}")
     if max_giornata is None:
         log.info("→ Ora esegui: python parte2_dashboard.py")
