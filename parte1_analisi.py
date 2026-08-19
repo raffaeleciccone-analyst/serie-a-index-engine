@@ -3188,10 +3188,17 @@ def main(max_giornata: int | None = None,
     # di Cremonese, Lecce e Parma — "fitta dove io non compro e vuota dove
     # compro", detto da chi la userebbe per lavoro. Il file esiste perche' la
     # pagina possa mostrarli tutti senza scaricare quattro megabyte.
-    if max_giornata is None and season == SEASON_CORRENTE:
-        lista_path = os.path.join(CFG.output_dir, "payload_lista.json")
+    # L'elenco leggero serve a OGNI stagione pubblicabile, non solo alla
+    # corrente: il selettore del sito carica questi file quando si cambia vista.
+    # I vintage no — quelli sono fotografie per il backtest, non liste da
+    # sfogliare.
+    if max_giornata is None:
+        _sfx = suffix.replace("_full", "")
+        lista_path = os.path.join(CFG.output_dir, f"payload_lista{_sfx}.json")
         lista = {
             "n_giocatori": n_total,
+            "stagione": ("tutte" if season is None else season),
+            "n_giornate": n_giornate,
             "generato_da": "parte1_analisi.py",
             "players": [record_leggero(e) for e in payload_tutti],
         }

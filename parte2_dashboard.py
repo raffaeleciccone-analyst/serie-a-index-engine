@@ -471,7 +471,10 @@ window.onerror=function(m,s,l){
       etichettine da 8.5px al 42% di alfa non bastavano a separarle. -->
  <div class="ctrl-bar" id="ctrl-bar">
   <div class="ctrl-riga ctrl-ordina" id="ctrl-ordina">
-   <span class="ctrl-lbl ctrl-lbl-capo" data-it="Ordina per" data-en="Sort by">Ordina per</span>
+   <span class="ctrl-lbl ctrl-lbl-capo" data-it="Stagione" data-en="Season">Stagione</span>
+   <span id="stagioni-pill"></span>
+   <div class="ctrl-div"></div>
+   <span class="ctrl-lbl" data-it="Ordina per" data-en="Sort by">Ordina per</span>
    <button class="mpill on" data-m="tpi" onclick="selMetric(this)"><span data-i18n="dash_chip_tpi">TPI</span></button>
    <button class="mpill" data-m="prospect" onclick="selMetric(this)"><span data-i18n="dash_chip_prospect">Giovani &#x2605;</span></button>
    <button class="mpill" data-m="out" onclick="selMetric(this)"><span data-i18n="dash_chip_output">Output</span></button>
@@ -663,7 +666,8 @@ window.onerror=function(m,s,l){
 <!-- ═══ JAVASCRIPT ═══ -->
 <script>
 /* ── Dati iniettati dal Python ── */
-const DATA  = __DATA_JS__;
+/* `let` e non `const`: il selettore di stagione sostituisce la lista. */
+let DATA  = __DATA_JS__;
 const RC   = __RC_JS__;
 const RL   = __RL_JS__;
 /* nome-ruolo localizzato: usa i18n se disponibile, fallback a RL (italiano) */
@@ -806,6 +810,100 @@ let ACTIVE_TEAMS=new Set(), CUR_METRIC="tpi", VIEW="home", COMPARE_POOL=[];
 let FORM_FILTER=""; /* "" tutti | "hot" solo caldi | "cold" solo in calo */
 let VISTA={righe:[],metrica:""}; /* ultima lista mostrata, per l'export CSV */
 let SOLO_SCADENZA=false; /* filtro "contratto entro dodici mesi" */
+
+/* ── Stagioni ──────────────────────────────────────────────────────────
+   La pagina nasce con la stagione pubblicata gia' dentro l'HTML: e' quella che
+   deve apparire subito, senza aspettare una fetch. Le altre viste stanno in
+   file a parte e si scaricano solo se qualcuno le chiede — mezzo megabyte non
+   si impone a chi apre la pagina per guardare i primi dieci.
+
+   L'aggregato non e' "una stagione in piu'": e' la stessa misura su due anni,
+   quindi piu' minuti e stime piu' stabili, ma non e' la classifica di nessuna
+   delle due. La nota sotto il titolo lo dice ogni volta che e' selezionato. */
+const STAGIONI = __STAGIONI_JS__;
+const DATA_INIZIALE = DATA;
+let STAGIONE = 0;              /* indice in STAGIONI; 0 = quella pubblicata */
+const CACHE_STAGIONI = {};
+
+function montaStagioni(){
+ const box = document.getElementById("stagioni-pill");
+ if(!box || !STAGIONI.length) return;
+ box.innerHTML = STAGIONI.map(function(s, i){
+  const et = (typeof EN_ATTIVO === "function" && EN_ATTIVO()) ? s.et_en : s.et_it;
+  return '<button class="rpill stag-pill'+(i===STAGIONE?" on":"")+'" data-st="'+i+'" '
+   + 'onclick="cambiaStagione('+i+')" title="'+esc(s.nota_it)+'">'+esc(et)+'</button>';
+ }).join("");
+}
+
+async function cambiaStagione(i){
+ if(i === STAGIONE) return;
+ const s = STAGIONI[i];
+ if(!s) return;
+ const box = document.getElementById("stagioni-pill");
+ try{
+  if(i === 0){
+   DATA = DATA_INIZIALE;
+  }else{
+   if(!CACHE_STAGIONI[s.file]){
+    box.classList.add("in-carico");
+    const r = await fetch(s.file, {cache:"default"});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    CACHE_STAGIONI[s.file] = (await r.json()).players || [];
+   }
+   DATA = CACHE_STAGIONI[s.file];
+  }
+  STAGIONE = i;
+  /* "351 GIOCATORI. 100 STANNO QUI." parla della stagione pubblicata: sopra una
+     lista di 520 diventerebbe una contraddizione a caratteri cubitali. Quando
+     si guarda un'altra vista l'intestazione lo dichiara. */
+  const _h1 = document.querySelector(".hero-ttl");
+  if(_h1){
+   if(i === 0){ _h1.style.opacity=""; _h1.title=""; }
+   else {
+    _h1.style.opacity=".45";
+    _h1.title = T("dash_hero_altra","Questi numeri sono della stagione pubblicata; "
+      + "sotto stai guardando un'altra vista.");
+   }
+  }
+  /* Cambiare stagione cambia la popolazione: filtri e selezioni fatte sulla
+     precedente non hanno piu' senso, e lasciarli accesi mostrerebbe una lista
+     vuota senza spiegare perche'. */
+  ACTIVE_TEAMS.clear(); PR=""; PQ=""; FORM_FILTER=""; SOLO_SCADENZA=false;
+  TUTTI_CARICATI = (i !== 0);
+  document.querySelectorAll(".rpill.on:not(.stag-pill)").forEach(b=>b.classList.remove("on"));
+  montaStagioni();
+  notaStagione();
+  buildTeamStrip();
+  buildLeaderboard();
+ }catch(e){
+  box.title = T("dash_stag_errore","Non sono riuscito a caricare quella stagione: ") + e.message;
+ }finally{
+  box.classList.remove("in-carico");
+ }
+}
+
+/* La riga sotto il titolo che dice cosa stai guardando. Sull'aggregato e'
+   obbligatoria: senza, "520 giocatori" sembra una stagione con piu' gente. */
+function notaStagione(){
+ let el = document.getElementById("stag-nota");
+ if(!el){
+  el = document.createElement("div");
+  el.id = "stag-nota";
+  el.style.cssText = "font-size:12px;color:var(--lt);padding:2px 0 10px;line-height:1.55";
+  const hdr = document.getElementById("lb-ttl");
+  if(hdr && hdr.parentElement) hdr.parentElement.after(el);
+ }
+ const s = STAGIONI[STAGIONE];
+ if(!s || STAGIONE === 0){ el.style.display="none"; return; }
+ el.textContent = ((typeof EN_ATTIVO === "function" && EN_ATTIVO()) ? s.nota_en : s.nota_it)
+   + "  " + s.n + " " + T("dash_qualificati","giocatori qualificati") + ".";
+ el.style.display = "block";
+}
+
+function EN_ATTIVO(){
+ return !!(window.SerieAi18n && window.SerieAi18n.getLang
+           && window.SerieAi18n.getLang() === "en");
+}
 
 function filtroScadenza(btn){
  SOLO_SCADENZA=!SOLO_SCADENZA;
@@ -2384,6 +2482,10 @@ window.addEventListener("orientationchange", () => {
      destra. Sta qui perche' e' l'ultimo script che gira a pagina montata. */
   if (typeof segnalaScorrimento === "function")
     document.querySelectorAll(".ctrl-riga").forEach(segnalaScorrimento);
+  if (typeof montaStagioni === "function") { montaStagioni(); notaStagione(); }
+  document.addEventListener("i18n:changed", function(){
+    if (typeof montaStagioni === "function") { montaStagioni(); notaStagione(); }
+  });
 
   </script>
 <!-- ── Watermark ── -->
@@ -2428,6 +2530,41 @@ window.addEventListener("orientationchange", () => {
 # ════════════════════════════════════════════════════════════════
 # 5. GENERAZIONE HTML
 # ════════════════════════════════════════════════════════════════
+def _stagioni_disponibili() -> list[dict]:
+  """Le viste che il selettore puo' offrire, dai file presenti.
+
+  L'aggregato NON e' una stagione: e' la stessa misura calcolata su due anni
+  insieme. Vale piu' della singola stagione quando serve stabilita' (piu'
+  minuti, meno rumore) e meno quando serve attualita'. Va detto, non lasciato
+  intuire dal nome.
+  """
+  voci = []
+  mappa = [
+    ("payload_lista.json", "2025/26", "2025/26",
+     "La stagione pubblicata: 38 giornate, quella su cui girano le verifiche.",
+     "The published season: 38 matchdays, the one every check runs on."),
+    ("payload_lista_2024-25.json", "2024/25", "2024/25",
+     "La stagione precedente, completa.",
+     "The previous season, complete."),
+    ("payload_lista_tutte-le-stagioni.json", "Due stagioni", "Two seasons",
+     "2024/25 e 2025/26 insieme: piu' minuti per giocatore, quindi stime piu' "
+     "stabili. Non e' la classifica di nessuna delle due.",
+     "2024/25 and 2025/26 together: more minutes per player, so steadier "
+     "estimates. It is not either season's ranking."),
+  ]
+  for nome, et_it, et_en, nota_it, nota_en in mappa:
+    f = OUTPUT_DIR / nome
+    if not f.is_file():
+      continue
+    try:
+      n = len(json.loads(f.read_text(encoding="utf-8")).get("players") or [])
+    except (OSError, ValueError):
+      continue
+    voci.append({"file": nome, "et_it": et_it, "et_en": et_en,
+                 "nota_it": nota_it, "nota_en": nota_en, "n": n})
+  return voci
+
+
 def inject_data(template: str, meta: dict) -> str:
   payload   = meta["players"]
   n_top_dif  = meta.get("n_top_difese", 6)
@@ -2449,6 +2586,10 @@ def inject_data(template: str, meta: dict) -> str:
     # Il vocabolario dei ruoli specifici viene dal motore (blocco `metodo`):
     # la pagina non se lo riscrive, come per i pesi e le dimensioni.
     "__RF_JS__":    jsdump((meta.get("metodo") or {}).get("ruoli_specifici") or {}),
+    # Quali stagioni si possono guardare, e da quale file. La lista si costruisce
+    # dai file che esistono davvero: se un elenco non e' stato generato, quella
+    # voce non compare invece di dare un 404 in faccia a chi ci clicca.
+    "__STAGIONI_JS__": jsdump(_stagioni_disponibili()),
     "__CTX_L_JS__":   jsdump(CTX_LABELS),
     "__SPIEG_JS__":   jsdump(SPIEGAZIONI),
     "__TOP6_JS__":   jsdump([clean(n) for n in top6_names]),
@@ -2629,13 +2770,13 @@ def main() -> None:
     # L'elenco completo dei qualificati: la pagina lo scarica solo se glielo
     # chiedono, cosi' chi apre la classifica non paga mezzo megabyte per una
     # lista che magari non guarda.
-    _lista = OUTPUT_DIR / "payload_lista.json"
-    if _lista.is_file():
+    # Un elenco per stagione: il selettore li scarica a richiesta.
+    for _lista in sorted(OUTPUT_DIR.glob("payload_lista*.json")):
       try:
         (DEMO_DIR / _lista.name).write_bytes(_lista.read_bytes())
-        log.info(f"✓ Elenco demo: {DEMO_DIR / _lista.name}")
+        log.info(f"✓ Elenco demo: {_lista.name}")
       except OSError as e:
-        log.warning(f"Copia elenco fallita: {e}")
+        log.warning(f"Copia {_lista.name} fallita: {e}")
 
     _csv = OUTPUT_DIR / "summary_stats.csv"
     if _csv.is_file():

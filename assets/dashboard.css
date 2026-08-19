@@ -221,6 +221,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--lp);font-size:15px
   -webkit-mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent);
   mask-image:linear-gradient(to right,#000 calc(100% - 34px),transparent)}
 .ctrl-sp{flex:1;min-width:12px}
+/* Le pastiglie della stagione stanno in uno <span>: senza questo i bottoni
+   vanno a capo dentro di lui e la riga dei controlli diventa alta tre volte. */
+#stagioni-pill{display:inline-flex;align-items:center;gap:5px;flex-shrink:0}
+#stagioni-pill.in-carico{opacity:.5;pointer-events:none}
 /* La riga dei filtri e' piu' bassa, piu' spenta e senza fondo pieno: si vede
    che e' un secondo livello prima ancora di leggerla. */
 .ctrl-filtra{padding-top:6px;margin-top:6px;border-top:1px solid rgba(233,240,236,.06)}
