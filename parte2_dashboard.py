@@ -668,6 +668,16 @@ function roleName(code){ if(!code) return "—"; return T(_ROLE_KEY[code], RL[co
    accanto ad ATT/CEN/DIF, non al suo posto — i confronti dell'indice restano
    dentro i tre gruppi grossi, e mescolarli sarebbe un altro indice. */
 const RF = __RF_JS__;
+/* Il valore di mercato in forma leggibile: 85M, 2.5M, 400k. Non e' una misura
+   dell'indice — e' il consenso del mercato, che la validazione usa come
+   baseline da battere (test Q). Va scritto accanto ai numeri nostri proprio
+   perche' si veda la differenza fra le due cose. */
+function valoreScritto(p){
+ const v = p && p.valore_mercato;
+ if(!v) return "";
+ if(v >= 1e6) return (v/1e6 >= 10 ? Math.round(v/1e6) : (v/1e6).toFixed(1).replace(".0","")) + "M";
+ return Math.round(v/1e3) + "k";
+}
 function ruoloFine(p){
  const k = p && p.ruolo_fine;
  if(!k || !RF[k]) return "";
@@ -818,7 +828,7 @@ function esportaVista(){
  const righe = (VISTA.righe||[]);
  if(!righe.length) return;
  const ACAPO = String.fromCharCode(10), BOM = String.fromCharCode(65279);
- const col = ["rank","nome","squadra","ruolo","ruolo_specifico","minuti","tpi_totale","tpi_casa",
+ const col = ["rank","nome","squadra","ruolo","ruolo_specifico","valore_mercato_eur","minuti","tpi_totale","tpi_casa",
    "tpi_trasferta","tpi_vs_top6","tpi_vs_forti","valore_colonna",
    "z_output","z_buildup","z_centralita","z_boost","z_consistenza","z_finishing","z_form",
    "xg_p90","xa_p90","goal_p90","sos","conv_ratio","confidence","eta","forma"];
@@ -835,7 +845,7 @@ function esportaVista(){
  const linee = [col.join(",")];
  righe.forEach(function(x,i){
   const p=x.p, t=p.tpi||{}, k=p.kpi||{}, c=p.conv||{}, ph=p.physical||{}, r=p.recent||{};
-  linee.push([i+1,p.nome,p.squadra,p.ruolo,ruoloFine(p),Math.round(p.minuti||0),
+  linee.push([i+1,p.nome,p.squadra,p.ruolo,ruoloFine(p),p.valore_mercato||"",Math.round(p.minuti||0),
    t.totale,t.casa,t.trasferta,t.vs_top6,t.vs_forti,x.v,
    p.z_output,p.z_buildup,p.z_centralita,p.z_boost,p.z_consistenza,p.z_finishing,p.z_form,
    k.xg_p90,k.xa_p90,k.goal_p90,k.sos,c.conv_ratio,p.confidence,ph.eta,r.label].map(q).join(","));
@@ -1556,7 +1566,11 @@ function updateHero(p){
  if(_avv) _avv.style.display = p.leggero ? "block" : "none";
  const _rf=ruoloFine(p), _rq=p.ruolo_fine_quota;
  const _rfTxt=_rf?(" · "+esc(_rf)+(_rq!=null?' <span style="color:var(--lq)">'+Math.round(_rq*100)+"%</span>":"")):"";
- document.getElementById("h-sub").innerHTML=esc(p.squadra)+_rfTxt+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos);
+ const _vm=valoreScritto(p);
+ const _vmTxt=_vm?(' · <span title="'+esc(T("dash_valore_tip",
+   "Valore di mercato Transfermarkt. Non entra nell\'indice: la validazione lo usa come baseline da battere."))
+   +'">'+esc(T("dash_valore","valore"))+' <strong>'+esc(_vm)+'</strong></span>'):"";
+ document.getElementById("h-sub").innerHTML=esc(p.squadra)+_rfTxt+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos)+_vmTxt;
  // ── Forma recente (ultime N gare) ──
  const hf=document.getElementById("h-form"), r=p.recent||{};
  if(hf){

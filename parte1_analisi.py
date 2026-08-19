@@ -478,6 +478,9 @@ def blocco_metodo(cfg: Any) -> dict:
         # indovinare cosa vuol dire QUINTO o ESTERNO_C.
         "ruoli_specifici": {k: {"nome_it": it, "nome_en": en}
                             for k, (it, en) in RUOLI_FINI.items()},
+        "valore_mercato_fonte": ("Transfermarkt via heXI, agganciato per "
+                                 "identificativo. Dato di contorno: non entra "
+                                 "in nessun calcolo dell'indice."),
         "ruoli_specifici_nota": ("Ricavati dalle posizioni Understat realmente "
                                  "giocate. Sono presentazione: gli z-score "
                                  "restano dentro ATT/CEN/DIF."),
@@ -571,6 +574,66 @@ def applica_ruoli_specifici(df: pd.DataFrame, fini: dict[str, dict],
     noti = int(df["ruolo_fine"].notna().sum())
     log.info(f"Ruolo specifico: {noti}/{len(df)} giocatori")
     return df
+
+
+# La rosa heXI, da cui arriva il valore di mercato (fonte: Transfermarkt).
+# Accanto c'e' SA_2026-2027.json: agganciarsi a quello darebbe valori
+# plausibili ma dell'anno sbagliato, quindi la stagione si controlla.
+# Quella cartella e' in SOLA LETTURA: qui si legge e basta.
+HEXI_ROSTER = Path(os.environ.get(
+    "SERIE_A_HEXI_ROSTER",
+    r"C:\dev\heXI\data\normalized\SA_2025-2026.json"))
+HEXI_STAGIONE = "2025/2026"
+
+
+def carica_valore_mercato(engine) -> dict[int, float]:
+    """giocatore_id -> valore di mercato in euro.
+
+    Il dato c'era gia' e lo usavamo gia': parte3 lo prende come baseline del
+    test Q, cioe' "il TPI batte il consenso del mercato?". Ma in pagina non
+    compariva, e la validazione confrontava l'indice con un numero che il
+    lettore non poteva vedere. Stessa fonte, stesso aggancio.
+
+    L'aggancio e' su `giocatori.tm_id`, un identificativo: nessun match per
+    nome, quindi non si puo' ripetere l'incidente dei due Martinez.
+    """
+    if not HEXI_ROSTER.is_file():
+        log.info(f"Valore di mercato: rosa heXI assente ({HEXI_ROSTER}), campo omesso.")
+        return {}
+    try:
+        rosa = json.loads(HEXI_ROSTER.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        log.warning(f"Valore di mercato: rosa heXI illeggibile ({e}), campo omesso.")
+        return {}
+    if not isinstance(rosa, list) or not rosa:
+        log.warning("Valore di mercato: formato rosa heXI inatteso, campo omesso.")
+        return {}
+    stagioni = {r.get("season") for r in rosa}
+    if stagioni != {HEXI_STAGIONE}:
+        log.warning(f"Valore di mercato: stagione {stagioni}, attesa {HEXI_STAGIONE!r}. "
+                    "Campo omesso (accanto c'e' il file dell'anno dopo).")
+        return {}
+    per_tm = {}
+    for r in rosa:
+        tm, mv = r.get("transfermarkt_id"), r.get("market_value_eur")
+        if tm is not None and mv:
+            per_tm[int(tm)] = float(mv)
+    try:
+        df = pd.read_sql("SELECT id, tm_id FROM giocatori WHERE tm_id IS NOT NULL", engine)
+    except Exception as e:
+        log.warning(f"Valore di mercato: query tm_id fallita ({e}), campo omesso.")
+        return {}
+    fuori = {}
+    for _, r in df.iterrows():
+        try:
+            v = per_tm.get(int(r["tm_id"]))
+        except (TypeError, ValueError):
+            continue
+        if v:
+            fuori[int(r["id"])] = v
+    log.info(f"Valore di mercato: {len(fuori)} giocatori agganciati per tm_id "
+             f"({len(per_tm)} valorizzati nella rosa heXI)")
+    return fuori
 
 
 def _role_key(s: Any) -> str:
@@ -2106,7 +2169,7 @@ def record_leggero(entry: dict) -> dict:
     leggero = {
         k: entry.get(k) for k in (
             "id", "nome", "squadra", "ruolo", "ruolo_fine", "ruolo_fine_quota",
-            "minuti", "avg_min_partita", "is_winter", "first_giornata",
+            "minuti", "valore_mercato", "avg_min_partita", "is_winter", "first_giornata",
             "tpi", "tpi_ext", "rank", "kpi", "recent", "confidence",
             "z_output", "z_buildup", "z_centralita", "z_boost",
             "z_consistenza", "z_finishing", "z_form", "z_aii", "z_pri",
@@ -2137,8 +2200,10 @@ def build_payload(
     form_detail: dict[int, dict],
     trend_cache: dict[int, dict],
     cfg: Config,
+    valore_mercato: dict[int, float] | None = None,
 ) -> list[dict]:
     """Costruisce la lista di oggetti JSON per la dashboard."""
+    valore_mercato = valore_mercato or {}
     n_total = len(df_pa)
     payload: list[dict] = []
 
@@ -2189,6 +2254,10 @@ def build_payload(
                            else clean_str(row.get("ruolo_fine") or "") or None),
             "ruolo_fine_quota": safe_json(row.get("ruolo_fine_quota")),
             "minuti": safe_json(row["minuti"]),
+            # Valore di mercato Transfermarkt (via heXI). E' un dato di
+            # contorno, non entra in nessun calcolo: la validazione lo usa
+            # come baseline da battere, e ora chi legge puo' vederlo.
+            "valore_mercato": safe_json(valore_mercato.get(gid)),
             "avg_min_partita": safe_json(row.get("avg_min_per_partita")),
             "k_subst_mult": safe_json(row.get("k_subst_mult")),
             "disponibilita_rel": safe_json(row.get("disponibilita_rel")),
@@ -2377,6 +2446,8 @@ def main(max_giornata: int | None = None,
     # ── Ruoli: gerarchia di precedenza ─────────────────────────
     #   1) DB (base)  2) posizione reale Understat (default oggettivo)
     #   3) override manuale (ULTIMA PAROLA — correzioni deliberate dell'esperto)
+    valore_mercato = carica_valore_mercato(engine)
+
     us_roles = derive_understat_roles()
     us_ripiego = derive_understat_roles(min_minutes=1)
     df_pa = apply_role_pipeline(df_pa, us_roles, CFG, "analisi", ripiego=us_ripiego)
@@ -2877,7 +2948,8 @@ def main(max_giornata: int | None = None,
     # questa lista, l'elenco leggero e' la stessa lista senza le serie.
     _top_n_richiesto = CFG.top_n_payload
     CFG.top_n_payload = 0
-    payload_tutti = build_payload(df_pa, all_ctx, conv_detail, form_detail, trend_cache, CFG)
+    payload_tutti = build_payload(df_pa, all_ctx, conv_detail, form_detail, trend_cache,
+                                 CFG, valore_mercato)
     CFG.top_n_payload = _top_n_richiesto
     payload = (payload_tutti if _top_n_richiesto <= 0
                else payload_tutti[:_top_n_richiesto])
