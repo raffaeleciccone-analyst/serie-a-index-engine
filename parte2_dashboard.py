@@ -477,6 +477,11 @@ window.onerror=function(m,s,l){
    <span class="ctrl-lbl" data-it="Ordina per" data-en="Sort by">Ordina per</span>
    <button class="mpill on" data-m="tpi" onclick="selMetric(this)"><span data-i18n="dash_chip_tpi">TPI</span></button>
    <button class="mpill" data-m="prospect" onclick="selMetric(this)"><span data-i18n="dash_chip_prospect">Giovani &#x2605;</span></button>
+   <button class="mpill" data-m="attese" onclick="selMetric(this)"
+     data-i18n-title="dash_attese_tip"
+     title="Quanto rende in questa stagione rispetto alla sua base su due stagioni">
+    <span data-i18n="dash_chip_attese">Sopra le attese</span>
+   </button>
    <button class="mpill" data-m="out" onclick="selMetric(this)"><span data-i18n="dash_chip_output">Output</span></button>
    <button class="mpill" data-m="cen" onclick="selMetric(this)"><span data-i18n="dash_chip_cen">Centralit&agrave;</span></button>
    <button class="mpill" data-m="boo" onclick="selMetric(this)"><span data-i18n="dash_chip_boo">Boost</span></button>
@@ -1432,6 +1437,52 @@ function buildTpiProSection(){
  el.innerHTML = html;
 }
 
+/* ── Sopra le attese ───────────────────────────────────────────────────
+   La domanda che ha senso alla terza giornata, quando la classifica della
+   stagione nuova vale rho 0.32 e non si puo' pubblicare come classifica:
+   non "chi e' il piu' forte" — quello lo dice la vista a due stagioni — ma
+   CHI STA RENDENDO SOPRA QUELLO CHE CI SI ASPETTAVA DA LUI.
+
+   E' una differenza da un valore stimato bene (due stagioni di minuti), non un
+   valore stimato male: per questo regge con poche partite mentre la classifica
+   della stagione da sola no.
+
+   Chi non ha storico non ha attesa: resta fuori invece di comparire a zero,
+   che vorrebbe dire "in linea con le attese" quando l'attesa non esiste. */
+let BASE_STORICA = null;          /* id -> TPI sulle due stagioni */
+let BASE_IN_CARICO = null;
+
+function fileBaseStorica(){
+ const s = (STAGIONI || []).find(x => /tutte-le-stagioni/.test(x.file));
+ return s ? s.file : null;
+}
+
+async function caricaBaseStorica(){
+ if(BASE_STORICA) return BASE_STORICA;
+ if(BASE_IN_CARICO) return BASE_IN_CARICO;
+ const file = fileBaseStorica();
+ if(!file) return null;
+ BASE_IN_CARICO = fetch(file, {cache:"default"})
+  .then(r => { if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  .then(d => {
+   const m = {};
+   (d.players || []).forEach(function(p){
+    const t = (p.tpi || {}).totale;
+    if(t != null) m[p.id] = t;
+   });
+   BASE_STORICA = m;
+   return m;
+  })
+  .finally(() => { BASE_IN_CARICO = null; });
+ return BASE_IN_CARICO;
+}
+
+function sopraLeAttese(p){
+ if(!BASE_STORICA) return null;
+ const t = (p.tpi || {}).totale, b = BASE_STORICA[p.id];
+ return (t == null || b == null) ? null : t - b;
+}
+
 /* ── Leaderboard ── */
 const METRICS_CFG={
  tpi:   {ttl:"TPI Totale", ttlKey:"dash_m_tpi", help:"TPI",     get:p=>p.tpi.totale,          fmt:v=>(v>=0?"+":"")+v.toFixed(2)},
@@ -1467,6 +1518,29 @@ const METRICS_CFG={
     : '';
   },
  },
+ attese: {
+  ttl:"Sopra le attese", ttlKey:"dash_m_attese", help:"TPI",
+  get:sopraLeAttese,
+  fmt:v=>(v>=0?"+":"")+v.toFixed(2),
+  /* In JS le stringhe su piu' righe si sommano con +: senza, il file non si
+     parsa e la pagina esce muta. Preso in build dal controllo di sintassi. */
+  note:() => T("dash_attese_note",
+   "TPI di questa stagione meno quello dello stesso giocatore su due stagioni. " +
+   "Sopra zero: sta rendendo pi\u00f9 di quanto la sua storia facesse aspettare. " +
+   "Chi non ha storico non compare: senza passato non c'\u00e8 un'attesa da battere."),
+  /* Accanto al nome, da dove viene e dove e' arrivato: senza i due numeri il
+     delta e' un numero che non si puo' controllare. */
+  rowExtra: p => {
+   const b = BASE_STORICA ? BASE_STORICA[p.id] : null;
+   const t = (p.tpi || {}).totale;
+   if(b == null || t == null) return "";
+   const seg = v => (v>=0?"+":"") + v.toFixed(2);
+   return '<span style="font-size:10px;font-family:var(--mono);color:var(--lt);'
+    + 'background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);'
+    + 'border-radius:5px;padding:1px 6px;margin-left:4px">' + seg(b)
+    + ' \u2192 ' + seg(t) + '</span>';
+  },
+ },
  out: {ttl:"Output Offensivo Adj / 90'", ttlKey:"dash_m_out", help:"output_adj", get:p=>p.ctx?.totale?.output_adj,  fmt:v=>v.toFixed(3)},
  cen: {ttl:"Centralit\u00e0 Offensiva", ttlKey:"dash_m_cen",  help:"centralita", get:p=>p.ctx?.totale?.centralita,   fmt:v=>v.toFixed(1)+"%"},
  boo: {ttl:"Team Boost Ratio", ttlKey:"dash_m_boo",     help:"boost_ratio", get:p=>p.ctx?.totale?.boost_ratio,  fmt:v=>v.toFixed(2)+"\u00d7"},
@@ -1475,7 +1549,21 @@ const METRICS_CFG={
 };
 function selMetric(el){
  document.querySelectorAll(".mpill").forEach(b=>b.classList.remove("on"));
- el.classList.add("on");CUR_METRIC=el.dataset.m;buildLeaderboard();
+ el.classList.add("on");CUR_METRIC=el.dataset.m;
+ /* "Sopra le attese" ha bisogno della base storica: si scarica al primo uso,
+    non all'apertura della pagina. */
+ if(CUR_METRIC === "attese" && !BASE_STORICA){
+  el.classList.add("in-carico");
+  caricaBaseStorica().then(function(){
+   el.classList.remove("in-carico");
+   buildLeaderboard();
+  }).catch(function(){
+   el.classList.remove("in-carico");
+   buildLeaderboard();
+  });
+  return;
+ }
+ buildLeaderboard();
 }
 function buildLeaderboard(){
  const m=METRICS_CFG[CUR_METRIC];
