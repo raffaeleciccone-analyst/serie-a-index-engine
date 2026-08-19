@@ -68,10 +68,10 @@ CSS_PATH   = _DIR / "assets" / "dashboard.css"
 # Cartella del repo pubblico GitHub Pages: se esiste, ricevo una copia
 # automatica della dashboard. Senza questa copia, "homepage.html" linkato
 # dalla dashboard non viene trovato (sta solo nel repo demo).
-# Default: cartella sorella `serie-a-scout-demo` (es. Desktop/serie-a-scout-demo
+# Default: cartella sorella `serie-a-index` (es. Desktop/serie-a-index
 # quando questo script vive in Desktop/serie-a-scout-index). Override con
 # l'env var SERIE_A_DEMO_DIR se il repo è altrove.
-DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", _DIR.parent / "serie-a-scout-demo"))
+DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", _DIR.parent / "serie-a-index"))
 
 
 # ════════════════════════════════════════════════════════════════
@@ -958,7 +958,7 @@ async function immagineConfronto(){
  x.fillText(inglese ? "z-scores within role: 0 is the average player in that role"
               : "z-score dentro il ruolo: 0 \u00e8 il giocatore medio di quel ruolo", 60, H - 36);
  x.fillStyle = AMBRA; x.font = "500 14px " + mono;
- const dove = "raffaeleciccone-analyst.github.io/serie-a-scout-demo";
+ const dove = "raffaeleciccone-analyst.github.io/serie-a-index";
  x.fillText(dove, W - 60 - x.measureText(dove).width, H - 36);
 
  const nome = "serie-a-scout_" + [p1.nome, p2.nome].join("-vs-").toLowerCase()

@@ -1,0 +1,6 @@
+# Una persona, un nome. Prima gli stessi commit uscivano sotto tre identita'
+# diverse (due email), e su GitHub sembravano tre autori.
+Raffaele Ciccone <raffaeleciccone.analyst@gmail.com> <cicconer9@gmail.com>
+Raffaele Ciccone <raffaeleciccone.analyst@gmail.com> raffaeleciccone <cicconer9@gmail.com>
+Raffaele Ciccone <raffaeleciccone.analyst@gmail.com> raffaeleciccone-analyst <raffaeleciccone.analyst@gmail.com>
+Raffaele Ciccone <raffaeleciccone.analyst@gmail.com> GitHub <noreply@github.com>

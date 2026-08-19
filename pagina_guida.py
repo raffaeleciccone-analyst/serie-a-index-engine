@@ -35,7 +35,7 @@ log = logging.getLogger("pagina_guida")
 
 BASE_DIR = Path(__file__).parent
 OUTPUT_DIR = BASE_DIR / "dashboard_output"
-DEMO_DIR = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-scout-demo"))
+DEMO_DIR = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-index"))
 
 # Nome leggibile e una riga sul perche', per ognuna delle sette dimensioni.
 # La formula e i pesi arrivano dal motore: qui c'e' solo la prosa.

@@ -35,7 +35,7 @@ log = logging.getLogger("pagina_squadra")
 
 BASE_DIR = Path(__file__).parent
 OUTPUT_DIR = BASE_DIR / "dashboard_output"
-DEMO_DIR = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-scout-demo"))
+DEMO_DIR = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-index"))
 
 # Quanti giocatori mostrare per intero prima di passare all'elenco compatto.
 N_IN_EVIDENZA = 5

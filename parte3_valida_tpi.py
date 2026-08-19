@@ -35,7 +35,7 @@ OUTPUT_DIR = BASE_DIR / "dashboard_output"
 PAYLOAD    = OUTPUT_DIR / "payload.json"
 PAYLOAD_FULL = OUTPUT_DIR / "payload_full.json"
 # Repo demo pubblicato (stesso default di parte2_dashboard.py): override con SERIE_A_DEMO_DIR.
-DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-scout-demo"))
+DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-index"))
 
 sys.path.insert(0, str(BASE_DIR))
 from config import db_url as _cfg_db_url  # carica .env + fail-fast

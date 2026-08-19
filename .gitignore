@@ -54,3 +54,6 @@ __pycache__/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Configurazione dello strumento di lavoro: locale, non del progetto.
+.claude/
