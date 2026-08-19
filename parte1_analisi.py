@@ -2092,6 +2092,44 @@ def righe_payload(df_pa, cfg: Config):
     return df_pa if cfg.top_n_payload <= 0 else df_pa.head(cfg.top_n_payload)
 
 
+def record_leggero(entry: dict) -> dict:
+    """Il minimo per stare in classifica: niente serie per giornata.
+
+    Il payload pubblicato porta i primi cento con tutto — comprese le serie per
+    giornata, che da sole sono meta' del peso di un record. Per gli altri
+    duecentocinquanta serve poter apparire in lista, essere filtrati, ordinati
+    e aperti: 5 KB a testa diventano circa 1,3.
+    """
+    ctx = entry.get("ctx") or {}
+    conv = entry.get("conv") or {}
+    fisico = entry.get("physical") or {}
+    leggero = {
+        k: entry.get(k) for k in (
+            "id", "nome", "squadra", "ruolo", "ruolo_fine", "ruolo_fine_quota",
+            "minuti", "avg_min_partita", "is_winter", "first_giornata",
+            "tpi", "tpi_ext", "rank", "kpi", "recent", "confidence",
+            "z_output", "z_buildup", "z_centralita", "z_boost",
+            "z_consistenza", "z_finishing", "z_form", "z_aii", "z_pri",
+        )
+    }
+    # Un solo contesto: il totale. Gli altri quattro sono quattro quinti del
+    # peso della voce piu' pesante, e chi guarda un giocatore fuori dai cento
+    # vuole sapere prima di tutto se vale la pena guardarlo.
+    if ctx.get("totale"):
+        leggero["ctx"] = {"totale": ctx["totale"]}
+    leggero["conv"] = {k: conv.get(k) for k in
+                       ("conv_ratio", "goal_tot", "xg_tot_conv", "finishing_quality")}
+    # La forma senza la serie: il trend e' un numero, la curva e' un array di
+    # trentotto. La pagina legge p.form.trend in mezza dozzina di punti, e un
+    # record senza `form` la faceva cadere.
+    forma = entry.get("form") or {}
+    leggero["form"] = {k: forma.get(k) for k in ("trend", "ewma", "n")}
+    leggero["physical"] = {k: fisico.get(k) for k in
+                           ("eta", "eta_cat", "affidabilita", "n_infortuni")}
+    leggero["leggero"] = True
+    return leggero
+
+
 def build_payload(
     df_pa: pd.DataFrame,
     all_ctx: dict[int, dict],
@@ -2835,7 +2873,14 @@ def main(max_giornata: int | None = None,
     log.info(f"Trend precomputati: {len(trend_cache)} giocatori")
 
     # ── Narrativa AI ──────────────────────────────────────────
-    payload = build_payload(df_pa, all_ctx, conv_detail, form_detail, trend_cache, CFG)
+    # Si costruisce TUTTO una volta sola: il payload pubblicato e' la testa di
+    # questa lista, l'elenco leggero e' la stessa lista senza le serie.
+    _top_n_richiesto = CFG.top_n_payload
+    CFG.top_n_payload = 0
+    payload_tutti = build_payload(df_pa, all_ctx, conv_detail, form_detail, trend_cache, CFG)
+    CFG.top_n_payload = _top_n_richiesto
+    payload = (payload_tutti if _top_n_richiesto <= 0
+               else payload_tutti[:_top_n_richiesto])
 
     if CFG.anthropic_api_key:
         log.info(f"Generazione narrativa AI ({CFG.top_n_ai} giocatori)...")
@@ -3002,6 +3047,26 @@ def main(max_giornata: int | None = None,
     with open(payload_path, "wb") as f:
         f.write(payload_bytes)
     log.info(f"✓ Payload: {payload_path}")
+
+    # L'elenco completo dei qualificati, leggero. Il taglio ai primi cento non
+    # e' un filtro neutro: il TPI premia chi produce in squadre che producono,
+    # quindi la lista pubblicata era fitta di Inter, Milan e Atalanta e vuota
+    # di Cremonese, Lecce e Parma — "fitta dove io non compro e vuota dove
+    # compro", detto da chi la userebbe per lavoro. Il file esiste perche' la
+    # pagina possa mostrarli tutti senza scaricare quattro megabyte.
+    if max_giornata is None and season == SEASON_CORRENTE:
+        lista_path = os.path.join(CFG.output_dir, "payload_lista.json")
+        lista = {
+            "n_giocatori": n_total,
+            "generato_da": "parte1_analisi.py",
+            "players": [record_leggero(e) for e in payload_tutti],
+        }
+        lista_bytes = json.dumps(deep_clean(lista), ensure_ascii=True,
+                                 separators=(",", ":"), cls=SafeEncoder).encode("ascii")
+        with open(lista_path, "wb") as f:
+            f.write(lista_bytes)
+        log.info(f"✓ Elenco completo: {lista_path} "
+                 f"({len(lista['players'])} giocatori, {len(lista_bytes)//1024} KB)")
 
     # ── Salvataggio CSV ───────────────────────────────────────
     csv_cols = [

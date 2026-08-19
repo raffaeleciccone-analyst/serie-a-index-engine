@@ -514,6 +514,11 @@ window.onerror=function(m,s,l){
      <span class="sq-chevron">&#9660;</span>
     </button>
    </div>
+   <button class="rpill" id="tutti-btn" onclick="caricaTuttiIQualificati()"
+     data-i18n-title="dash_all_tip"
+     title="Carica anche i qualificati oltre i primi cento: il taglio ai cento privilegia le squadre che producono di piu'">
+    <span id="tutti-lbl" data-i18n="dash_all">Tutti i qualificati</span>
+   </button>
   </div>
  </div>
 
@@ -588,6 +593,11 @@ window.onerror=function(m,s,l){
    <div class="hero-nm" id="h-nm"></div>
    <div class="hero-sub" id="h-sub"></div>
    <div class="hero-form" id="h-form" style="font-size:11px;margin-top:3px"></div>
+   <div id="avviso-leggero" style="display:none;font-size:11.5px;color:var(--lt);margin-top:6px;
+     border-left:2px solid rgba(255,176,32,.5);padding-left:9px;max-width:46em"
+     data-i18n="dash_leggero">Arriva dall&rsquo;elenco completo: ci sono punteggio, dimensioni e
+     contesto totale, non le serie per giornata. I profili con i grafici sono i primi cento
+     pubblicati.</div>
   </div>
   <div class="hero-tags" id="h-tags"></div>
   <div class="hero-tpi">
@@ -767,6 +777,43 @@ let VISTA={righe:[],metrica:""}; /* ultima lista mostrata, per l'export CSV */
    pagine (serie_a_tpi_2025-26.csv, generato dal motore a ogni giro); questo
    invece e' la vista corrente, con i filtri applicati e nell'ordine scelto —
    e' quello che serve a chi ha appena ristretto la lista a otto nomi. */
+/* I cento pubblicati non sono un campione neutro: il TPI premia chi produce in
+  squadre che producono, quindi la lista e' fitta di Inter, Milan e Atalanta e
+  quasi vuota di Cremonese, Lecce e Parma. Chi lavora sul mercato compra
+  soprattutto la' — "fitto dove io non compro e vuoto dove compro". Il resto dei
+  qualificati sta in un file a parte, senza le serie per giornata, e si scarica
+  solo se lo si chiede: mezzo megabyte non si impone a chi apre la pagina. */
+let TUTTI_CARICATI=false, TUTTI_IN_CORSO=false;
+async function caricaTuttiIQualificati(){
+ const btn=document.getElementById("tutti-btn"), lbl=document.getElementById("tutti-lbl");
+ if(TUTTI_IN_CORSO) return;
+ if(TUTTI_CARICATI){ return; }
+ TUTTI_IN_CORSO=true;
+ const testoPrima=lbl.textContent;
+ lbl.textContent=T("dash_all_loading","Carico...");
+ try{
+  const r=await fetch("payload_lista.json",{cache:"default"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const dati=await r.json();
+  const gia=new Set(DATA.map(p=>p.id));
+  let aggiunti=0;
+  (dati.players||[]).forEach(function(p){
+   if(!gia.has(p.id)){ DATA.push(p); aggiunti++; }
+  });
+  TUTTI_CARICATI=true;
+  btn.classList.add("on");
+  lbl.textContent=T("dash_all_done","Tutti i qualificati")+" ("+DATA.length+")";
+  btn.title=T("dash_all_done_tip",
+    "Caricati tutti i qualificati. I profili completi restano per i primi cento pubblicati.");
+  buildTeamStrip(); buildLeaderboard();
+ }catch(e){
+  lbl.textContent=testoPrima;
+  btn.title=T("dash_all_error","Non sono riuscito a caricare l'elenco completo: ")+e.message;
+ }finally{
+  TUTTI_IN_CORSO=false;
+ }
+}
+
 function esportaVista(){
  const righe = (VISTA.righe||[]);
  if(!righe.length) return;
@@ -1441,7 +1488,7 @@ function buildDrop(){
   const rc=RC[p.ruolo]||"#636366",t=p.tpi.totale;
   const ts=(t==null)?"—":(t>=0?"+":"")+t.toFixed(2);
   const tc=(t==null)?"":t>=0?"pos":"neg";
-  const ft=p.form.trend,ar=ft>.10?"&#9650;":ft<-.10?"&#9660;":"&#8594;";
+  const ft=(p.form||{}).trend,ar=ft>.10?"&#9650;":ft<-.10?"&#9660;":"&#8594;";
   const ac=ft>.10?"var(--green)":ft<-.10?"var(--red)":"var(--lt)";
   const cr=p.conv?.conv_ratio;
   const wb=p.is_winter?' <span title="Acquisto invernale" style="font-size:11px">&#x2744;</span>':"";
@@ -1492,6 +1539,10 @@ function updateHero(p){
  /* Il ruolo specifico con la quota di minuti: "Quinto 93%" dice due cose —
     che ruolo fa e quanto e' vero che lo fa. Senza la quota, un ruolo dichiarato
     al 34% sembrerebbe sicuro quanto uno al 93%. */
+ /* Chi arriva dall'elenco completo non ha le serie per giornata: i grafici si
+    nascondono da soli, ma va detto perche', o sembra rotto. */
+ const _avv=document.getElementById("avviso-leggero");
+ if(_avv) _avv.style.display = p.leggero ? "block" : "none";
  const _rf=ruoloFine(p), _rq=p.ruolo_fine_quota;
  const _rfTxt=_rf?(" · "+esc(_rf)+(_rq!=null?' <span style="color:var(--lq)">'+Math.round(_rq*100)+"%</span>":"")):"";
  document.getElementById("h-sub").innerHTML=esc(p.squadra)+_rfTxt+" · "+(+p.minuti||0)+"' · "+esc(T("dash_kpi_sos","Difficoltà avversari"))+" "+fv(p.kpi.sos);
@@ -1508,7 +1559,7 @@ function updateHero(p){
     +' ('+Math.round((r.ratio||0)*100)+'% '+T("dash_vs_season","vs stagione")+')</span>';
   } else { hf.innerHTML=''; }
  }
- const rk=p.rank||{},ft=p.form.trend,tpi=p.tpi.totale;
+ const rk=p.rank||{},ft=(p.form||{}).trend,tpi=p.tpi.totale;
  const tv=document.getElementById("h-tpi");
  tv.textContent=(tpi!=null)?(tpi>=0?"+":"")+tpi.toFixed(2):"—";
  tv.style.color=(tpi==null)?"var(--lt)":tpi>=0?"var(--orng)":"var(--red)";
@@ -1530,9 +1581,21 @@ function updateHero(p){
  });
 })();
 function updateCtxBar(p){
+ /* Chi arriva dall'elenco completo ha il solo contesto totale: gli altri
+    quattro non sono vuoti per caso, non sono stati scaricati. Si spengono
+    invece di aprire pannelli pieni di trattini. */
+ const soloTotale = !!(p && p.leggero);
+ if(soloTotale && CTX!=="totale"){ CTX="totale"; }
  document.querySelectorAll(".ctx-btn").forEach(b=>{
-  const ctx=b.dataset.ctx,d=p&&p.ctx[ctx],n=d?(d.n_app||0):0,w=n>0&&n<NMIN;
+  const ctx=b.dataset.ctx,d=p&&p.ctx&&p.ctx[ctx],n=d?(d.n_app||0):0,w=n>0&&n<NMIN;
   b.innerHTML=CTXL(ctx)+(n>0?'<span class="ctx-n'+(w?" warn":"")+'">'+n+"g</span>":"");
+  const spento = soloTotale && ctx!=="totale";
+  b.disabled = spento;
+  b.style.opacity = spento ? ".35" : "";
+  b.style.pointerEvents = spento ? "none" : "";
+  b.title = spento ? T("dash_ctx_solo_totale",
+    "Disponibile per i primi cento pubblicati") : "";
+  b.classList.toggle("on", ctx===CTX);
  });
 }
 function swCtx(ctx){
@@ -1664,7 +1727,7 @@ function minibar(z,col){if(z==null)return"";const p=Math.min(Math.max((z+3)/6*10
 function zrow(lbl,z,key){const col=cz(z);let trk='<div class="ztrk"><div class="zsp"></div>';if(z!=null){const p=Math.min(Math.max((z+3)/6*100,0),100),w=Math.abs(p-50).toFixed(1);trk+='<div class="zf" style="left:'+(z>=0?"50%":p+'%')+';width:'+w+'%;background:'+col+'"></div>';}trk+='</div>';return'<div class="zrow"><div class="znm">'+lbl+(key?hb(key):"")+'</div>'+trk+'<div class="zval" style="color:'+col+'">'+fvs(z)+'</div></div>';}
 
 function autoSynth(p,ctx){
- const d=p.ctx["totale"]||{},tpi=p.tpi.totale,r=p.rank||{},cv=p.conv||{},ft=p.form.trend;
+ const d=p.ctx["totale"]||{},tpi=p.tpi.totale,r=p.rank||{},cv=p.conv||{},ft=(p.form||{}).trend;
  const dn=dispNm(p);
  let out="";
  if(p.is_winter)out+="⚠️ Acquisto invernale (dal gg "+p.first_giornata+"): stime con shrinkage rafforzato. ";
@@ -1789,9 +1852,9 @@ function buildOvHTML(p,ctx){
   +v2block
   +'<div class="card" style="margin-top:12px">'
    +'<div class="card-ttl">'+esc(T("dash_form_match","Forma — quanto produce per 90', con le ultime partite che pesano di più (α=0.3)"))
-    +'<span style="font-size:12px;color:var(--ls);font-family:var(--mono)">Trend: <span style="color:'+(p.form.trend>.10?"var(--green)":p.form.trend<-.10?"var(--red)":"var(--lt)")+';font-weight:700">'+(p.form.trend!=null?(p.form.trend>=0?"+":"")+((p.form.trend*100).toFixed(0))+"%":"—")+'</span></span></div>'
+    +'<span style="font-size:12px;color:var(--ls);font-family:var(--mono)">Trend: <span style="color:'+((p.form||{}).trend>.10?"var(--green)":(p.form||{}).trend<-.10?"var(--red)":"var(--lt)")+';font-weight:700">'+((p.form||{}).trend!=null?((p.form||{}).trend>=0?"+":"")+(((p.form||{}).trend*100).toFixed(0))+"%":"—")+'</span></span></div>'
    +'<div id="c-form" style="height:180px"></div>'
-   +(p.form.g&&p.form.g.length<5?'<div style="font-size:11px;color:var(--orng);margin-top:4px">'+esc(T("dash_form_few","⚠ Meno di 5 partite: trend non calcolato"))+'</div>':"")
+   +(p.form&&p.form.g&&p.form.g.length<5?'<div style="font-size:11px;color:var(--orng);margin-top:4px">'+esc(T("dash_form_few","⚠ Meno di 5 partite: trend non calcolato"))+'</div>':"")
   +'</div>';
 }
 
@@ -1851,7 +1914,7 @@ function drawCharts(p){
  const dn=dispNm(p);
  // Form
  const fe=document.getElementById("c-form");
- if(fe&&p.form.g&&p.form.g.length>0){
+ if(fe&&p.form&&p.form.g&&p.form.g.length>0){
   Plotly.newPlot(fe,[
    {x:p.form.g,y:p.form.out,name:T("dash_ch_output_match","Output/partita"),mode:"lines+markers",
     line:{color:"rgba(255,255,255,.09)",width:1},marker:{size:3,color:"rgba(255,255,255,.18)"}},
@@ -2373,6 +2436,17 @@ def main() -> None:
     # Il CSV di TUTTI i qualificati, non dei cento pubblicati: e' il file che
     # un analista si porta via per farci le sue cose. Lo produce gia' parte1 a
     # ogni giro, mancava solo di finire accanto alle pagine.
+    # L'elenco completo dei qualificati: la pagina lo scarica solo se glielo
+    # chiedono, cosi' chi apre la classifica non paga mezzo megabyte per una
+    # lista che magari non guarda.
+    _lista = OUTPUT_DIR / "payload_lista.json"
+    if _lista.is_file():
+      try:
+        (DEMO_DIR / _lista.name).write_bytes(_lista.read_bytes())
+        log.info(f"✓ Elenco demo: {DEMO_DIR / _lista.name}")
+      except OSError as e:
+        log.warning(f"Copia elenco fallita: {e}")
+
     _csv = OUTPUT_DIR / "summary_stats.csv"
     if _csv.is_file():
       try:
