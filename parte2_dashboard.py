@@ -495,9 +495,9 @@ window.onerror=function(m,s,l){
      title="Scarica in CSV la lista che stai vedendo, con i filtri applicati">
     &#8595; <span data-i18n="dash_csv_view">CSV</span>
    </button>
-   <a class="ctrl-link" href="serie_a_tpi_2025-26.csv" download
-     data-i18n-title="dash_csv_all_tip" title="Il file completo generato dal motore: 351 giocatori, 49 colonne">
-    <span data-i18n="dash_csv_all">tutti i 351</span>
+   <a class="ctrl-link" href="__CSV_ALL__" download
+     data-i18n-title="dash_csv_all_tip" title="Il file completo generato dal motore: __N_QUALIF__ giocatori, 49 colonne">
+    <span data-i18n="dash_csv_all">tutti i __N_QUALIF__</span>
    </a>
   </div>
   <div class="ctrl-riga ctrl-filtra" id="ctrl-filtra">
@@ -2618,38 +2618,85 @@ window.addEventListener("orientationchange", () => {
 # ════════════════════════════════════════════════════════════════
 # 5. GENERAZIONE HTML
 # ════════════════════════════════════════════════════════════════
-def _stagioni_disponibili() -> list[dict]:
+def _elenca(voci: list[str], cong: str) -> str:
+  """'a, b e c'. Con due stagioni "a e b" bastava; con tre diventava
+  "a e b e c", che non si legge — e le stagioni crescono di una all'anno."""
+  if not voci:
+    return ""
+  if len(voci) == 1:
+    return voci[0]
+  return f"{', '.join(voci[:-1])} {cong} {voci[-1]}"
+
+
+def _nome_csv(stagione: str | None) -> str:
+  """Il CSV completo porta in chiaro la stagione a cui si riferisce."""
+  return f"serie_a_tpi_{stagione}.csv" if stagione else "serie_a_tpi_tutte-le-stagioni.csv"
+
+
+def _et(stagione: str | None) -> str:
+  """'2025-26' come si scrive per un lettore: '2025/26'."""
+  return (stagione or "").replace("-", "/")
+
+
+def _quanti(f: Path) -> int | None:
+  try:
+    return len(json.loads(f.read_text(encoding="utf-8")).get("players") or [])
+  except (OSError, ValueError):
+    return None
+
+
+def _stagioni_disponibili(corrente: str | None) -> list[dict]:
   """Le viste che il selettore puo' offrire, dai file presenti.
 
-  L'aggregato NON e' una stagione: e' la stessa misura calcolata su due anni
-  insieme. Vale piu' della singola stagione quando serve stabilita' (piu'
-  minuti, meno rumore) e meno quando serve attualita'. Va detto, non lasciato
-  intuire dal nome.
+  Prima era una tabella scritta a mano con dentro "2025/26" tre volte. Ad ogni
+  cambio di stagione andava aggiornata a mano, insieme al nome del CSV e alla
+  nota dell'aggregato: tre copie della stessa costante in tre punti diversi,
+  cioe' tre occasioni di dimenticarne una. Ora la stagione pubblicata la
+  dichiara il payload e le altre si scoprono dai file che esistono davvero, per
+  cui ad agosto non c'e' niente da modificare qui.
+
+  L'aggregato NON e' una stagione: e' la stessa misura calcolata su piu' anni
+  insieme. Vale di piu' quando serve stabilita' (piu' minuti, meno rumore) e di
+  meno quando serve attualita'. Va detto, non lasciato intuire dal nome.
   """
   voci = []
-  mappa = [
-    ("payload_lista.json", "2025/26", "2025/26",
-     "La stagione pubblicata: 38 giornate, quella su cui girano le verifiche.",
-     "The published season: 38 matchdays, the one every check runs on."),
-    ("payload_lista_2024-25.json", "2024/25", "2024/25",
-     "La stagione precedente, completa.",
-     "The previous season, complete."),
-    ("payload_lista_tutte-le-stagioni.json", "Due stagioni", "Two seasons",
-     "2024/25 e 2025/26 insieme: piu' minuti per giocatore, quindi stime piu' "
-     "stabili. Non e' la classifica di nessuna delle due.",
-     "2024/25 and 2025/26 together: more minutes per player, so steadier "
-     "estimates. It is not either season's ranking."),
-  ]
-  for nome, et_it, et_en, nota_it, nota_en in mappa:
-    f = OUTPUT_DIR / nome
-    if not f.is_file():
+
+  f = OUTPUT_DIR / "payload_lista.json"
+  n = _quanti(f) if f.is_file() else None
+  if n is not None:
+    et = _et(corrente) or "In corso"
+    voci.append({"file": f.name, "et_it": et, "et_en": et, "n": n,
+                 "nota_it": "La stagione pubblicata: e' quella su cui girano le verifiche.",
+                 "nota_en": "The published season: the one every check runs on."})
+
+  passate = []
+  for f in sorted(OUTPUT_DIR.glob("payload_lista_*.json"), reverse=True):
+    st = f.stem[len("payload_lista_"):]
+    if st == "tutte-le-stagioni":
       continue
-    try:
-      n = len(json.loads(f.read_text(encoding="utf-8")).get("players") or [])
-    except (OSError, ValueError):
+    n = _quanti(f)
+    if n is None:
       continue
-    voci.append({"file": nome, "et_it": et_it, "et_en": et_en,
-                 "nota_it": nota_it, "nota_en": nota_en, "n": n})
+    passate.append(st)
+    voci.append({"file": f.name, "et_it": _et(st), "et_en": _et(st), "n": n,
+                 "nota_it": "Stagione conclusa, completa.",
+                 "nota_en": "A completed season, in full."})
+
+  f = OUTPUT_DIR / "payload_lista_tutte-le-stagioni.json"
+  n = _quanti(f) if f.is_file() else None
+  if n is not None:
+    tutte = [x for x in ([corrente] if corrente else []) + passate if x]
+    ordinate = [_et(x) for x in sorted(set(tutte), reverse=True)]
+    elenco = _elenca(ordinate, "e") or "le stagioni in archivio"
+    elenco_en = _elenca(ordinate, "and") or "every season on file"
+    quante = len(set(tutte)) or 2
+    voci.append({
+      "file": f.name, "n": n,
+      "et_it": f"{quante} stagioni", "et_en": f"{quante} seasons",
+      "nota_it": f"{elenco} insieme: piu' minuti per giocatore, quindi stime piu' "
+                 f"stabili. Non e' la classifica di nessuna di esse.",
+      "nota_en": f"{elenco_en} together: more minutes per player, so steadier "
+                 f"estimates. It is not any one season's ranking."})
   return voci
 
 
@@ -2677,7 +2724,13 @@ def inject_data(template: str, meta: dict) -> str:
     # Quali stagioni si possono guardare, e da quale file. La lista si costruisce
     # dai file che esistono davvero: se un elenco non e' stato generato, quella
     # voce non compare invece di dare un 404 in faccia a chi ci clicca.
-    "__STAGIONI_JS__": jsdump(_stagioni_disponibili()),
+    "__STAGIONI_JS__": jsdump(_stagioni_disponibili(meta.get("stagione"))),
+    # Nome e conteggio del CSV completo: erano scritti nel template
+    # ("serie_a_tpi_2025-26.csv", "tutti i 351"), quindi il link cambiava
+    # stagione solo se qualcuno si ricordava di riscriverlo, e il numero
+    # era gia'sbagliato di tre.
+    "__CSV_ALL__":  _nome_csv(meta.get("stagione")),
+    "__N_QUALIF__": str(n_gio),
     "__CTX_L_JS__":   jsdump(CTX_LABELS),
     "__SPIEG_JS__":   jsdump(SPIEGAZIONI),
     "__TOP6_JS__":   jsdump([clean(n) for n in top6_names]),
@@ -2868,9 +2921,10 @@ def main() -> None:
 
     _csv = OUTPUT_DIR / "summary_stats.csv"
     if _csv.is_file():
+      _nome = _nome_csv((meta or {}).get("stagione"))
       try:
-        (DEMO_DIR / "serie_a_tpi_2025-26.csv").write_bytes(_csv.read_bytes())
-        log.info(f"✓ CSV demo: {DEMO_DIR / 'serie_a_tpi_2025-26.csv'}")
+        (DEMO_DIR / _nome).write_bytes(_csv.read_bytes())
+        log.info(f"✓ CSV demo: {DEMO_DIR / _nome}")
       except OSError as e:
         log.warning(f"Copia CSV fallita: {e}")
 

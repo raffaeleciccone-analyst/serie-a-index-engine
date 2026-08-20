@@ -3158,6 +3158,12 @@ def main(max_giornata: int | None = None,
     payload_out = {
         "n_giornate": n_giornate,
         "n_giocatori": n_total,
+        # A quale stagione si riferiscono questi numeri. Il payload non lo
+        # diceva, cosi' le pagine se lo riscrivevano a mano: il nome del CSV,
+        # le etichette del selettore e la nota dell'aggregato erano tre copie
+        # della stessa costante, e ad agosto andavano cambiate a mano tutte e
+        # tre. Lo dichiara chi l'ha calcolato.
+        "stagione": season,
         "n_top_difese": CFG.n_top_difese,
         "top6_ids": list(top6_ids),
         "top6_names": top6_names,

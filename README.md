@@ -77,13 +77,20 @@ that the page cannot claim anything the tests did not produce.
 - **Clustered bootstrap** — the same player appears in several vintages, so confidence intervals
   resample by player, not by row. Doing it the naive way made the intervals look about twice as
   good as they were.
+- **A constant that lived in four places.** The current season was copied into the season
+  picker's table, the CSV filename and the aggregate's caption — three edits every August,
+  three chances to forget one — while the qualified count sat in the download link as a literal
+  and had already drifted (it read 351 when there were 354). The payload now states which season
+  it describes, and everything else is derived from it or from the files that actually exist. A
+  test simulates next August with three seasons on file and asserts that no line of code needs
+  touching; without it, "nothing to change" is a promise nobody checks.
 - **A published failure** — the index does **not** beat raw per-90 output at forecasting the next
   half-season, and the site says so, with the interval next to it.
 - **A published circularity** — one weight had been lowered *because* the ablation study flagged
   it, and that same study is published as a check. The weight was put back, the cost of doing so
   was measured (ρ 0.9989 between the two rankings), and the episode is written on the page under
   the chart it concerns.
-- **99 tests** (`tests/`), including regression tests that pin the payload's invariants: no
+- **109 tests** (`tests/`), including regression tests that pin the payload's invariants: no
   goalkeepers in an attacking index, no `NaN` in JSON, no player disagreeing with himself between
   the ranking and the squad list. Each of those was a real bug first.
 
