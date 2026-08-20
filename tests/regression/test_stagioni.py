@@ -104,3 +104,38 @@ def test_il_payload_dichiara_la_sua_stagione():
     d = json.loads(f.read_text(encoding="utf-8"))
     assert "stagione" in d, "il payload deve dire a quale stagione si riferisce"
     assert d["stagione"] is None or "-" in d["stagione"]
+
+
+# ── La lega, che ha appena smesso di essere una costante ────────────────────
+import config  # noqa: E402
+
+
+def test_lega_e_anno_vengono_da_config():
+    """Erano scritti dentro parte4_aggiorna.py, nel punto in cui si scarica.
+
+    Andava bene finche' il campionato era uno solo. Understat ne espone cinque
+    con la stessa API: tenerli in config permette di servirne un altro con due
+    variabili d'ambiente invece di duplicare il motore.
+    """
+    assert config.LEGA_UNDERSTAT == "ITA-Serie A"      # il default resta la Serie A
+    assert config.anno_understat("2025-26") == 2025    # Understat vuole l'anno d'inizio
+    assert config.anno_understat("2026-27") == 2026
+
+
+def test_anno_understat_segue_la_stagione_corrente():
+    assert config.anno_understat() == config.anno_understat(config.SEASON_CORRENTE)
+
+
+@pytest.mark.parametrize("brutta", ["", "2025", "duemilaventicinque", None])
+def test_una_stagione_illeggibile_si_lamenta_subito(brutta, monkeypatch):
+    """Meglio fermarsi qui che scaricare l'annata sbagliata e accorgersene dopo."""
+    if brutta is None:
+        monkeypatch.setattr(config, "SEASON_CORRENTE", "non-una-stagione")
+        with pytest.raises(ValueError):
+            config.anno_understat()
+        return
+    if brutta == "2025":
+        assert config.anno_understat("2025") == 2025   # tollerato: e' gia' l'anno
+        return
+    with pytest.raises(ValueError):
+        config.anno_understat(brutta)

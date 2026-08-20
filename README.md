@@ -90,7 +90,7 @@ that the page cannot claim anything the tests did not produce.
   it, and that same study is published as a check. The weight was put back, the cost of doing so
   was measured (ρ 0.9989 between the two rankings), and the episode is written on the page under
   the chart it concerns.
-- **109 tests** (`tests/`), including regression tests that pin the payload's invariants: no
+- **115 tests** (`tests/`), including regression tests that pin the payload's invariants: no
   goalkeepers in an attacking index, no `NaN` in JSON, no player disagreeing with himself between
   the ranking and the squad list. Each of those was a real bug first.
 

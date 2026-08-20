@@ -66,6 +66,33 @@ DB_PASSWORD: str = os.environ.get("DB_PASSWORD", "")
 SEASON_CORRENTE: str = os.environ.get("SERIE_A_SEASON", "2025-26")
 
 
+# Il campionato. Sta qui per lo stesso motivo della stagione: era scritto dentro
+# parte4_aggiorna.py, cioe' nel punto in cui si scarica, e questo bastava
+# finche' il campionato era uno solo. Understat ne espone cinque
+# ("ENG-Premier League", "ESP-La Liga", "FRA-Ligue 1", "GER-Bundesliga",
+# "ITA-Serie A") con la stessa API e lo stesso formato, quindi il motore puo'
+# servirne piu' d'uno cambiando due variabili d'ambiente invece che
+# duplicando il codice — e una correzione resta una sola correzione.
+LEGA_UNDERSTAT: str = os.environ.get("SERIE_A_LEGA", "ITA-Serie A")
+
+
+def anno_understat(season: str | None = None) -> int:
+    """Understat vuole l'anno d'inizio come numero: '2025-26' -> 2025.
+
+    Era scritto a mano accanto alla lega (`seasons=2025`), quindi a cambio
+    stagione erano due valori da ricordarsi invece di uno.
+    """
+    # `is None` e non `or`: la stringa vuota e' falsa in Python, quindi con `or`
+    # una stagione vuota scivolava in silenzio su quella corrente e si sarebbe
+    # scaricata l'annata sbagliata senza che niente lo dicesse. None significa
+    # "quella corrente"; "" significa che qualcuno ha sbagliato, e va detto.
+    s = SEASON_CORRENTE if season is None else season
+    try:
+        return int(str(s).split("-")[0])
+    except (ValueError, IndexError):
+        raise ValueError(f"stagione non interpretabile: {s!r} (attesa 'AAAA-AA')")
+
+
 def db_url(driver: str = "mysql+pymysql") -> str:
     """SQLAlchemy URL con password URL-encoded (gestisce '@', ':' nella pwd)."""
     override = os.environ.get("SERIE_A_DB_URL")
