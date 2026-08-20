@@ -2795,7 +2795,7 @@ def main() -> None:
   # così la pagina aperta da lì non perde né le traduzioni (404 su i18n.js =
   # mix di lingue) né l'assistente AI.
   if html_out.name == HTML_OUT.name:
-    for _asset in ("i18n.js", "ai_chat.js"):
+    for _asset in ("i18n.js", "ai_chat.js", "stile.css"):
       _src = DEMO_DIR / _asset
       if not _src.is_file():
         continue

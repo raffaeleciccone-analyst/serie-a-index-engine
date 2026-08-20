@@ -6,6 +6,8 @@ il difetto che questo progetto passa il tempo a togliere dai numeri.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 
 def _f(v, d: int = 2, segno: bool = False) -> str:
     """Numero formattato, o trattino se manca."""
@@ -45,6 +47,55 @@ def el(tag: str, it: str, en: str, cls: str = "", extra: str = "") -> str:
 
 
 SOGLIA_USABILE = 0.85   # dichiarata prima di guardare la curva
+
+FOGLIO = "stile.css"
+
+
+def assicura_css(*cartelle) -> None:
+    """Scrive il foglio di stile accanto alle pagine che lo useranno.
+
+    Prima ogni pagina si portava dentro la sua copia del CSS: sedici KB per
+    file, uguali, ripetuti venticinque volte. Su mezzo mega di pagine squadra
+    ne erano trecento KB di fotocopie, e il browser li riscaricava a ogni
+    pagina aperta invece di tenerne una in cache.
+
+    Sta qui e non in un file scritto a mano per la stessa ragione per cui il
+    CSS sta in questo modulo: due copie dello stesso foglio finiscono sempre
+    per divergere. Lo generano le pagine, ogni volta, da un'unica sorgente.
+    """
+    for c in cartelle:
+        if c is None:
+            continue
+        p = Path(c)
+        if not p.is_dir():
+            continue
+        try:
+            (p / FOGLIO).write_text(CSS, encoding="utf-8")
+        except OSError:
+            pass
+
+
+def avvisa_se_superato(pieno, base, log) -> None:
+    """Avverte se il payload completo e' rimasto indietro rispetto a quello del sito.
+
+    `payload_full.json` lo scrive solo chi lancia parte1 con --top-n 0, mentre
+    `payload.json` si rifa' a ogni giro: chi rigenera il sito dopo aver toccato
+    i dati si ritrova le pagine costruite su una stagione vecchia senza che
+    niente glielo dica. E' successo davvero — dopo la riparazione delle righe
+    per omonimia la pagina del Genoa ha continuato a stampare i 1677 minuti di
+    Venturino invece degli 85 veri, perche' pescava da un file di otto ore
+    prima. parte3 il controllo ce l'aveva gia' e infatti aveva avvisato; le
+    pagine no.
+
+    Avverte e basta, non sceglie: dire quale comando serve e' piu' onesto che
+    cambiare file da soli alle spalle di chi ha lanciato il build.
+    """
+    try:
+        if pieno.is_file() and base.is_file() and base.stat().st_mtime > pieno.stat().st_mtime:
+            log.warning(f"  {pieno.name} e' PIU' VECCHIO di {base.name}: la pagina uscirebbe "
+                        f"su dati superati. Rigeneralo con `python parte1_analisi.py --top-n 0`.")
+    except OSError:
+        pass
 
 
 def quando_regge(l: dict, soglia: float = SOGLIA_USABILE) -> dict | None:
@@ -463,7 +514,7 @@ def guscio(titolo: str, desc_it: str, desc_en: str, pagina: str, corpo: str,
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230A1512'/><rect x='6' y='19' width='5' height='7' fill='%23FFB020'/><rect x='13.5' y='13' width='5' height='13' fill='%23FFB020'/><rect x='21' y='6' width='5' height='20' fill='%23FFB020'/></svg>">
 <title>{titolo}</title>
 <meta name="description" {bi(desc_it, desc_en)}>
-<style>{CSS}</style>
+<link rel="stylesheet" href="{FOGLIO}">
 </head>
 <body>
 {nav(pagina)}

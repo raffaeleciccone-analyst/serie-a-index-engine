@@ -1025,7 +1025,18 @@ class DatabaseLayer:
             f"""
             SELECT
                 gp.giocatore_id,
-                g.squadra_id          AS squadra_id,
+                -- La squadra DELLA PARTITA, non quella attuale in anagrafica.
+                -- Con `g.squadra_id` chi ha cambiato maglia perdeva tutte le
+                -- partite giocate con la squadra precedente: il JOIN qui sotto
+                -- non le trovava, perche' quella partita la sua squadra di
+                -- adesso non l'ha disputata. Finche' ogni scheda conteneva un
+                -- club solo non si vedeva; da quando le schede sdoppiate sono
+                -- state riunite (unisci_record_doppioni.py) sparivano 49
+                -- giocatori dalla stagione 2024-25, Krstovic e Baschirotto
+                -- compresi. `gp.ruolo` piu' il calendario la dicono senza
+                -- passare dall'anagrafica, che e' il campo che cambia.
+                CASE gp.ruolo WHEN 'casa' THEN cal.squadra_casa_id
+                              ELSE cal.squadra_trasferta_id END AS squadra_id,
                 gp.calendario_id,
                 cal.giornata,
                 cal.data              AS data,
@@ -1042,9 +1053,13 @@ class DatabaseLayer:
             FROM      giocatore_partita  gp
             JOIN      giocatori           g   ON  g.id             = gp.giocatore_id
             JOIN      calendario          cal ON  cal.id           = gp.calendario_id
-            JOIN      squadra_calendario  sc  ON  sc.squadra_id    = g.squadra_id
+            JOIN      squadra_calendario  sc  ON  sc.squadra_id    =
+                       CASE gp.ruolo WHEN 'casa' THEN cal.squadra_casa_id
+                                     ELSE cal.squadra_trasferta_id END
                                               AND sc.calendario_id  = gp.calendario_id
-            LEFT JOIN t_squadra_game_log  sgl ON  sgl.squadra_id   = g.squadra_id
+            LEFT JOIN t_squadra_game_log  sgl ON  sgl.squadra_id   =
+                       CASE gp.ruolo WHEN 'casa' THEN cal.squadra_casa_id
+                                     ELSE cal.squadra_trasferta_id END
                                               AND sgl.calendario_id = gp.calendario_id
             -- I portieri restano fuori dall'indice (e' un indice di impatto
             -- OFFENSIVO), ma l'esclusione NON si fa qui: `g.ruolo` e' proprio
@@ -3175,10 +3190,16 @@ def main(max_giornata: int | None = None,
         suffix_parts.append("full")
     suffix = "_" + "_".join(suffix_parts) if suffix_parts else ""
     payload_path = os.path.join(CFG.output_dir, f"payload{suffix}.json")
+    # Compatto, come gia' la lista leggera. Con indent=2 il file era il doppio
+    # — 1250 KB invece di 640, cioe' 600 KB di sole spaziature — e non e' un
+    # file che qualcuno legge a occhio: e' mezzo mega di JSON, e chi lo ispeziona
+    # lo apre in uno strumento che lo formatta da solo. Pesa invece davvero su
+    # chi apre dashboard_pro, che scarica questo e quello della stagione
+    # precedente prima di disegnare.
     payload_bytes = json.dumps(
         deep_clean(payload_out),
         ensure_ascii=True,
-        indent=2,
+        separators=(",", ":"),
         cls=SafeEncoder,
     ).encode("ascii")
 

@@ -22,7 +22,8 @@ try:
 except Exception:
     pass
 
-from pagina_stile import (_f, bi, cali_decili, el, evidenza, guscio,
+from pagina_stile import (assicura_css, _f, avvisa_se_superato, bi, cali_decili, el,
+                          evidenza, guscio,
                           primo_vintage, quando_regge)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
@@ -254,6 +255,7 @@ def _cambiamenti(pay: dict) -> str:
 def _classifica_completa(pay: dict) -> dict:
     """id -> posizione e nome, dal payload piu' completo che c'e'."""
     fonte = OUTPUT_DIR / "payload_full.json"
+    avvisa_se_superato(fonte, OUTPUT_DIR / "payload.json", log)
     dati = pay
     if fonte.is_file():
         try:
@@ -668,6 +670,8 @@ def main() -> None:
                     "delle verifiche. Esegui parte3_valida_tpi.py.")
     html = render(pay, val)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # un foglio solo, accanto alle pagine, invece di una copia per pagina
+    assicura_css(OUTPUT_DIR, DEMO_DIR)
     out = OUTPUT_DIR / "index.html"
     out.write_text(html, encoding="utf-8")
     log.info(f"OK → {out}  ({len(html)//1024} KB)")

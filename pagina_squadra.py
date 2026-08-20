@@ -27,7 +27,7 @@ try:
 except Exception:
     pass
 
-from pagina_stile import _f, bi, el, evidenza, guscio
+from pagina_stile import assicura_css, _f, avvisa_se_superato, bi, el, evidenza, guscio
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     datefmt="%H:%M:%S")
@@ -50,6 +50,8 @@ def slug(nome: str) -> str:
 def _carica() -> dict:
     """Il payload piu' completo che c'e': serve la posizione vera, non quella
     dentro i primi cento."""
+    avvisa_se_superato(OUTPUT_DIR / "payload_full.json",
+                       OUTPUT_DIR / "payload.json", log)
     for nome in ("payload_full.json", "payload.json"):
         f = OUTPUT_DIR / nome
         if f.is_file():
@@ -180,6 +182,8 @@ def main() -> None:
         raise SystemExit("nessuna squadra nel payload")
     indice = {sq: i + 1 for i, (sq, _, _) in enumerate(classifica)}
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # un foglio solo, accanto alle pagine, invece di una copia per pagina
+    assicura_css(OUTPUT_DIR, DEMO_DIR)
     scritte = []
     for squadra, media, n in classifica:
         html = _pagina(pay, squadra, indice[squadra], classifica)

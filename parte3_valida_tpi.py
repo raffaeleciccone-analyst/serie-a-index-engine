@@ -2839,6 +2839,9 @@ def main():
     html = parte3_pagina.render(dati)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # anche questa pagina usa il guscio comune: il foglio le va scritto accanto
+    from pagina_stile import assicura_css
+    assicura_css(OUTPUT_DIR)
     out = OUTPUT_DIR / "validazione.html"
     out.write_bytes(html.encode("utf-8", "replace"))
     log.info(f"OK → {out}")

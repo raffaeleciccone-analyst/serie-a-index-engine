@@ -27,7 +27,7 @@ try:
 except Exception:
     pass
 
-from pagina_stile import _SVG_OPEN, _f, bi, el, evidenza, guscio
+from pagina_stile import assicura_css, _SVG_OPEN, _f, bi, el, evidenza, guscio
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     datefmt="%H:%M:%S")
@@ -649,6 +649,8 @@ def main() -> None:
     val = json.loads(val_path.read_text(encoding="utf-8")) if val_path.is_file() else None
     html = render(cfg, pay, val)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # un foglio solo, accanto alle pagine, invece di una copia per pagina
+    assicura_css(OUTPUT_DIR, DEMO_DIR)
     out = OUTPUT_DIR / "guida_completa.html"
     out.write_text(html, encoding="utf-8")
     log.info(f"OK → {out}  ({len(html)//1024} KB)")
