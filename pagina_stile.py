@@ -452,7 +452,7 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
 # ══════════════════════════════════════════════════════════════════
 # Guscio: testata, navigazione, chiusura
 # ══════════════════════════════════════════════════════════════════
-# Le cinque pagine del sito, nell'ordine in cui compaiono in ogni nav. L'ordine
+# Le sei pagine del sito, nell'ordine in cui compaiono in ogni nav. L'ordine
 # e' quello di lettura — si entra dalla homepage, si guarda la classifica, poi
 # si chiede se regge e come e' fatta — e non cambia da una pagina all'altra:
 # una voce che si sposta costringe a rileggere la fila ogni volta.
@@ -460,6 +460,7 @@ VOCI = [("index.html", "Homepage", "Homepage"),
         ("dashboard_serie_a.html", "Classifica", "Ranking"),
         ("validazione.html", "Validazione", "Validation"),
         ("guida_completa.html", "Metodo", "Method"),
+        ("caso-mercato.html", "Caso di mercato", "Market case"),
         ("dashboard_pro.html", "TPI Pro", "TPI Pro")]
 
 
