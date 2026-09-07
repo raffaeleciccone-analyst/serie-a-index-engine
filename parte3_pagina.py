@@ -11,6 +11,8 @@ dei test restano solo nella tabella finale, come riferimento.
 """
 from __future__ import annotations
 
+import config
+
 from pagina_stile import (CSS, _SVG_OPEN, _f, _ic, bi, cali_decili, primo_vintage, quando_regge, el, evidenza,
                           guscio, nav, footer)
 
@@ -322,11 +324,11 @@ def _hero(d: dict) -> str:
     # Prima a cosa serve, poi dove perde. Al contrario &mdash; com'era &mdash; chi
     # legge trenta secondi porta via solo la sconfitta, e non sa nemmeno di cosa.
     lede_it = (f"Il <strong>TPI</strong> ordina i {meta['n_giocatori']} giocatori qualificati "
-               f"della Serie A per impatto offensivo. Serve a decidere <strong>chi guardare</strong>: "
+               f"della {config.LEGA_NOME} per impatto offensivo. Serve a decidere <strong>chi guardare</strong>: "
                f"restringere una lista lunga, riconoscere chi sta crescendo. Non serve a prevedere "
                f"quanti gol far&agrave; qualcuno il mese prossimo, e questa pagina spiega "
                f"perch&eacute;.")
-    lede_en = (f"The <strong>TPI</strong> ranks Serie A&rsquo;s {meta['n_giocatori']} qualified "
+    lede_en = (f"The <strong>TPI</strong> ranks {config.LEGA_NOME}&rsquo;s {meta['n_giocatori']} qualified "
                f"players by attacking impact. It is there to decide <strong>who to look at</strong>: "
                f"to shorten a long list, to spot who is on the way up. It is not there to forecast "
                f"how many goals someone will score next month, and this page explains why.")
@@ -338,7 +340,7 @@ def _hero(d: dict) -> str:
     return f"""<header class="hero riga">
   <div></div>
   <div>
-  <div class="eyebrow">Serie A Scout Index &middot; TPI</div>
+  <div class="eyebrow">{config.SITO_NOME} &middot; TPI</div>
   <h1 {bi("Cosa regge,<br><em>e cosa no</em>", "What holds up,<br><em>and what doesn&rsquo;t</em>")}>Cosa regge,<br><em>e cosa no</em></h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
   <p class="lede sec" {bi(sub_it, sub_en)}>{sub_it}</p>
@@ -644,7 +646,12 @@ def _cap_prova(d: dict) -> str:
     graf_blk = (f'<h3 {bi("Le sette dimensioni, una alla volta", "The seven dimensions, one at a time")}>'
                 f'Le sette dimensioni, una alla volta</h3>{graf}'
                 f'<p class="didascalia" {bi(dida_it, dida_en)}>{dida_it}</p>'
-                f'<p class="prosa" {bi(circ_it, circ_en)}>{circ_it}</p>' if graf else "")
+                # La nota racconta un episodio della Serie A del 18 agosto 2026, con
+                # i numeri misurati SU QUEL cambio: rho 0.9989, 0.553, -0.0008. Su un
+                # altro campionato sarebbero cifre di un'altra squadra di dati,
+                # presentate come se descrivessero questa.
+                f'<p class="prosa" {bi(circ_it, circ_en)}>{circ_it}</p>'
+                if (graf and config.LEGA_UNDERSTAT == "ITA-Serie A") else "")
     return f"""<section class="cap riga">
   <div class="cap-num">02</div>
   <div>
@@ -660,7 +667,23 @@ def _cap_prova(d: dict) -> str:
 
 def _cap_contesto(d: dict) -> str:
     a, b, dd, e, n = (d.get(k) or {} for k in ("a", "b", "d", "e", "n"))
+    r = d.get("r") or {}
     ev = []
+    if r.get("disponibile"):
+        ev.append(evidenza(
+            _f(r.get("rho"), 3), f"{r.get('n')} giocatori, valore di mercato",
+            f"{r.get('n')} players, market value",
+            f"L&rsquo;indice e il mercato vanno d&rsquo;accordo in parte, e "
+            f"&egrave; la notizia buona: il valore di mercato dentro ci mette "
+            f"anche l&rsquo;et&agrave;, il contratto e il nome, non solo il "
+            f"rendimento di questa stagione. Un accordo alto direbbe che questo "
+            f"indice &egrave; un modo complicato di ordinare i giocatori per "
+            f"prezzo. Fonte: {r.get('fonte')}.",
+            f"The index and the market agree in part, and that is the good news: "
+            f"market value also carries age, contract length and reputation, not "
+            f"just this season&rsquo;s output. A high agreement would mean this "
+            f"index is a complicated way of sorting players by price. "
+            f"Source: {r.get('fonte')}."))
     if a.get("r") is not None:
         ev.append(evidenza(
             _f(a.get("r"), 3), f"{a.get('n')} voti Fantacalcio", f"{a.get('n')} Fantacalcio ratings",
@@ -672,7 +695,7 @@ def _cap_contesto(d: dict) -> str:
             f"and the agreement survives controlling for role ({_f(a.get('partial_r'), 3)}). I do "
             f"not call it proof: I collected those ratings by hand over a chosen subset, not a "
             f"random sample."))
-    if b.get("overlap_pct") is not None:
+    if b.get("overlap_pct") is not None and not b.get("non_applicabile"):
         # L'esempio singolo che stava qui e' diventato l'elenco qui sotto.
         esempio_it = esempio_en = ""
         ev.append(evidenza(
@@ -800,7 +823,7 @@ def _cap_segue(d: dict) -> str:
             f"judging it would mean following the same players for years, and there are two seasons "
             f"here ({cs['n']} players appear in both). The next useful step is not another test: it "
             f"is backfilling more seasons."))
-    if a.get("n"):
+    if a.get("n", 0) >= 5:
         voci.append((
             "I dati inseriti a mano", "The hand-entered data",
             f"I {a['n']} voti Fantacalcio e la classifica WhoScored li ho copiati a mano, ed "
@@ -830,6 +853,7 @@ def _cap_segue(d: dict) -> str:
 
 def _cap_metodo(d: dict) -> str:
     meta, q, m, c = d["meta"], d.get("q") or {}, d.get("m") or {}, d.get("c") or {}
+    a = d.get("a") or {}   # serve a sapere se le fonti a mano esistono per questa lega
     voci = []
     camp_it = (f"Le verifiche girano su tutti i {meta['n_giocatori']} giocatori qualificati, non "
                f"sui primi cento della dashboard. Il taglio in alto &egrave; una scelta di "
@@ -884,13 +908,29 @@ def _cap_metodo(d: dict) -> str:
               "happened to cross-season persistence, which used to count as a gain and no longer "
               "does.")
     voci.append(("Soglie", "Thresholds", sog_it, sog_en))
-    lim_it = ("I voti Fantacalcio e la classifica WhoScored sono inseriti a mano. Il valore di "
+    # I portieri non sono nell'indice, e finora non lo diceva nessuno: chi
+    # filtrava per ruolo non ne trovava e non sapeva perche'. Un'esclusione
+    # dichiarata e' un confine; una taciuta sembra un difetto.
+    _por_it = ("I portieri non sono nell&rsquo;indice: il TPI misura l&rsquo;impatto "
+               "offensivo &mdash; xG, xA, conversione, coinvolgimento nella manovra "
+               "&mdash; e su un portiere quelle grandezze non sono definite. "
+               "Valutarli richiede un altro indice, non un peso diverso in questo. ")
+    _mano_it = ("I voti Fantacalcio e la classifica WhoScored sono inseriti a mano. "
+                if a.get("n", 0) >= 5 else "")
+    lim_it = (_por_it + _mano_it
+              + "Il valore di "
               "mercato usato come baseline &egrave; una fotografia di fine stagione, quindi "
               "&laquo;sa&raquo; gi&agrave; come &egrave; andata: nel confronto gioca in "
               "vantaggio. "
               + (f"Il backtest prima/seconda met&agrave; misura l&rsquo;output offensivo grezzo, "
                  f"non il composito." if c.get("r") is not None else ""))
-    lim_en = ("Fantacalcio ratings and the WhoScored ranking are entered by hand. The market value "
+    _por_en = ("Goalkeepers are not in the index: the TPI measures attacking impact "
+               "&mdash; xG, xA, finishing, involvement in build-up &mdash; and for a "
+               "goalkeeper those quantities are undefined. Rating them needs a "
+               "different index, not a different weight in this one. ")
+    _mano_en = ("Fantacalcio ratings and the WhoScored ranking are entered by hand. "
+                if a.get("n", 0) >= 5 else "")
+    lim_en = (_por_en + _mano_en + "The market value "
               "used as a baseline is an end-of-season snapshot, so it already &laquo;knows&raquo; "
               "how the season went: it enters the comparison with an advantage. "
               + ("The first-half/second-half backtest measures raw attacking output, not the "
@@ -908,13 +948,13 @@ def _cap_metodo(d: dict) -> str:
                   f"{meta.get('n_giocatori_db', '&mdash;')} giocatori")
         vol_en = (f"{meta['n_record']} player-match rows over "
                   f"{meta.get('n_giocatori_db', '&mdash;')} players")
-        dati_it = (f"Un database MySQL con {vol_it}, {st_it} di Serie A. Gli xG e gli xA "
+        dati_it = (f"Un database MySQL con {vol_it}, {st_it} di {config.LEGA_NOME}. Gli xG e gli xA "
                    f"vengono da Understat, l&rsquo;anagrafica e il valore di mercato da "
                    f"Transfermarkt, agganciati per identificativo e non per nome. I voti "
                    f"Fantacalcio e WhoScored sono gli unici dati inseriti a mano. Il motore "
                    f"&egrave; Python: pandas per la trasformazione, scipy per la statistica, e "
                    f"una suite di test di regressione che gira a ogni modifica.")
-        dati_en = (f"A MySQL database with {vol_en}, {st_en} of Serie A. xG and xA come from "
+        dati_en = (f"A MySQL database with {vol_en}, {st_en} of {config.LEGA_NOME}. xG and xA come from "
                    f"Understat, biographical data and market value from Transfermarkt, joined on "
                    f"identifiers rather than names. Fantacalcio and WhoScored ratings are the only "
                    f"hand-entered data. The engine is Python: pandas for the transformations, "
@@ -1092,10 +1132,10 @@ def render(dati: dict) -> str:
                        _cap_contesto(dati), _cap_segue(dati), _cap_metodo(dati),
                        _tabella(dati)))
     return guscio(
-        "Validazione &mdash; Serie A Scout Index",
+        f"Validazione &mdash; {config.SITO_NOME}",
         "Le verifiche del TPI: cosa regge, cosa no, e come sono misurate.",
         "The TPI checks: what holds up, what does not, and how they are measured.",
         "validazione.html", corpo,
         [("guida_completa.html", "Come sono costruiti gli indici",
           "How the indices are built"),
-         ("dashboard_serie_a.html", "La classifica completa", "The full ranking")])
+         ("dashboard_%s.html" % config.LEGA_SLUG, "La classifica completa", "The full ranking")])

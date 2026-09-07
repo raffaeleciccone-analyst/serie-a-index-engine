@@ -24,7 +24,7 @@ if _SRC.is_dir() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from lib.db import DB_NAME
-from lib.findings import Report, Severity
+from lib.findings import Area, Finding, Report, Severity
 from lib.checks import CHECKS
 from lib.log import get_logger
 from lib.journal import append_event, new_run_id
@@ -67,6 +67,25 @@ def main() -> int:
             if lineage_ctx is not None:
                 lineage_ctx.add_event("check.crashed", check=fn.__name__,
                                       error=type(e).__name__, message=str(e))
+            # Il crash entra nel report. Prima restava solo nel log: il JSON e il
+            # riepilogo contavano i findings dei check riusciti e stampavano un
+            # reliability score come se fossero girati tutti. Per mesi tre check
+            # sono morti a ogni esecuzione — due su una tabella che non esiste
+            # piu', uno su una query rotta — e il rapporto continuava a dire
+            # 81/100 senza mai nominarli. Un controllo che non gira non e' un
+            # controllo passato, ed e' l'unica cosa che questo progetto non puo'
+            # permettersi di lasciar intendere.
+            report.add(Finding(
+                code="AUD-001", area=Area.PIPELINE, severity=Severity.HIGH,
+                title=f"Check `{fn.__name__}` non eseguito: {type(e).__name__}",
+                table=None, rows_affected=0,
+                description=(f"Il controllo e' crashato e non ha esaminato niente. "
+                             f"Quello che doveva verificare resta non verificato. "
+                             f"Errore: {e}"),
+                root_cause="Query o schema fuori sincrono con il codice del check.",
+                fix_available=False,
+                fix_strategy=f"Correggi {fn.__name__} in audit/lib/checks.py, poi rilancia.",
+            ))
 
     report.completed_at = dt.datetime.now().isoformat()
 

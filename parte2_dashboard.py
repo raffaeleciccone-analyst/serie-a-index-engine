@@ -30,7 +30,11 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
+
+import config
+import pagina_stile
 from pathlib import Path
 
 try:
@@ -55,9 +59,11 @@ try:
 except NameError:
   _DIR = Path(".").resolve()
 
-OUTPUT_DIR  = _DIR / "dashboard_output"
+# Stessa regola di parte1_analisi.py: ogni lega ha la sua cartella, altrimenti
+# generare un campionato sovrascrive il sito di un altro senza dirlo.
+OUTPUT_DIR  = config.cartella_uscita(_DIR)
 PAYLOAD_PATH = OUTPUT_DIR / "payload.json"
-HTML_OUT   = OUTPUT_DIR / "dashboard_serie_a.html"
+HTML_OUT   = OUTPUT_DIR / ("dashboard_%s.html" % config.LEGA_SLUG)
 
 # Il CSS sta in un file suo invece che dentro la stringa del template: 934 righe
 # scritte dentro un r-string Python non hanno evidenziazione, non si possono
@@ -71,7 +77,7 @@ CSS_PATH   = _DIR / "assets" / "dashboard.css"
 # Default: cartella sorella `serie-a-index` (es. Desktop/serie-a-index
 # quando questo script vive in Desktop/serie-a-scout-index). Override con
 # l'env var SERIE_A_DEMO_DIR se il repo è altrove.
-DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", _DIR.parent / "serie-a-index"))
+DEMO_DIR   = config.cartella_pubblicazione(_DIR.parent)
 
 
 # ════════════════════════════════════════════════════════════════
@@ -268,6 +274,10 @@ def load_payload(path: Path) -> dict:
       sys.exit(1)
 
 
+  # I dati e l'etichetta devono parlare della stessa stagione: vedi
+  # config.pretendi_stagione_coerente.
+  config.pretendi_stagione_coerente(meta.get("stagione"), "payload.json")
+
   log.info(
     f"Payload caricato: {len(meta['players'])} giocatori, "
     f"{meta.get('n_giornate')} giornate"
@@ -295,7 +305,7 @@ def deep_clean(obj):
 # 4. TEMPLATE HTML
 # ════════════════════════════════════════════════════════════════
 HTML_TEMPLATE = r"""<!DOCTYPE html>
-<html lang="it">
+<html lang="__LANG__">
 <head>
 <meta charset="UTF-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.plot.ly 'unsafe-inline'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://*.workers.dev; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none'">
@@ -306,7 +316,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Serie A Scout Index — Data-driven Player Ranking Model</title>
+<title>__SITO__ — Data-driven Player Ranking Model</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
    integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
    crossorigin="anonymous" referrerpolicy="no-referrer">
@@ -314,7 +324,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     integrity="sha384-Hl48Kq2HifOWdXEjMsKo6qxqvRLTYqIGbvlENBmkHAxZKIGCXv43H6W1jA671RzC"
     crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="i18n.js"></script>
-<script src="ai_chat.js" defer></script>
+__ASSISTENTE__
 <style>
 __STYLE__
 </style>
@@ -349,8 +359,8 @@ window.onerror=function(m,s,l){
 
 <!-- NAV -->
 <nav class="nav">
- <a class="nav-brand" href="index.html">Serie A Scout <small>25/26</small></a>
- <a class="nav-mark" href="index.html" aria-label="Serie A Scout Index" title="Serie A Scout Index"><svg viewBox="0 0 32 32" width="19" height="19" aria-hidden="true" focusable="false"><rect x="6" y="19" width="5" height="7" fill="currentColor"/><rect x="13.5" y="13" width="5" height="13" fill="currentColor"/><rect x="21" y="6" width="5" height="20" fill="currentColor"/></svg></a>
+ <a class="nav-brand" href="index.html">__MARCHIO__ <small>__STAGIONE_BREVE__</small></a>
+ <a class="nav-mark" href="index.html" aria-label="__SITO__" title="__SITO__"><svg viewBox="0 0 32 32" width="19" height="19" aria-hidden="true" focusable="false"><rect x="6" y="19" width="5" height="7" fill="currentColor"/><rect x="13.5" y="13" width="5" height="13" fill="currentColor"/><rect x="21" y="6" width="5" height="20" fill="currentColor"/></svg></a>
  <div class="nav-btn-group">
   <button class="nav-glass-btn" id="nav-back-btn" onclick="histBack()" data-i18n-title="nav_back" data-i18n-aria-label="nav_back" title="Indietro" disabled>&#8592;</button>
   <button class="nav-glass-btn" id="nav-fwd-btn" onclick="histForward()" data-i18n-title="nav_forward" data-i18n-aria-label="nav_forward" title="Avanti" disabled>&#8594;</button>
@@ -362,7 +372,7 @@ window.onerror=function(m,s,l){
    <a class="nav-link on" href="#" aria-current="page" onclick="showHome();return false" data-i18n-title="nav_back_ranking" title="Torna alla classifica" data-it="Classifica" data-en="Ranking">Classifica</a>
    <a class="nav-link" href="validazione.html" data-it="Validazione" data-en="Validation">Validazione</a>
    <a class="nav-link" href="guida_completa.html" data-it="Metodo" data-en="Method">Metodo</a>
-   <a class="nav-link pro" href="dashboard_pro.html" title="TPI Pro — indice age-aware con i cinque modulatori scout" data-it="TPI Pro" data-en="TPI Pro">TPI Pro</a>
+__VOCI_EXTRA__
   </div>
  </div>
 </nav>
@@ -441,7 +451,7 @@ window.onerror=function(m,s,l){
      <span class="sep">+</span>
      <span>z(ctx)</span>
      <span class="sep">+</span>
-     <span>z(forma)</span>
+     <span data-it="z(forma)" data-en="z(form)">z(forma)</span>
      <span class="sep">+</span>
      <span style="color:var(--orng)">z(EMI)</span>
      <span class="sep">&mdash;</span>
@@ -495,9 +505,17 @@ window.onerror=function(m,s,l){
      title="Scarica in CSV la lista che stai vedendo, con i filtri applicati">
     &#8595; <span data-i18n="dash_csv_view">CSV</span>
    </button>
+   <!-- Il conteggio lo scrive il motore, non il dizionario. Le chiavi
+        dash_csv_all e dash_csv_all_tip avevano un numero scritto a mano, in
+        tutte e due le lingue: il template metteva quello giusto e i18n.js
+        glielo riscriveva sopra sbagliato un istante dopo, sotto un link che
+        scarica un file con un numero di righe diverso da quello dichiarato.
+        Qui non ci sono numeri fissi apposta: cambiano a ogni giro. -->
    <a class="ctrl-link" href="__CSV_ALL__" download
-     data-i18n-title="dash_csv_all_tip" title="Il file completo generato dal motore: __N_QUALIF__ giocatori, 49 colonne">
-    <span data-i18n="dash_csv_all">tutti i __N_QUALIF__</span>
+     data-title-it="Il file completo generato dal motore: __N_QUALIF__ giocatori, __N_COL__ colonne"
+     data-title-en="The full file the engine writes: __N_QUALIF__ players, __N_COL__ columns"
+     title="Il file completo generato dal motore: __N_QUALIF__ giocatori, __N_COL__ colonne">
+    <span data-it="tutti i __N_QUALIF__" data-en="all __N_QUALIF__">tutti i __N_QUALIF__</span>
    </a>
   </div>
   <div class="ctrl-riga ctrl-filtra" id="ctrl-filtra">
@@ -558,7 +576,7 @@ window.onerror=function(m,s,l){
  <!-- Leaderboard -->
  <div class="lb-wrap">
   <div class="lb-hdr">
-   <span class="lb-ttl" id="lb-ttl">TPI Totale</span>
+   <span class="lb-ttl" id="lb-ttl" data-i18n="dash_m_tpi">TPI Totale</span>
    <span class="help" id="lb-help" onclick="openM('TPI')" style="margin-left:4px">?</span>
    <span class="lb-sub" id="lb-sub"></span>
   </div>
@@ -710,10 +728,22 @@ function valoreScritto(p){
  if(v >= 1e6) return (v/1e6 >= 10 ? Math.round(v/1e6) : (v/1e6).toFixed(1).replace(".0","")) + "M";
  return Math.round(v/1e3) + "k";
 }
+/* La lingua viva della pagina: quella che il lettore ha scelto adesso, non
+   quella con cui la pagina e' stata scritta. Tutto cio' che si traduce da JS
+   deve chiedere qui, e nessun altro deve tenersene una copia propria. */
+function inglese(){
+ if(window.SerieAi18n && window.SerieAi18n.getLang)
+  return window.SerieAi18n.getLang() === "en";
+ return (document.documentElement.lang || "it").slice(0,2) === "en";
+}
 function ruoloFine(p){
  const k = p && p.ruolo_fine;
  if(!k || !RF[k]) return "";
- return (typeof EN !== "undefined" && EN) ? RF[k].nome_en : RF[k].nome_it;
+ /* Leggeva `EN`, che qui non esiste: `EN` e' una const dichiarata DENTRO
+    drawHero(), quindi il controllo `typeof EN !== "undefined"` era sempre
+    falso e il ruolo specifico usciva in italiano anche a pagina inglese —
+    "Trequartista" e "Seconda punta" in mezzo a una tabella tradotta. */
+ return inglese() ? RF[k].nome_en : RF[k].nome_it;
 }
 function ruoloScritto(p){
  const fine = ruoloFine(p);
@@ -834,10 +864,57 @@ function montaStagioni(){
  const box = document.getElementById("stagioni-pill");
  if(!box || !STAGIONI.length) return;
  box.innerHTML = STAGIONI.map(function(s, i){
-  const et = (typeof EN_ATTIVO === "function" && EN_ATTIVO()) ? s.et_en : s.et_it;
+  const en = (typeof EN_ATTIVO === "function" && EN_ATTIVO());
+  /* "2026/27" e "2025/26" sono due etichette che si somigliano, e una delle
+     due e' una classifica di tre giornate. La differenza va sul pulsante, non
+     solo nel tooltip: chi sceglie non apre i tooltip. */
+  const et = (en ? s.et_en : s.et_it) + (s.in_corso ? (en ? " · in progress" : " · in corso") : "");
   return '<button class="rpill stag-pill'+(i===STAGIONE?" on":"")+'" data-st="'+i+'" '
-   + 'onclick="cambiaStagione('+i+')" title="'+esc(s.nota_it)+'">'+esc(et)+'</button>';
+   + 'onclick="cambiaStagione('+i+')" title="'+esc(en ? s.nota_en : s.nota_it)+'">'+esc(et)+'</button>';
  }).join("");
+}
+
+/* La vista scelta finisce nell'indirizzo, e un indirizzo la sceglie.
+
+   Serviva per una ragione precisa: la classifica si apre sulla stagione in
+   corso, che a settembre e' tre giornate. Chi arriva da un link esterno
+   atterrava li' e non aveva modo di essere mandato altrove — la vista su piu'
+   stagioni, che ha molti piu' minuti per giocatore, esisteva ma non era
+   raggiungibile se non a mano. Adesso `?stagione=tutte` la apre.
+
+   Si accetta anche `#stagione=`: chi copia un indirizzo lo taglia dove capita,
+   e riconoscere le due forme costa una riga. */
+function _slugStagione(){
+ try{
+  const q = new URLSearchParams(location.search).get("stagione");
+  if(q) return q.trim().toLowerCase();
+  const m = /[#&]stagione=([^&]+)/.exec(location.hash || "");
+  return m ? decodeURIComponent(m[1]).trim().toLowerCase() : "";
+ }catch(e){ return ""; }
+}
+
+function _indiceDaUrl(){
+ const s = _slugStagione();
+ if(!s) return -1;
+ for(let i = 0; i < STAGIONI.length; i++){
+  const sl = (STAGIONI[i].slug || "").toLowerCase();
+  if(sl === s) return i;
+ }
+ /* Un indirizzo che nomina una stagione che non c'e' (un anno mai pubblicato,
+    o un refuso) non e' un errore da mostrare: si apre la vista normale, che e'
+    quello che quel visitatore si aspetta comunque di vedere. */
+ return -1;
+}
+
+function _scriviUrl(i){
+ try{
+  if(!history.replaceState) return;
+  const u = new URL(location.href);
+  const sl = (STAGIONI[i] || {}).slug;
+  if(i === 0 || !sl) u.searchParams.delete("stagione");
+  else u.searchParams.set("stagione", sl);
+  history.replaceState(null, "", u.pathname + u.search + u.hash);
+ }catch(e){ /* file:// e i browser che vietano replaceState: pazienza */ }
 }
 
 async function cambiaStagione(i){
@@ -845,6 +922,8 @@ async function cambiaStagione(i){
  const s = STAGIONI[i];
  if(!s) return;
  const box = document.getElementById("stagioni-pill");
+ const _err = document.getElementById("stag-errore");
+ if(_err) _err.style.display = "none";
  try{
   if(i === 0){
    DATA = DATA_INIZIALE;
@@ -880,8 +959,31 @@ async function cambiaStagione(i){
   notaStagione();
   buildTeamStrip();
   buildLeaderboard();
+  _scriviUrl(i);
  }catch(e){
-  box.title = T("dash_stag_errore","Non sono riuscito a caricare quella stagione: ") + e.message;
+  /* Prima l'errore finiva in `box.title`, cioe' in un tooltip: chi premeva il
+     pulsante e non vedeva succedere niente non aveva modo di sapere perche'.
+     Il caso piu' comune non e' nemmeno un guasto — e' la pagina aperta con un
+     doppio clic dal disco, dove il browser vieta fetch() verso i file
+     accanto. Va scritto a schermo, e va detto cosa fare. */
+  const daFile = location.protocol === "file:";
+  const msg = daFile
+   ? T("dash_stag_file", "Aperta dal disco, questa pagina non puo' caricare gli "
+       + "altri file: e' il browser che lo vieta. Serve un server — dentro la "
+       + "cartella, `python -m http.server 8000`, poi localhost:8000.")
+   : T("dash_stag_errore", "Non sono riuscito a caricare quella stagione: ") + e.message;
+  box.title = msg;
+  let av = document.getElementById("stag-errore");
+  if(!av){
+   av = document.createElement("div");
+   av.id = "stag-errore";
+   av.setAttribute("role", "status");
+   av.style.cssText = "font-size:12px;color:var(--orng);padding:6px 0 10px;"
+     + "line-height:1.55;max-width:52em";
+   box.parentElement.after(av);
+  }
+  av.textContent = msg;
+  av.style.display = "block";
  }finally{
   box.classList.remove("in-carico");
  }
@@ -899,16 +1001,22 @@ function notaStagione(){
   if(hdr && hdr.parentElement) hdr.parentElement.after(el);
  }
  const s = STAGIONI[STAGIONE];
- if(!s || STAGIONE === 0){ el.style.display="none"; return; }
+ /* Sulla stagione pubblicata la riga si nasconde: e' quella che il titolo
+    descrive gia'. L'eccezione e' la stagione in corso — li' la riga e' l'unica
+    cosa che distingue una classifica di tre giornate da una di trentotto, e
+    nasconderla sarebbe pubblicare come definitivo un ordine che la pagina di
+    validazione, due link piu' in la', dichiara provvisorio. */
+ if(!s || (STAGIONE === 0 && !s.in_corso)){ el.style.display="none"; return; }
  el.textContent = ((typeof EN_ATTIVO === "function" && EN_ATTIVO()) ? s.nota_en : s.nota_it)
    + "  " + s.n + " " + T("dash_qualificati","giocatori qualificati") + ".";
+ el.style.color = s.in_corso ? "var(--orng)" : "var(--lt)";
  el.style.display = "block";
 }
 
-function EN_ATTIVO(){
- return !!(window.SerieAi18n && window.SerieAi18n.getLang
-           && window.SerieAi18n.getLang() === "en");
-}
+/* Resta come nome storico, ma la risposta la da' `inglese()`: tre copie dello
+   stesso controllo sparse nel file erano tre occasioni di scriverne una
+   sbagliata, ed e' esattamente quello che era successo in `ruoloFine`. */
+function EN_ATTIVO(){ return inglese(); }
 
 function filtroScadenza(btn){
  SOLO_SCADENZA=!SOLO_SCADENZA;
@@ -916,16 +1024,21 @@ function filtroScadenza(btn){
  buildLeaderboard();
 }
 
-/* Scarica quello che vedi. Il CSV completo dei 351 qualificati sta accanto alle
-   pagine (serie_a_tpi_2025-26.csv, generato dal motore a ogni giro); questo
+/* Scarica quello che vedi. Il CSV completo dei __N_QUALIF__ qualificati sta
+   accanto alle pagine (__CSV_ALL__, generato dal motore a ogni giro); questo
    invece e' la vista corrente, con i filtri applicati e nell'ordine scelto —
    e' quello che serve a chi ha appena ristretto la lista a otto nomi. */
 /* I cento pubblicati non sono un campione neutro: il TPI premia chi produce in
-  squadre che producono, quindi la lista e' fitta di Inter, Milan e Atalanta e
-  quasi vuota di Cremonese, Lecce e Parma. Chi lavora sul mercato compra
-  soprattutto la' — "fitto dove io non compro e vuoto dove compro". Il resto dei
-  qualificati sta in un file a parte, senza le serie per giornata, e si scarica
-  solo se lo si chiede: mezzo megabyte non si impone a chi apre la pagina. */
+  squadre che producono, quindi la lista e' fitta delle squadre di testa e quasi
+  vuota di quelle di coda. Chi lavora sul mercato compra soprattutto la' —
+  "fitto dove io non compro e vuoto dove compro". Il resto dei qualificati sta
+  in un file a parte, senza le serie per giornata, e si scarica solo se lo si
+  chiede: mezzo megabyte non si impone a chi apre la pagina.
+
+  I nomi delle squadre stavano scritti qui ("Inter, Milan e Atalanta", "
+  Cremonese, Lecce e Parma"): il commento parlava di Serie A anche dentro la
+  pagina della Premier, insieme a un conteggio fermo a 351 e al nome del CSV
+  italiano. Non si vedono a schermo, si vedono aprendo il sorgente. */
 let TUTTI_CARICATI=false, TUTTI_IN_CORSO=false;
 async function caricaTuttiIQualificati(){
  const btn=document.getElementById("tutti-btn"), lbl=document.getElementById("tutti-lbl");
@@ -1006,9 +1119,7 @@ async function immagineConfronto(){
  x.fillStyle = SPENTO; x.font = "500 15px " + mono;
  /* La lingua la sa i18n: EN qui dentro non esiste, e l'errore saltava fuori
     solo cliccando il bottone. */
- const inglese = !!(window.SerieAi18n && window.SerieAi18n.getLang
-   && window.SerieAi18n.getLang() === "en");
- x.fillText("SERIE A SCOUT INDEX  ·  " + (inglese ? "SEASON" : "STAGIONE") + " 25/26", 60, 58);
+ x.fillText("__SITO_MAIUSCOLO__  ·  " + (inglese() ? "SEASON" : "STAGIONE") + " __STAGIONE_BREVE__", 60, 58);
  x.strokeStyle = FILO; x.lineWidth = 1;
  x.beginPath(); x.moveTo(60, 80); x.lineTo(W - 60, 80); x.stroke();
 
@@ -2110,7 +2221,7 @@ function autoSynth(p,ctx){
  /* r.TPI e' il RANK, non un punteggio: "top X%" si conta dall'alto. La
     formula di pctCell (99.7 per il primo) e' il percentile della colonna ed
     e' giusta li'; riusata qui stampava "top 100% della lega" sul migliore
-    della Serie A. */
+    della lega. */
  if(tpi!=null){const pct=r.TPI&&r.n_total?Math.max(1,Math.round(r.TPI/r.n_total*100)):null;
   if(tpi>=1.5)out+=dn+" d'élite: TPI "+tpi.toFixed(2)+" (top "+(pct||"?")+"% della lega). ";
   else if(tpi>=0.5)out+=dn+": impatto offensivo positivo, TPI "+tpi.toFixed(2)+". ";
@@ -2499,7 +2610,7 @@ window.addEventListener("orientationchange", () => {
     const box=document.getElementById("hero-curve");
     if(!box||typeof DATA==="undefined") return;
     const HERO_N_TOT=__N_GIO__;
-    const EN=(document.documentElement.lang||"it").slice(0,2)==="en";
+    const EN=inglese();
     const W=760,H=176,PAD=20,A=-3.2,B=3.2,X=v=>(v-A)/(B-A)*W,pdf=x=>Math.exp(-x*x/2);
     /* Serve anche il NOME, non solo il valore: trattini anonimi nella coda
        non dicono niente a chi guarda. */
@@ -2570,16 +2681,30 @@ window.addEventListener("orientationchange", () => {
      destra. Sta qui perche' e' l'ultimo script che gira a pagina montata. */
   if (typeof segnalaScorrimento === "function")
     document.querySelectorAll(".ctrl-riga").forEach(segnalaScorrimento);
-  if (typeof montaStagioni === "function") { montaStagioni(); notaStagione(); }
+  if (typeof montaStagioni === "function") {
+    montaStagioni(); notaStagione();
+    const _i = (typeof _indiceDaUrl === "function") ? _indiceDaUrl() : -1;
+    if (_i > 0) cambiaStagione(_i);
+  }
   document.addEventListener("i18n:changed", function(){
     if (typeof montaStagioni === "function") { montaStagioni(); notaStagione(); }
   });
+  /* "Sopra le attese" confronta la stagione con la base su piu' annate, che sta
+     in payload_lista_tutte-le-stagioni.json. Quel file non esiste per tutte le
+     leghe: sulla Premier il pill c'era lo stesso, e chi lo premeva leggeva
+     "Nessun dato disponibile per questo filtro" — un messaggio che dava la
+     colpa al filtro mentre il problema era il confronto assente. Se la base non
+     c'e', la misura non si offre. */
+  if (typeof fileBaseStorica === "function" && !fileBaseStorica()) {
+    var _att = document.querySelector('.mpill[data-m="attese"]');
+    if (_att) _att.remove();
+  }
 
   </script>
 <!-- ── Watermark ── -->
 <div id="wm">
  <span id="wm-dot"></span>
- <span id="wm-text">Raffaele Ciccone &thinsp;&middot;&thinsp; Serie A Scout Index &thinsp;&middot;&thinsp; 2025&thinsp;/&thinsp;26</span>
+ <span id="wm-text">Raffaele Ciccone &thinsp;&middot;&thinsp; __SITO__ &thinsp;&middot;&thinsp; __STAGIONE_LUNGA__</span>
 </div>
 <style>
 #wm{
@@ -2630,7 +2755,10 @@ def _elenca(voci: list[str], cong: str) -> str:
 
 def _nome_csv(stagione: str | None) -> str:
   """Il CSV completo porta in chiaro la stagione a cui si riferisce."""
-  return f"serie_a_tpi_{stagione}.csv" if stagione else "serie_a_tpi_tutte-le-stagioni.csv"
+  # il nome del file porta la lega: per la Serie A resta "serie_a_tpi_...",
+  # cosi' i link gia' pubblicati non si rompono
+  s = config.LEGA_SLUG
+  return f"{s}_tpi_{stagione}.csv" if stagione else f"{s}_tpi_tutte-le-stagioni.csv"
 
 
 def _et(stagione: str | None) -> str:
@@ -2645,7 +2773,94 @@ def _quanti(f: Path) -> int | None:
     return None
 
 
-def _stagioni_disponibili(corrente: str | None) -> list[dict]:
+def _colonne_csv(nome: str) -> int:
+  """Quante colonne ha davvero il CSV che la pagina offre in scaricamento.
+
+  Il file pubblicato nasce come `summary_stats.csv` nell'uscita del motore e
+  viene copiato nel repo del sito col nome della lega e della stagione. Quando
+  i segnaposto si calcolano la copia non c'e' ancora, quindi si conta la
+  sorgente; il file gia' pubblicato resta come ripiego.
+
+  Si legge l'intestazione col modulo csv e non spezzando sulle virgole: un nome
+  di squadra con la virgola dentro conterebbe una colonna in piu'.
+  """
+  import csv as _csv
+  for f in (OUTPUT_DIR / "summary_stats.csv", DEMO_DIR / nome, OUTPUT_DIR / nome):
+    if not f.is_file():
+      continue
+    try:
+      with f.open(encoding="utf-8", newline="") as fh:
+        return len(next(_csv.reader(fh)))
+    except (OSError, StopIteration):
+      continue
+  log.warning("CSV non trovato: non posso contare le colonne da dichiarare.")
+  return 0
+
+
+def _rho_misurato(giornata: int | None) -> float | None:
+  """Quanto valeva la classifica a QUESTA giornata, sulla stagione conclusa.
+
+  Lo scrive la validazione in `validazione_sintesi.json` (`convergenza`), e si
+  cita solo se la giornata combacia con quella misurata. Un rho interpolato fra
+  due vintage sarebbe un numero che nessuno ha calcolato: su una pagina che
+  esiste per dire dove l'indice perde, un numero inventato costa piu' del
+  silenzio.
+  """
+  if not giornata:
+    return None
+  f = OUTPUT_DIR / "validazione_sintesi.json"
+  if not f.is_file():
+    return None
+  try:
+    conv = (json.loads(f.read_text(encoding="utf-8")) or {}).get("convergenza") or {}
+  except Exception:
+    return None
+  if conv.get("prima_giornata") == giornata and isinstance(conv.get("rho_prima"), (int, float)):
+    return round(float(conv["rho_prima"]), 2)
+  return None
+
+
+def _nota_in_corso(meta: dict | None) -> tuple[str, str] | None:
+  """La nota della stagione in corso: quante giornate, e quanto vale finora.
+
+  Il sito si apre sulla stagione dichiarata dal payload, che a settembre e' una
+  classifica di tre giornate. Aprire su quella e tacere contraddirebbe la
+  pagina di validazione, che il numero lo pubblica; aprire sulla stagione
+  finita farebbe sembrare il sito fermo a maggio. Quindi si apre sulla nuova e
+  si dice a che punto e', con il numero accanto.
+  """
+  if not (meta or {}).get("stagione_in_corso"):
+    return None
+  g = meta.get("n_giornate")
+  tot = meta.get("giornate_totali")
+  quante = ("%s giornate su %s" % (g, tot)) if tot else ("%s giornate" % g)
+  quante_en = ("%s of %s matchdays" % (g, tot)) if tot else ("%s matchdays" % g)
+  it = ("Stagione in corso, " + quante + " giocate: questa classifica e' "
+        "provvisoria.")
+  en = ("Season in progress, " + quante_en + " played: this ranking is "
+        "provisional.")
+  rho = _rho_misurato(g)
+  if rho is not None:
+    it += (" Sulla stagione conclusa, alla giornata %s l'ordine corrispondeva a "
+           "quello di fine anno per rho %s." % (g, ("%.2f" % rho).replace(".", ",")))
+    en += (" On the completed season, at matchday %s the order matched the "
+           "final one at rho %.2f." % (g, rho))
+  it += " La stagione completa e' nel selettore qui sopra."
+  en += " The completed season is in the selector above."
+  return it, en
+
+
+def _stagioni_dichiarate(f) -> list[str]:
+  """Le stagioni che l'aggregato dice di contenere, se lo dice."""
+  try:
+    d = json.loads(f.read_text(encoding="utf-8"))
+  except Exception:
+    return []
+  v = d.get("stagioni_incluse")
+  return [str(x) for x in v] if isinstance(v, list) and v else []
+
+
+def _stagioni_disponibili(corrente: str | None, meta: dict | None = None) -> list[dict]:
   """Le viste che il selettore puo' offrire, dai file presenti.
 
   Prima era una tabella scritta a mano con dentro "2025/26" tre volte. Ad ogni
@@ -2665,9 +2880,14 @@ def _stagioni_disponibili(corrente: str | None) -> list[dict]:
   n = _quanti(f) if f.is_file() else None
   if n is not None:
     et = _et(corrente) or "In corso"
+    _nota = _nota_in_corso(meta)
     voci.append({"file": f.name, "et_it": et, "et_en": et, "n": n,
-                 "nota_it": "La stagione pubblicata: e' quella su cui girano le verifiche.",
-                 "nota_en": "The published season: the one every check runs on."})
+                 "slug": corrente or "in-corso",
+                 "in_corso": bool(_nota),
+                 "nota_it": _nota[0] if _nota
+                            else "La stagione pubblicata: e' quella su cui girano le verifiche.",
+                 "nota_en": _nota[1] if _nota
+                            else "The published season: the one every check runs on."})
 
   passate = []
   for f in sorted(OUTPUT_DIR.glob("payload_lista_*.json"), reverse=True):
@@ -2679,19 +2899,26 @@ def _stagioni_disponibili(corrente: str | None) -> list[dict]:
       continue
     passate.append(st)
     voci.append({"file": f.name, "et_it": _et(st), "et_en": _et(st), "n": n,
+                 "slug": st,
                  "nota_it": "Stagione conclusa, completa.",
                  "nota_en": "A completed season, in full."})
 
   f = OUTPUT_DIR / "payload_lista_tutte-le-stagioni.json"
   n = _quanti(f) if f.is_file() else None
   if n is not None:
-    tutte = [x for x in ([corrente] if corrente else []) + passate if x]
+    # Prima: le stagioni si contavano dai file presenti nella cartella, cioe'
+    # da quello che c'e' ACCANTO all'aggregato invece che dentro. Appena una
+    # stagione nuova arriva senza che l'aggregato sia stato rigenerato,
+    # l'etichetta ne annuncia una in piu' di quante il file ne contenga.
+    # Adesso, se il file lo dichiara, vince il file.
+    dichiarate = _stagioni_dichiarate(f)
+    tutte = dichiarate or [x for x in ([corrente] if corrente else []) + passate if x]
     ordinate = [_et(x) for x in sorted(set(tutte), reverse=True)]
     elenco = _elenca(ordinate, "e") or "le stagioni in archivio"
     elenco_en = _elenca(ordinate, "and") or "every season on file"
     quante = len(set(tutte)) or 2
     voci.append({
-      "file": f.name, "n": n,
+      "file": f.name, "n": n, "slug": "tutte",
       "et_it": f"{quante} stagioni", "et_en": f"{quante} seasons",
       "nota_it": f"{elenco} insieme: piu' minuti per giocatore, quindi stime piu' "
                  f"stabili. Non e' la classifica di nessuna di esse.",
@@ -2714,6 +2941,25 @@ def inject_data(template: str, meta: dict) -> str:
     return json.dumps(deep_clean(obj), ensure_ascii=True)
 
   replacements = {
+    # il nome della lega non e' scritto nelle pagine: arriva dal config, cosi'
+    # lo stesso motore veste la Serie A e la Premier senza due copie del codice
+    "__ASSISTENTE__": ('<script src="ai_chat.js" defer></script>'
+                       if config.ASSISTENTE else ""),
+    "__VOCI_EXTRA__": "".join(
+      '<a class="nav-link%s" href="%s" data-it="%s" data-en="%s">%s</a>'
+      % (" pro" if h == "dashboard_pro.html" else "", h, it, en, it)
+      for h, it, en in config.PAGINE_LEGA),
+    # La lingua di partenza: la dichiara il config, una per lega. Era "it"
+    # scritto a mano nel template, quindi anche la Premier apriva in italiano.
+    "__LANG__":     config.LINGUA,
+    "__SITO__":     config.SITO_NOME,
+    "__MARCHIO__":  config.SITO_MARCHIO,
+    "__SITO_MAIUSCOLO__": config.SITO_NOME.upper(),
+    # La stagione visibile: nella barra in cima, nel piede e nella filigrana
+    # delle immagini scaricabili era "25/26" battuto a mano nel template.
+    "__STAGIONE_BREVE__": config.SEASON_ETICHETTA_BREVE,
+    "__STAGIONE_LUNGA__": config.SEASON_ETICHETTA.replace("/", "&thinsp;/&thinsp;"),
+    "__LEGA__":     config.LEGA_NOME,
     "__STYLE__":    CSS_PATH.read_text(encoding="utf-8").rstrip("\n"),
     "__DATA_JS__":   jsdump(payload),
     "__RC_JS__":    jsdump(RUOLO_COLORS),
@@ -2724,13 +2970,17 @@ def inject_data(template: str, meta: dict) -> str:
     # Quali stagioni si possono guardare, e da quale file. La lista si costruisce
     # dai file che esistono davvero: se un elenco non e' stato generato, quella
     # voce non compare invece di dare un 404 in faccia a chi ci clicca.
-    "__STAGIONI_JS__": jsdump(_stagioni_disponibili(meta.get("stagione"))),
+    "__STAGIONI_JS__": jsdump(_stagioni_disponibili(meta.get("stagione"), meta)),
     # Nome e conteggio del CSV completo: erano scritti nel template
     # ("serie_a_tpi_2025-26.csv", "tutti i 351"), quindi il link cambiava
     # stagione solo se qualcuno si ricordava di riscriverlo, e il numero
     # era gia'sbagliato di tre.
     "__CSV_ALL__":  _nome_csv(meta.get("stagione")),
     "__N_QUALIF__": str(n_gio),
+    # Anche le colonne si contano invece di dichiararle: erano "49" scritto a
+    # mano accanto al numero dei giocatori, che invece era gia' derivato. Le
+    # colonne del CSV sono cinquanta, e lo erano da un pezzo.
+    "__N_COL__":    str(_colonne_csv(_nome_csv(meta.get("stagione")))),
     "__CTX_L_JS__":   jsdump(CTX_LABELS),
     "__SPIEG_JS__":   jsdump(SPIEGAZIONI),
     "__TOP6_JS__":   jsdump([clean(n) for n in top6_names]),
@@ -2754,12 +3004,15 @@ def inject_data(template: str, meta: dict) -> str:
   if remaining:
     log.warning(f"Placeholder non sostituiti: {remaining}")
 
-  return result
+  # Il testo visibile passa alla lingua del sito, come nelle altre pagine: qui
+  # il guscio non c'entra, la dashboard ha il suo template, ma gli elementi
+  # bilingui sono scritti nella stessa forma e si riconoscono allo stesso modo.
+  return pagina_stile.testo_base(result)
 
 
 def parse_args() -> argparse.Namespace:
   parser = argparse.ArgumentParser(
-    description="Serie A 25/26 — Dashboard HTML Generator"
+    description=f"{config.LEGA_NOME} {config.SEASON_CORRENTE} — Dashboard HTML Generator"
   )
   parser.add_argument(
     "--payload", type=str, default=None,
@@ -2814,7 +3067,7 @@ def controlla_javascript(html: str) -> None:
 def main() -> None:
   args = parse_args()
   log.info("=" * 60)
-  log.info("PARTE 2 — Dashboard HTML v4.2 Serie A 25/26")
+  log.info(f"PARTE 2 — Dashboard HTML v4.2 {config.LEGA_NOME} {config.SEASON_CORRENTE}")
   log.info("=" * 60)
 
   payload_path = Path(args.payload) if args.payload else PAYLOAD_PATH
@@ -2844,33 +3097,63 @@ def main() -> None:
       log.warning(f"Copia demo fallita: {e}")
 
   # i18n.js e ai_chat.js devono stare ACCANTO all'HTML (i loro <script src>
-  # sono relativi): li copio dal repo demo (fonte canonica) in dashboard_output,
-  # così la pagina aperta da lì non perde né le traduzioni (404 su i18n.js =
-  # mix di lingue) né l'assistente AI.
+  # sono relativi): senza, la pagina perde le traduzioni (404 su i18n.js = mix
+  # di lingue) e l'assistente AI.
+  #
+  # La fonte canonica e' il repo della Serie A: i18n.js si scrive a mano, non lo
+  # genera nessuno, e tenerne due copie che divergono e' esattamente il difetto
+  # che questo progetto passa il tempo a togliere. Da li' il file va DOVE SERVE:
+  # nell'uscita del motore e nel repo della lega che si sta generando.
+  #
+  # Prima si copiava solo dal repo della lega corrente verso l'uscita. Sulla
+  # Serie A funzionava perche' il file era gia' li'; su un campionato nuovo il
+  # repo e' vuoto, quindi non c'era niente da copiare e niente arrivava.
   if html_out.name == HTML_OUT.name:
+    _canonico = _DIR.parent / "serie-a-index"
     for _asset in ("i18n.js", "ai_chat.js", "stile.css"):
-      _src = DEMO_DIR / _asset
-      if not _src.is_file():
+      _src = next((c / _asset for c in (_canonico, DEMO_DIR, OUTPUT_DIR)
+                   if (c / _asset).is_file()), None)
+      if _src is None:
+        log.warning(f"{_asset} non trovato da nessuna parte: la pagina ne restera' senza.")
         continue
-      try:
-        (OUTPUT_DIR / _asset).write_bytes(_src.read_bytes())
-        log.info(f"✓ {_asset} → {OUTPUT_DIR / _asset}")
-      except OSError as e:
-        log.warning(f"Copia {_asset} fallita: {e}")
+      for _dst_dir in (OUTPUT_DIR, DEMO_DIR):
+        _dst = _dst_dir / _asset
+        if _dst == _src or not _dst_dir.is_dir():
+          continue
+        try:
+          _dst.write_bytes(_src.read_bytes())
+          log.info(f"✓ {_asset} → {_dst}")
+        except OSError as e:
+          log.warning(f"Copia {_asset} in {_dst} fallita: {e}")
 
     # Stesso discorso per i font: le @font-face nel CSS puntano a fonts/*.woff2
     # con path relativo. Senza questa copia la dashboard aperta da
     # dashboard_output ricade sui fallback di sistema.
-    _fonts_src = DEMO_DIR / "fonts"
-    if _fonts_src.is_dir():
-      try:
-        _fonts_dst = OUTPUT_DIR / "fonts"
-        _fonts_dst.mkdir(exist_ok=True)
-        for _f in _fonts_src.glob("*.woff2"):
-          (_fonts_dst / _f.name).write_bytes(_f.read_bytes())
-        log.info(f"✓ fonts/ → {_fonts_dst}")
-      except OSError as e:
-        log.warning(f"Copia fonts fallita: {e}")
+    #
+    # I font si cercano dove ci sono e si copiano DOVE SERVONO, in tutte e due
+    # le cartelle. Prima si copiavano solo dal repo del sito verso l'uscita del
+    # motore: funzionava finche' la lega era una, perche' quei file nel repo
+    # della Serie A c'erano gia'. Al secondo campionato il repo e' nuovo e vuoto,
+    # quindi non c'era niente da cui copiare e niente arrivava — il sito della
+    # Premier sarebbe uscito con i caratteri di sistema al posto dei suoi.
+    _sorgenti_font = [DEMO_DIR / "fonts", OUTPUT_DIR / "fonts",
+                      _DIR / "assets" / "fonts"]
+    _fonts_src = next((p for p in _sorgenti_font
+                       if p.is_dir() and any(p.glob("*.woff2"))), None)
+    if _fonts_src is None:
+      log.warning("Nessuna cartella fonts/ trovata: le pagine useranno i "
+                  "caratteri di sistema.")
+    else:
+      for _fonts_dst in (OUTPUT_DIR / "fonts", DEMO_DIR / "fonts"):
+        if _fonts_dst == _fonts_src or not _fonts_dst.parent.is_dir():
+          continue
+        try:
+          _fonts_dst.mkdir(exist_ok=True)
+          for _f in _fonts_src.glob("*.woff2"):
+            (_fonts_dst / _f.name).write_bytes(_f.read_bytes())
+          log.info(f"✓ fonts/ → {_fonts_dst}")
+        except OSError as e:
+          log.warning(f"Copia fonts in {_fonts_dst} fallita: {e}")
 
     # Le voci Homepage / Validazione / TPI Pro / Metodo sono href relativi a
     # file vicini. In dashboard_output quei file non ci sono, quindi la nav
@@ -2894,8 +3177,20 @@ def main() -> None:
   # Payload JSON copiati nel repo demo: necessari per dashboard_pro.html
   # che li carica via fetch (a differenza della dashboard pubblica che li
   # embedda nell'HTML). Copio sia il payload corrente che eventuali backfill.
+  #
+  # L'elenco era fisso: ["payload.json", "payload_2024-25.json"]. Finche' la
+  # stagione precedente e' stata la 2024-25 ha funzionato; al primo cambio no.
+  # La pagina Pro chiede l'archivio dell'annata prima di quella pubblicata, e
+  # quel file non veniva copiato: la pagina restava a confrontare la stagione
+  # nuova con quella di due anni prima. Adesso gli archivi si scoprono dai
+  # file che esistono — `payload_AAAA-AA.json`, la stessa forma che usa il
+  # selettore della dashboard — e ad agosto non c'e' niente da aggiornare qui.
+  # Il filtro sul nome tiene fuori i vintage (`payload_g12`), l'aggregato e i
+  # `_full`, che nel sito non servono a nessuno e peserebbero mezzo mega l'uno.
   if DEMO_DIR.is_dir():
-    payload_files = ["payload.json", "payload_2024-25.json"]
+    archivi = sorted(f.name for f in OUTPUT_DIR.glob("payload_*.json")
+                     if re.fullmatch(r"payload_\d{4}-\d{2}\.json", f.name))
+    payload_files = ["payload.json"] + archivi
     for fname in payload_files:
       src = OUTPUT_DIR / fname
       if src.is_file():

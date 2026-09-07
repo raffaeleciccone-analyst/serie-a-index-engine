@@ -16,6 +16,7 @@ Uso:  python pagina_guida.py
 from __future__ import annotations
 
 import json
+import config
 import logging
 import math
 import os
@@ -34,8 +35,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("pagina_guida")
 
 BASE_DIR = Path(__file__).parent
-OUTPUT_DIR = BASE_DIR / "dashboard_output"
-DEMO_DIR = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-index"))
+OUTPUT_DIR = config.cartella_uscita(BASE_DIR)
+# Il repo del sito di QUESTA lega: era "serie-a-index" per tutte, quindi
+# generare la Premier scriveva le sue pagine nel repo della Serie A.
+DEMO_DIR = config.cartella_pubblicazione(BASE_DIR.parent)
 
 # Nome leggibile e una riga sul perche', per ognuna delle sette dimensioni.
 # La formula e i pesi arrivano dal motore: qui c'e' solo la prosa.
@@ -176,7 +179,7 @@ def _hero(cfg, pay: dict) -> str:
     return f"""<header class="hero riga">
   <div></div>
   <div>
-  <div class="eyebrow">Serie A Scout Index &middot; Metodo</div>
+  <div class="eyebrow">{config.SITO_NOME} &middot; Metodo</div>
   <h1 {bi("Come &egrave;<br><em>costruito</em>", "How it is<br><em>built</em>")}>Come &egrave;<br><em>costruito</em></h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
   </div>
@@ -627,15 +630,16 @@ def render(cfg, pay: dict, val: dict | None) -> str:
                        _cap_dimensioni(cfg), _cap_composito(cfg, val or {}),
                        _cap_contesti(pay), _cap_pro(cfg), _cap_lettura(val or {})))
     html = guscio(
-        "Metodo &mdash; Serie A Scout Index",
+        f"Metodo &mdash; {config.SITO_NOME}",
         "Come &egrave; costruito il TPI: le sette dimensioni, i pesi, lo shrinkage e i modulatori "
         "scout, con le formule che il codice esegue davvero.",
         "How the TPI is built: the seven dimensions, the weights, the shrinkage and the scout "
         "modulators, with the formulas the code actually runs.",
         "guida_completa.html", corpo,
         [("validazione.html", "Quanto regge", "How well it holds"),
-         ("dashboard_serie_a.html", "La classifica completa", "The full ranking")])
-    return html.replace("</style>", CSS_EXTRA + "</style>")
+         ("dashboard_%s.html" % config.LEGA_SLUG, "La classifica completa", "The full ranking")],
+        stile_extra=CSS_EXTRA)
+    return html
 
 
 def main() -> None:

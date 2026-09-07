@@ -32,6 +32,16 @@ from serie_a_scout.snapshots import (  # noqa: E402
     Manifest, SnapshotExistsError, SnapshotWriter,
     sha256_file, verify_snapshot, restore_snapshot,
 )
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "tests"))
+
+# Questi test girano sui dati, non solo sul codice: senza, non c'e' niente
+# da misurare, e fallire direbbe il falso. Si saltano dichiarando cosa
+# manca — vedi regression/helpers/ambiente.py.
+from regression.helpers.ambiente import senza_database  # noqa: E402
+
+pytestmark = senza_database
 
 
 def _db_url() -> str:

@@ -139,3 +139,86 @@ def test_una_stagione_illeggibile_si_lamenta_subito(brutta, monkeypatch):
         return
     with pytest.raises(ValueError):
         config.anno_understat(brutta)
+
+
+# ── La stagione in corso si dichiara ────────────────────────────────────────
+# Il difetto che questi test bloccano: il sito apre sempre sulla stagione
+# dichiarata dal payload, e a settembre quella e' una classifica di tre
+# giornate. Senza una riga che lo dica, la pagina pubblica come definitivo un
+# ordine che la validazione, due link piu' in la', misura a rho 0.29.
+
+def test_la_stagione_in_corso_lo_dice_e_conta_le_giornate(output_dir):
+    _archivio(output_dir, {"payload_lista.json": 120})
+    voce = P._stagioni_disponibili(
+        "2026-27", {"stagione_in_corso": True, "n_giornate": 3, "giornate_totali": 38})[0]
+    assert voce["in_corso"] is True
+    assert "3 giornate su 38" in voce["nota_it"]
+    assert "provvisoria" in voce["nota_it"]
+    assert "3 of 38 matchdays" in voce["nota_en"]
+
+
+def test_la_stagione_conclusa_non_si_dichiara_in_corso(output_dir):
+    _archivio(output_dir, {"payload_lista.json": 356})
+    voce = P._stagioni_disponibili(
+        "2025-26", {"stagione_in_corso": False, "n_giornate": 38, "giornate_totali": 38})[0]
+    assert voce["in_corso"] is False
+    assert "verifiche" in voce["nota_it"]
+
+
+def test_senza_meta_la_voce_resta_quella_di_prima(output_dir):
+    """I chiamanti vecchi non devono cambiare per una funzione in piu'."""
+    _archivio(output_dir, {"payload_lista.json": 356})
+    voce = P._stagioni_disponibili("2025-26")[0]
+    assert voce["in_corso"] is False
+
+
+def test_il_rho_si_cita_solo_se_e_quello_misurato(output_dir, monkeypatch):
+    """Un rho interpolato sarebbe un numero che nessuno ha calcolato."""
+    import json as _json
+    _archivio(output_dir, {"payload_lista.json": 120})
+    (output_dir / "validazione_sintesi.json").write_text(
+        _json.dumps({"convergenza": {"prima_giornata": 3, "rho_prima": 0.287}}),
+        encoding="utf-8")
+
+    # giornata 3: e' esattamente quella misurata, il numero si puo' dire
+    voce = P._stagioni_disponibili(
+        "2026-27", {"stagione_in_corso": True, "n_giornate": 3, "giornate_totali": 38})[0]
+    assert "0,29" in voce["nota_it"] and "0.29" in voce["nota_en"]
+
+    # giornata 7: fra due vintage, nessuno l'ha misurata — si tace
+    voce = P._stagioni_disponibili(
+        "2026-27", {"stagione_in_corso": True, "n_giornate": 7, "giornate_totali": 38})[0]
+    assert "rho" not in voce["nota_it"]
+    assert "provvisoria" in voce["nota_it"]
+
+
+def test_l_aggregato_conta_le_stagioni_che_contiene_non_i_file_accanto(output_dir):
+    """L'etichetta ne annunciava tre mentre il file ne conteneva due.
+
+    Succede da solo al cambio di stagione: la stagione nuova arriva, il file
+    dell'aggregato no — e' fra quelli che vanno rigenerati a mano.
+    """
+    import json as _json
+    _archivio(output_dir, {
+        "payload_lista.json": 243,
+        "payload_lista_2025-26.json": 356,
+        "payload_lista_2024-25.json": 354,
+    })
+    (output_dir / "payload_lista_tutte-le-stagioni.json").write_text(
+        _json.dumps({"stagioni_incluse": ["2024-25", "2025-26"],
+                     "players": [{"id": i} for i in range(510)]}), encoding="utf-8")
+    agg = P._stagioni_disponibili("2026-27")[-1]
+    assert agg["et_it"] == "2 stagioni"
+    assert "2026/27" not in agg["nota_it"]
+
+
+def test_senza_dichiarazione_l_aggregato_torna_a_contare_i_file(output_dir):
+    """I file vecchi non dichiarano niente: devono continuare a funzionare."""
+    _archivio(output_dir, {
+        "payload_lista.json": 243,
+        "payload_lista_2025-26.json": 356,
+        "payload_lista_tutte-le-stagioni.json": 510,
+    })
+    agg = P._stagioni_disponibili("2026-27")[-1]
+    assert agg["et_it"] == "2 stagioni"
+    assert "2026/27 e 2025/26" in agg["nota_it"]

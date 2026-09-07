@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 from functools import lru_cache
 import sys
@@ -42,7 +43,10 @@ try:
 except Exception:
     pass
 
+import config
 from config import SEASON_CORRENTE  # stagione pubblicata dal sito
+from config import LEGA_UNDERSTAT   # serve a non applicare a un'altra lega
+                                    # gli override dei ruoli, che sono della Serie A
 from config import db_url as _cfg_db_url  # carica .env + fail-fast su DB_PASSWORD
 from dataclasses import dataclass, field
 from typing import Any
@@ -248,86 +252,78 @@ class Config:
     # Override ruoli — ULTIMA PAROLA (vince su Understat e DB).
     # Default = posizione reale Understat (derive_understat_roles). Aggiungi qui
     # SOLO le eccezioni che vuoi forzare a mano (Understat manca o sbaglia).
+    #
+    # Corregge un ruolo, e soltanto quello. Chi non deve entrare nell'indice si
+    # scrive in `escludi`, qui sotto. Scrivere "POR" accanto a un giocatore di
+    # movimento lo faceva sparire dalla pubblicazione — i portieri escono in
+    # main(), quattromila righe piu' giu' — cioe' un interruttore di
+    # spegnimento travestito da ruolo: illeggibile (nessuno sa piu' se qualcuno
+    # lo credesse davvero un portiere), fragile (il giorno che l'indice
+    # pubblica anche i portieri, gli spenti si riaccendono col ruolo sbagliato
+    # addosso) e invisibile nei log, dove finivano contati fra i portieri veri.
+    # Misurato il 7/9/2026: dei tredici forzati a POR, cinque tiravano e
+    # segnavano — Darmian 2022' e 3 gol, Viti 2811', Okereke, Hysaj,
+    # Iling-Junior. Mlacic, Kouadio e Palma sono difensori: lo dice heXI 26/27 e
+    # non hanno mai tirato.
+    #
+    # L'elenco vale SOLO per la Serie A (vedi risolvi_ruoli). I 36 nomi che non
+    # sono piu' in Serie A 2026-27 sono stati tolti: un nome che resta in lista
+    # dopo che il giocatore se n'e' andato non e' inerte, e' un omonimo in
+    # attesa. E' cosi' che Leon Bailey, ala dell'Aston Villa, e' diventato un
+    # difensore sulla Premier.
     ruolo_override: dict[str, str] = field(default_factory=lambda: {
-        "Branimir Mlacic": "POR",
-        "Daniel Denoon": "POR",
         "Daniele Padelli": "POR",
-        "Daniele Sommariva": "POR",
-        "David Okereke": "POR",
-        "Eddy Kouadio": "POR",
-        "Elseid Hysaj": "POR",
         "Filippo Rinaldi": "POR",
-        "Matteo Darmian": "POR",
-        "Matteo Palma": "POR",
-        "Mattia Viti": "POR",
         "Pietro Terracciano": "POR",
-        "Samuel Iling-Junior": "POR",
-        "Adam Masina": "DIF",
-        "Alessandro Di Pardo": "DIF",
-        "Benjamin Cremaschi": "DIF",
         "Benjamin Pavard": "DIF",
-        "Faustino Anjorin": "DIF",
-        "Guillermo Maipan": "DIF",
+        "Branimir Mlacic": "DIF",   # heXI 26/27: difensore, mai un tiro in carriera
+        "Eddy Kouadio": "DIF",   # heXI 26/27: difensore, mai un tiro in carriera
         "Hernani": "DIF",
-        "Jeremy Sarmiento": "DIF",
         "Juan Cabal": "DIF",
         "Leo Ostigard": "DIF",
-        "Leon Bailey": "DIF",
-        "Malthe Hojholt": "DIF",
-        "Mathias Lovik": "DIF",
+        "Matteo Palma": "DIF",   # heXI 26/27: difensore, mai un tiro in carriera
         "Niccolo Fortini": "DIF",
         "Nicholas Pierini": "DIF",
         "Oliver Sorensen": "DIF",
-        "Pervis Estupinian": "DIF",
         "Pervis Estupiñán": "DIF",
         "Petar Ratkov": "DIF",
         "Sandro Kulenovic": "DIF",
-        "Thorir Helgason": "DIF",
         "Torbjorn Heggem": "DIF",
-        "Albert Gronbaek": "CEN",
-        "Albert Grønbæk": "CEN",
         "Alex Sala": "CEN",
-        "Bryan Zaragoza": "CEN",
         "Daniel Boloca": "CEN",
         "Edon Zhegrova": "CEN",
-        "Fallou Cham": "CEN",
         "Idrissa Gueye": "CEN",
         "Lorenzo Venturino": "CEN",
-        "Mikayil Faye": "CEN",
         "Oier Zarraga": "CEN",
         "Pasquale Mazzocchi": "CEN",
         "Rui Modesto": "CEN",
         "Alieu Njie": "ATT",
-        "Andrea Belotti": "ATT",
         "Artem Dovbyk": "ATT",
-        "Ciro Immobile": "ATT",
-        "Edin Dzeko": "ATT",
         "Edoardo Iannoni": "ATT",
-        "Faris Moumbagna": "ATT",
         "Iker Bravo": "ATT",
-        "Juan Cuadrado": "ATT",
         "Konan NDri": "ATT",
-        "Leonardo Pavoletti": "ATT",
-        "Lorran": "ATT",
         "Luca Moro": "ATT",
-        "MBala Nzola": "ATT",
         "Matteo Politano": "ATT",   # ala Napoli schierata wing-back (Understat: DMR)
-        "Maxwel Cornet": "ATT",
-        "Niclas Fullkrug": "ATT",
-        "Nicolae Stanciu": "ATT",
-        "Nikola Studic": "ATT",
         "Rasmus Hojlund": "ATT",
         "Robinio Vaz": "ATT",
         "Vasilije Adzic": "ATT",
-        "Zito": "ATT",
     })
+
+    # Chi non entra nell'indice, e perche'. Il motivo non e' decorazione: e'
+    # l'unica cosa che, fra sei mesi, dice se una riga serve ancora. Vuoto di
+    # proposito — l'esclusione e' una decisione da prendere, non un'eredita' da
+    # trascinare: nessuno dei cinque spenti a mano ci e' stato travasato.
+    escludi: dict[str, str] = field(default_factory=dict)
 
 
 CFG = Config()
-CFG.output_dir = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "dashboard_output"
-)
+# La cartella di uscita dipende dalla lega: "dashboard_output" resta della Serie
+# A, ogni altra lega ha la sua. Prima era fissa, e generare la Premier
+# sovrascriveva il payload della Serie A senza dire niente: il sito continuava a
+# funzionare mostrando i giocatori dell'altro campionato.
+CFG.output_dir = str(config.cartella_uscita())
 os.makedirs(CFG.output_dir, exist_ok=True)
+log.info("Cartella di uscita: %s", os.path.basename(CFG.output_dir))
 
 CONTESTI = ["totale", "casa", "trasferta", "vs_top6", "vs_forti"]
 DIMS = ["output_adj", "buildup_adj", "centralita", "boost_ratio", "consistenza"]
@@ -345,26 +341,85 @@ _POS_BUCKET = {
 }
 
 
+_UNDERSTAT_CACHE = os.path.join(os.path.expanduser("~/soccerdata"), "data", "Understat")
+
+
+@lru_cache(maxsize=1)
+def _partite_della_lega() -> frozenset[str]:
+    """Gli id delle partite che appartengono al campionato in corso.
+
+    I `match_*.json` stanno tutti nella stessa cartella e non dicono da quale
+    torneo vengono. L'unico elenco affidabile e' nei file di stagione
+    `league_<id>_season_<anno>.json`, dove `dates` porta le 380 partite di
+    quell'annata con il loro id.
+
+    Si prendono tutte le stagioni di questa lega presenti in cache, non solo
+    quella pubblicata: il ruolo di un giocatore si legge meglio su piu' annate,
+    ed e' il comportamento con cui e' stata costruita la classifica in linea.
+    Quello che cambia e' che ora si fermano al confine del campionato.
+    """
+    import glob as _g, json as _j
+
+    lid = config.LEGA_ID_UNDERSTAT
+    ids: set[str] = set()
+    for lf in _g.glob(os.path.join(_UNDERSTAT_CACHE, f"league_{lid}_season_*.json")):
+        try:
+            d = _j.load(open(lf, encoding="utf-8"))
+        except Exception:
+            log.warning("File di stagione illeggibile, saltato: %s", os.path.basename(lf))
+            continue
+        for m in d.get("dates", []):
+            mid = m.get("id")
+            if mid:
+                ids.add(str(mid))
+    return frozenset(ids)
+
+
 @lru_cache(maxsize=1)
 def _understat_posmin() -> dict[str, dict[str, int]]:
     """Minuti per posizione, giocatore per giocatore, dai JSON Understat in
     cache. Estratti una volta sola: la lettura della cache è la parte lenta, e
-    da questi minuti si ricavano poi tutte le soglie che servono."""
-    import glob as _g, json as _j, html as _h, collections as _c
+    da questi minuti si ricavano poi tutte le soglie che servono.
 
-    cache_dir = os.path.join(os.path.expanduser("~/soccerdata"), "data", "Understat")
+    Si leggono SOLO le partite del campionato in corso. Prima si leggeva la
+    cartella intera: generata la Premier, la Serie A trovava in cache solo
+    partite inglesi e restava senza ruoli — `ruolo_fine` valorizzato su 3
+    giocatori su 100 invece che su 100, e la classifica cambiava perche' lo
+    z-score e' relativo al ruolo. Con le due leghe insieme sarebbe stato
+    peggio e piu' silenzioso: i minuti si sommano per NOME, quindi chi ha
+    giocato in entrambe si sarebbe ritrovato le posizioni fuse.
+    """
+    import json as _j, collections as _c
+
+    ammesse = _partite_della_lega()
+    if not ammesse:
+        raise RuntimeError(
+            f"Cache Understat senza partite per {LEGA_UNDERSTAT}: manca "
+            f"league_{config.LEGA_ID_UNDERSTAT}_season_*.json in {_UNDERSTAT_CACHE}. "
+            "Scarica la lega prima di generare, altrimenti i ruoli cadono sul "
+            "campo anagrafico e la classifica esce sbagliata senza dirlo."
+        )
+
     posmin: dict[str, _c.Counter] = _c.defaultdict(_c.Counter)
-    for mf in _g.glob(os.path.join(cache_dir, "match_*.json")):
+    letti = 0
+    for mid in ammesse:
+        mf = os.path.join(_UNDERSTAT_CACHE, f"match_{mid}.json")
         try:
             md = _j.load(open(mf, encoding="utf-8"))
         except Exception:
             continue
+        letti += 1
         for side in ("h", "a"):
             for _pid, info in md.get("rosters", {}).get(side, {}).items():
                 pos = info.get("position")
                 t = int(info.get("time", 0) or 0)
                 if pos and pos != "Sub" and t > 0:
                     posmin[_role_key(info.get("player"))][pos] += t
+    log.info("Posizioni Understat: %d partite lette su %d dichiarate (%s)",
+             letti, len(ammesse), LEGA_UNDERSTAT)
+    if letti < len(ammesse) * 0.5:
+        log.warning("Meta' delle partite di %s non e' in cache: i ruoli "
+                    "derivati sono meno affidabili del solito.", LEGA_UNDERSTAT)
     return {k: dict(v) for k, v in posmin.items()}
 
 
@@ -587,10 +642,22 @@ def applica_ruoli_specifici(df: pd.DataFrame, fini: dict[str, dict],
 # Accanto c'e' SA_2026-2027.json: agganciarsi a quello darebbe valori
 # plausibili ma dell'anno sbagliato, quindi la stagione si controlla.
 # Quella cartella e' in SOLA LETTURA: qui si legge e basta.
-HEXI_ROSTER = Path(os.environ.get(
-    "SERIE_A_HEXI_ROSTER",
-    r"C:\dev\heXI\data\normalized\SA_2025-2026.json"))
-HEXI_STAGIONE = "2025/2026"
+def _rosa_hexi_della_lega():
+    """L'anagrafica heXI del campionato corrente.
+
+    Era scritta fissa sul file della Serie A, come in parte3_valida_tpi.py:
+    su un altro campionato il valore di mercato agganciava tre giocatori su
+    cinquecento e il campo restava vuoto senza che niente lo dicesse.
+    """
+    sigla = {"ITA-Serie A": "SA", "ENG-Premier League": "PL", "ESP-La Liga": "LL",
+             "GER-Bundesliga": "BL1", "FRA-Ligue 1": "FL1"}.get(config.LEGA_UNDERSTAT, "SA")
+    anno = config.anno_understat()
+    return Path("C:/dev/heXI/data/normalized") / ("%s_%d-%d.json" % (sigla, anno, anno + 1))
+
+
+HEXI_ROSTER = (Path(os.environ["SERIE_A_HEXI_ROSTER"])
+               if os.environ.get("SERIE_A_HEXI_ROSTER") else _rosa_hexi_della_lega())
+HEXI_STAGIONE = "%d/%d" % (config.anno_understat(), config.anno_understat() + 1)
 
 
 def carica_valore_mercato(engine) -> dict[int, float]:
@@ -754,8 +821,19 @@ def apply_role_pipeline(
         log.info(f"Ruolo di ripiego (pochi minuti){tag}: {riempiti} su {int(vuoti.sum())} senza ruolo")
 
     # 3) Override manuale = ultima parola (vince su Understat e DB)
+    #
+    # L'elenco e' fatto a mano guardando i giocatori della SERIE A, ed e' valido
+    # solo li'. Su un'altra lega non e' semplicemente inutile: fa danno, perche'
+    # basta un omonimo per riscrivere un ruolo giusto con uno sbagliato.
+    # Misurato sulla Premier 2025-26: tre nomi coincidevano, e Leon Bailey,
+    # ala dell'Aston Villa, diventava un difensore.
     overridden = 0
-    for nome, ruolo_corretto in (getattr(cfg, "ruolo_override", None) or {}).items():
+    _override = (getattr(cfg, "ruolo_override", None) or {})
+    if _override and LEGA_UNDERSTAT != "ITA-Serie A":
+        log.info(f"Override manuale{tag}: saltato, l'elenco e' della Serie A "
+                 f"e la lega e' {LEGA_UNDERSTAT}")
+        _override = {}
+    for nome, ruolo_corretto in _override.items():
         for col in cols:
             mask = df[col] == nome
             if not mask.any():
@@ -771,6 +849,41 @@ def apply_role_pipeline(
 # ════════════════════════════════════════════════════════════════
 # 2. UTILITÀ GENERALI
 # ════════════════════════════════════════════════════════════════
+def applica_esclusioni(df_pa, df_gp_raw, escludi: dict[str, str]):
+    """Toglie dall'indice i giocatori dichiarati in `escludi`, uno per uno.
+
+    E' un'altra cosa dal filtro sui portieri, che sta in main(). Prima le due
+    cose erano la stessa: si scriveva "POR" in `ruolo_override` e il giocatore
+    spariva per effetto collaterale di quel filtro. Funzionava, e costava
+    l'intenzione — una riga non diceva piu' se qualcuno lo credesse davvero un
+    portiere o volesse tenerlo fuori, e nei log finiva contato fra i portieri
+    veri.
+
+    Qui il motivo e' obbligatorio e finisce nel log. Un nome che non trova
+    nessuno viene detto invece che ignorato: e' il modo di accorgersi che una
+    riga e' scaduta prima che diventi l'omonimo di qualcun altro, che e' come
+    Leon Bailey e' diventato un difensore.
+    """
+    if not escludi or "giocatore" not in getattr(df_pa, "columns", []):
+        return df_pa, df_gp_raw
+    for nome, motivo in escludi.items():
+        nomi = df_pa["giocatore"].astype(str)
+        m = nomi == nome
+        if not m.any():
+            m = nomi.str.lower() == nome.lower()
+        if not m.any():
+            log.warning("Esclusione senza riscontro: %r non e' fra i "
+                        "qualificati (motivo: %s)", nome, motivo)
+            continue
+        ids = {int(x) for x in df_pa.loc[m, "giocatore_id"]}
+        log.info("Escluso a mano: %s (%s)", nome, motivo)
+        df_pa = df_pa[~m].copy().reset_index(drop=True)
+        df_gp_raw = df_gp_raw[
+            ~df_gp_raw["giocatore_id"].astype("Int64").isin(ids)
+        ].copy()
+    return df_pa, df_gp_raw
+
+
 def safe_json(v: Any, decimals: int = 4) -> Any:
     """
     Converte qualsiasi valore in un tipo JSON-serializzabile.
@@ -810,13 +923,27 @@ def clean_str(s: Any) -> Any:
 
 
 def deep_clean(obj: Any) -> Any:
-    """Applica clean_str ricorsivamente a dict/list."""
+    """Applica clean_str ricorsivamente a dict/list, e toglie i valori non finiti.
+
+    I float NaN e infiniti diventano None. Prima passavano di qui intatti — la
+    funzione guardava solo stringhe, dizionari e liste — e `json.dumps` li
+    scriveva come `NaN`, che Python rilegge senza fiatare ma **non e' JSON
+    valido**: nessun browser lo accetta.
+
+    Sei ruoli mancanti bastavano a rendere illeggibile il file intero. Sul sito
+    pubblicato erano `payload_lista_2024-25.json` e
+    `payload_lista_tutte-le-stagioni.json`: chi cambiava stagione o chiedeva
+    "Sopra le attese" prendeva un SyntaxError e nessuna risposta. Il payload dei
+    primi cento non ne conteneva, quindi la pagina sembrava sana.
+    """
     if isinstance(obj, str):
         return clean_str(obj)
     if isinstance(obj, dict):
         return {k: deep_clean(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [deep_clean(v) for v in obj]
+    if isinstance(obj, float) and not math.isfinite(obj):
+        return None
     return obj
 
 
@@ -2559,6 +2686,10 @@ def main(max_giornata: int | None = None,
             ~df_gp_raw["giocatore_id"].astype("Int64").isin(_ids_por)
         ].copy()
 
+    # 5) Le esclusioni dichiarate, che sono un'altra cosa dai portieri.
+    df_pa, df_gp_raw = applica_esclusioni(
+        df_pa, df_gp_raw, getattr(cfg, "escludi", None) or {})
+
     # ── SOS per partita ────────────────────────────────────────
     df_gp_raw["sos_avv"] = df_gp_raw["avversario_id"].map(sos_map).astype(float)
     df_gp_raw["peso_sos"] = (1.0 / df_gp_raw["sos_avv"].replace(0, np.nan)).clip(upper=10.0)
@@ -2570,6 +2701,32 @@ def main(max_giornata: int | None = None,
     # soglie minuti e finestra invernale.
     _per_team_rounds = df_gp_raw.groupby("squadra_id")["giornata"].nunique()
     n_giornate = int(_per_team_rounds.max()) if len(_per_team_rounds) else int(df_gp_raw["giornata"].nunique())
+
+    # Una stagione e' "in corso" finche' ha giocato meno giornate di quante il
+    # girone ne preveda: con N squadre andata e ritorno fanno 2*(N-1). Si
+    # ricava dai dati e non da un numero scritto qui, perche' 38 e' vero della
+    # Serie A e della Premier di oggi e falso della Bundesliga.
+    #
+    # Serve perche' il sito apre sulla stagione dichiarata dal payload, e a
+    # settembre quella e' una classifica di tre giornate: le pagine devono
+    # poterlo dire da sole, senza che qualcuno si ricordi di scriverlo a mano
+    # ad agosto e di toglierlo a maggio.
+    # Le stagioni che questo giro ha davvero letto. Per una stagione sola e'
+    # quella richiesta; per l'aggregato si chiede al calendario, perche' "tutte"
+    # non e' un elenco e nessuno puo' ricavarlo dal nome del file.
+    if season is not None:
+        _stagioni_nei_dati = {season}
+    else:
+        try:
+            _stagioni_nei_dati = set(
+                str(r[0]) for r in pd.read_sql(
+                    "SELECT DISTINCT season FROM calendario WHERE season IS NOT NULL",
+                    engine).itertuples(index=False))
+        except Exception:
+            _stagioni_nei_dati = set()
+    _n_squadre = int(df_gp_raw["squadra_id"].nunique())
+    giornate_totali = 2 * (_n_squadre - 1) if _n_squadre > 1 else n_giornate
+    stagione_in_corso = bool(season is not None and n_giornate < giornate_totali)
     min_full, min_winter, winter_threshold, winter_ids = compute_minute_thresholds(
         df_gp_raw, n_giornate, CFG
     )
@@ -3164,6 +3321,10 @@ def main(max_giornata: int | None = None,
         # della stessa costante, e ad agosto andavano cambiate a mano tutte e
         # tre. Lo dichiara chi l'ha calcolato.
         "stagione": season,
+        # Non "quale stagione", ma "a che punto e'": chi legge il payload deve
+        # poter distinguere una classifica finita da una in costruzione.
+        "stagione_in_corso": stagione_in_corso,
+        "giornate_totali": giornate_totali,
         "n_top_difese": CFG.n_top_difese,
         "top6_ids": list(top6_ids),
         "top6_names": top6_names,
@@ -3202,10 +3363,13 @@ def main(max_giornata: int | None = None,
     # lo apre in uno strumento che lo formatta da solo. Pesa invece davvero su
     # chi apre dashboard_pro, che scarica questo e quello della stagione
     # precedente prima di disegnare.
+    # allow_nan=False: se un valore non finito sfugge a deep_clean, qui la
+    # build si ferma invece di scrivere un file che il browser rifiutera'.
     payload_bytes = json.dumps(
         deep_clean(payload_out),
         ensure_ascii=True,
         separators=(",", ":"),
+        allow_nan=False,
         cls=SafeEncoder,
     ).encode("ascii")
 
@@ -3229,12 +3393,22 @@ def main(max_giornata: int | None = None,
         lista = {
             "n_giocatori": n_total,
             "stagione": ("tutte" if season is None else season),
+            # Quali stagioni ci sono DENTRO. L'aggregato si chiamava "tutte" e
+            # basta, e l'etichetta del selettore ("3 stagioni") la ricavava
+            # contando i file presenti nella cartella: due cose diverse, e al
+            # cambio di stagione divergono — il file ne contiene due e
+            # l'etichetta ne annuncia tre, finche' qualcuno non lo rigenera.
+            # Lo dice il file, che e' l'unico a saperlo.
+            "stagioni_incluse": sorted(_stagioni_nei_dati),
             "n_giornate": n_giornate,
+            "stagione_in_corso": stagione_in_corso,
+            "giornate_totali": giornate_totali,
             "generato_da": "parte1_analisi.py",
             "players": [record_leggero(e) for e in payload_tutti],
         }
         lista_bytes = json.dumps(deep_clean(lista), ensure_ascii=True,
-                                 separators=(",", ":"), cls=SafeEncoder).encode("ascii")
+                                 separators=(",", ":"), allow_nan=False,
+                                 cls=SafeEncoder).encode("ascii")
         with open(lista_path, "wb") as f:
             f.write(lista_bytes)
         log.info(f"✓ Elenco completo: {lista_path} "

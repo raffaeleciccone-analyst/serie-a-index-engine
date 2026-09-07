@@ -12,6 +12,7 @@ Uso:  python pagina_home.py
 from __future__ import annotations
 
 import json
+import config
 import logging
 import os
 import sys
@@ -31,8 +32,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("pagina_home")
 
 BASE_DIR = Path(__file__).parent
-OUTPUT_DIR = BASE_DIR / "dashboard_output"
-DEMO_DIR = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-index"))
+OUTPUT_DIR = config.cartella_uscita(BASE_DIR)
+# Il repo del sito di QUESTA lega: era "serie-a-index" per tutte, quindi
+# generare la Premier scriveva le sue pagine nel repo della Serie A.
+DEMO_DIR = config.cartella_pubblicazione(BASE_DIR.parent)
 
 # Le due dimensioni che spiegano *perche'* un giocatore e' in cima: il totale da
 # solo dice la posizione e non il motivo.
@@ -47,10 +50,33 @@ N_PUBBLICATI = 100
 # ══════════════════════════════════════════════════════════════════
 # Blocchi
 # ══════════════════════════════════════════════════════════════════
+def _titolo_hero() -> str:
+    """Il nome del sito a due righe: l'ultima parola va in corsivo, sotto.
+
+    Era "{SITO_NOME}<br><em>Index</em>", cioe' il nome meno l'ultima parola
+    piu' la parola "Index" riscritta a mano. Reggeva finche' ogni sito si
+    chiamava "<qualcosa> Scout Index": sulla Premier, che adesso si chiama
+    "Premier League Index", avrebbe stampato "Premier League Index Index".
+    L'ultima parola si prende dal nome, non si riscrive.
+    """
+    capo, _, coda = config.SITO_NOME.rpartition(" ")
+    return f"{capo}<br><em>{coda}</em>" if capo else f"<em>{coda}</em>"
+
+
 def _hero(pay: dict, val: dict) -> str:
     meta = (val or {}).get("meta", {})
     n_gio = pay.get("n_giocatori")
-    cifre = [(str(n_gio), "giocatori qualificati", "qualified players"),
+    # La prima cifra e' la piu' letta della pagina, e da sola non distingue una
+    # stagione finita da una di tre giornate: "243 giocatori qualificati" e'
+    # vero in entrambi i casi e dice due cose diversissime. Quando la stagione
+    # e' in corso lo dice qui, dove guardano tutti, e non solo nella riga sopra
+    # la classifica.
+    if pay.get("stagione_in_corso") and pay.get("n_giornate"):
+        _g = pay["n_giornate"]
+        _et_gio = (f"qualificati dopo {_g} giornate", f"qualified after {_g} matchdays")
+    else:
+        _et_gio = ("giocatori qualificati", "qualified players")
+    cifre = [(str(n_gio), _et_gio[0], _et_gio[1]),
              ("7", "dimensioni nel punteggio", "dimensions in the score")]
     if meta.get("n_verifiche"):
         cifre.append((str(meta["n_verifiche"]), "verifiche pubblicate", "checks published"))
@@ -61,13 +87,13 @@ def _hero(pay: dict, val: dict) -> str:
     # che gioca li'". Misurato: standardizzando sulla lega la top 10 diventa
     # dieci attaccanti e spariscono Dimarco, Cambiaso, Wesley, McTominay - cioe'
     # i nomi per cui uno scout aprirebbe il sito.
-    lede_it = (f"Un indice che ordina i giocatori di Serie A per <strong>quanto incidono in "
+    lede_it = (f"Un indice che ordina i giocatori di {config.LEGA_NOME} per <strong>quanto incidono in "
                f"attacco rispetto al proprio ruolo</strong>: cos&igrave; un terzino che spinge "
                f"non sparisce dietro i centravanti. xG e xA corretti per la difficolt&agrave; "
                f"dell&rsquo;avversario, sette dimensioni, una graduatoria sola. "
                f"&Egrave; descrittivo &mdash; ordina, non predice &mdash; e le verifiche "
                f"dicono anche dove perde.")
-    lede_en = (f"An index that ranks Serie A players by <strong>how much they contribute in "
+    lede_en = (f"An index that ranks {config.LEGA_NOME} players by <strong>how much they contribute in "
                f"attack relative to their own role</strong>: so an attacking full-back does not "
                f"vanish behind the strikers. xG and xA adjusted for opponent difficulty, seven "
                f"dimensions, one ranking. It is descriptive &mdash; it ranks, it does not "
@@ -81,7 +107,7 @@ def _hero(pay: dict, val: dict) -> str:
   <div></div>
   <div>
   <div class="eyebrow">Raffaele Ciccone &middot; Football analytics</div>
-  <h1 {bi("Serie A<br><em>Scout Index</em>", "Serie A<br><em>Scout Index</em>")}>Serie A<br><em>Scout Index</em></h1>
+  <h1 {bi(_titolo_hero(), _titolo_hero())}>{_titolo_hero()}</h1>
   <p class="lede" {bi(lede_it, lede_en)}>{lede_it}</p>
   </div>
   <div class="cifre">{box}</div>
@@ -113,15 +139,17 @@ def _porte(pay: dict, val: dict) -> str:
     d_val_en = (f"The {n_ver} checks, including the one it loses"
                 if n_ver else "The checks, including the one it loses")
     voci = [
-        ("dashboard_serie_a.html", "Classifica", "Ranking", d_cla, d_cla_en, True),
+        ("dashboard_%s.html" % config.LEGA_SLUG, "Classifica", "Ranking", d_cla, d_cla_en, True),
         ("validazione.html", "Validazione", "Validation", d_val, d_val_en, False),
         ("guida_completa.html", "Metodo", "Method",
          "Le formule, una per una, con un esempio calcolato",
          "The formulas, one by one, with a worked example", False),
-        ("dashboard_pro.html", "TPI Pro", "TPI Pro",
-         "L&rsquo;indice con i cinque modulatori scout",
-         "The index with the five scout modulators", False),
     ]
+    # la scheda della pagina Pro solo dove quella pagina esiste
+    if any(h == "dashboard_pro.html" for h, *_ in config.PAGINE_LEGA):
+        voci.append(("dashboard_pro.html", "TPI Pro", "TPI Pro",
+                      "L&rsquo;indice con i cinque modulatori scout",
+                      "The index with the five scout modulators", False))
     carte = "".join(f"""<a class="porta{' pri' if pri else ''}" href="{h}">
     <span class="porta-t" {bi(t_it, t_en)}>{t_it}</span>
     <span class="porta-d" {bi(d_it, d_en)}>{d_it}</span>
@@ -146,7 +174,7 @@ def _classifica(pay: dict) -> str:
         perche_it = " &middot; ".join(f"#{v} {DIM[k][0]}" for k, v in best)
         perche_en = " &middot; ".join(f"#{v} {DIM[k][1]}" for k, v in best)
         larg = max(6.0, p["tpi"]["totale"] / top * 100)
-        righe.append(f"""<a class="cl-row" href="dashboard_serie_a.html">
+        righe.append(f"""<a class="cl-row" href="dashboard_{config.LEGA_SLUG}.html">
   <span class="cl-n">{i:02d}</span>
   <span class="cl-id"><b>{p['nome']}</b><small>{p['squadra']}</small>
     <em {bi(perche_it, perche_en)}>{perche_it}</em></span>
@@ -168,7 +196,7 @@ def _classifica(pay: dict) -> str:
     {el("h2", "Chi c&rsquo;&egrave; in cima adesso", "Who is on top right now")}
     <p class="prosa" {bi(p_it, p_en)}>{p_it}</p>
     <div class="clas">{"".join(righe)}</div>
-    <a class="oltre" href="dashboard_serie_a.html" {bi(coda_it, coda_en)}>{coda_it}</a>
+    <a class="oltre" href="dashboard_{config.LEGA_SLUG}.html" {bi(coda_it, coda_en)}>{coda_it}</a>
   </div>
 </section>"""
 
@@ -183,7 +211,7 @@ def _cambiamenti(pay: dict) -> str:
     disponibile.
     """
     corrente = _classifica_completa(pay)
-    prima, giornata = _ultimo_vintage()
+    prima, giornata, stagione_vintage = _ultimo_vintage()
     if not corrente or not prima:
         return ""
 
@@ -236,12 +264,26 @@ def _cambiamenti(pay: dict) -> str:
     if not voci:
         return ""
 
-    p_it = (f"Il confronto &egrave; con la classifica come stava alla giornata {giornata}: "
-            f"la stessa fotografia che il backtest usa per verificarsi, riletta al contrario. "
-            f"Non &egrave; una notizia di mercato, &egrave; il movimento dell&rsquo;indice.")
-    p_en = (f"The comparison is with the ranking as it stood on matchday {giornata}: the same "
-            f"snapshot the backtest uses to check itself, read the other way round. It is not "
-            f"transfer news, it is the index moving.")
+    _st_ora = pay.get("stagione")
+    _altra = bool(stagione_vintage and _st_ora and stagione_vintage != _st_ora)
+    if _altra:
+        _et = str(stagione_vintage).replace("-", "/")
+        p_it = (f"Il confronto &egrave; con la fine della stagione scorsa: la classifica come "
+                f"stava alla giornata {giornata} del {_et}, che &egrave; l&rsquo;ultima "
+                f"fotografia completa che il backtest ha usato per verificarsi. Non &egrave; "
+                f"il movimento dentro questa stagione — &egrave; chi &egrave; ripartito "
+                f"diverso da come aveva chiuso.")
+        p_en = (f"The comparison is with the end of last season: the ranking as it stood on "
+                f"matchday {giornata} of {_et}, the last complete snapshot the backtest used "
+                f"to check itself. It is not movement within this season — it is who has "
+                f"restarted differently from how they finished.")
+    else:
+        p_it = (f"Il confronto &egrave; con la classifica come stava alla giornata {giornata}: "
+                f"la stessa fotografia che il backtest usa per verificarsi, riletta al contrario. "
+                f"Non &egrave; una notizia di mercato, &egrave; il movimento dell&rsquo;indice.")
+        p_en = (f"The comparison is with the ranking as it stood on matchday {giornata}: the same "
+                f"snapshot the backtest uses to check itself, read the other way round. It is not "
+                f"transfer news, it is the index moving.")
     return f"""<section class="cap riga">
   <div class="cap-num">03</div>
   <div>
@@ -253,15 +295,34 @@ def _cambiamenti(pay: dict) -> str:
 
 
 def _classifica_completa(pay: dict) -> dict:
-    """id -> posizione e nome, dal payload piu' completo che c'e'."""
+    """id -> posizione e nome, dal payload piu' completo DELLA STESSA STAGIONE.
+
+    `payload_full.json` contiene tutti i qualificati invece dei primi cento, ed
+    e' per questo la fonte preferita. Ma non si rigenera al cambio di annata: e'
+    l'ingresso del backtest, e il backtest gira sulla stagione conclusa — la
+    procedura dice esplicitamente di non rifarlo. Quindi da settembre e' il file
+    della stagione scorsa, e prenderlo comunque avrebbe fatto dire alla
+    homepage "cosa e' cambiato" confrontando la stagione vecchia con se stessa,
+    sotto un testo che annuncia il campionato nuovo. Un file piu' ricco ma di
+    un'altra stagione non e' una fonte migliore: e' un'altra domanda.
+    """
     fonte = OUTPUT_DIR / "payload_full.json"
-    avvisa_se_superato(fonte, OUTPUT_DIR / "payload.json", log)
     dati = pay
     if fonte.is_file():
         try:
-            dati = json.loads(fonte.read_text(encoding="utf-8"))
+            _pieno = json.loads(fonte.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            dati = pay
+            _pieno = None
+        if _pieno is not None:
+            if _pieno.get("stagione") == pay.get("stagione"):
+                avvisa_se_superato(fonte, OUTPUT_DIR / "payload.json", log)
+                dati = _pieno
+            else:
+                log.info(
+                    f"payload_full.json e' la stagione {_pieno.get('stagione')} e "
+                    f"il sito pubblica la {pay.get('stagione')}: la classifica "
+                    f"completa si legge dal payload pubblicato, non da quello del "
+                    f"backtest.")
     fuori = {}
     for g in dati.get("players") or []:
         pos = (g.get("rank") or {}).get("TPI")
@@ -270,8 +331,16 @@ def _classifica_completa(pay: dict) -> dict:
     return fuori
 
 
-def _ultimo_vintage() -> tuple[dict, int | None]:
-    """La fotografia piu' recente fra i vintage del backtest."""
+def _ultimo_vintage() -> tuple[dict, int | None, str | None]:
+    """La fotografia piu' recente fra i vintage del backtest, e la sua stagione.
+
+    La stagione serve perche' i vintage NON si rigenerano al cambio di annata:
+    sono le fotografie della stagione conclusa, su cui gira il backtest. A
+    settembre, quindi, "cosa e' cambiato" confronterebbe due giornate del
+    campionato nuovo con la giornata 36 di quello vecchio, e lo chiamerebbe
+    "il movimento dell'indice". E' un confronto che ha senso — chi e' partito
+    meglio di come aveva chiuso — ma solo se la pagina dice fra cosa e cosa.
+    """
     import re
     migliore, giornata = None, None
     for f in OUTPUT_DIR.glob("payload_g*.json"):
@@ -282,17 +351,17 @@ def _ultimo_vintage() -> tuple[dict, int | None]:
         if giornata is None or n > giornata:
             giornata, migliore = n, f
     if not migliore:
-        return {}, None
+        return {}, None, None
     try:
         dati = json.loads(migliore.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}, None
+        return {}, None, None
     fuori = {}
     for g in dati.get("players") or []:
         pos = (g.get("rank") or {}).get("TPI")
         if pos:
             fuori[g["id"]] = {"rank": int(pos), "nome": g["nome"]}
-    return fuori, giornata
+    return fuori, giornata, dati.get("stagione")
 
 
 def _letture(pay: dict) -> str:
@@ -644,15 +713,16 @@ def render(pay: dict, val: dict | None) -> str:
                                   _cambiamenti(pay), _costruzione(pay),
                                   _quanto_regge(val or {})) if x)
     html = guscio(
-        "Serie A Scout Index &mdash; Raffaele Ciccone",
-        "Un indice descrittivo che ordina i giocatori di Serie A per impatto offensivo, "
+        f"{config.SITO_NOME} &mdash; Raffaele Ciccone",
+        f"Un indice descrittivo che ordina i giocatori di {config.LEGA_NOME} per impatto offensivo, "
         "con tutte le verifiche pubblicate.",
-        "A descriptive index ranking Serie A players by attacking impact, with every check "
+        f"A descriptive index ranking {config.LEGA_NOME} players by attacking impact, with every check "
         "published.",
         "index.html", corpo,
         [("validazione.html", "Come &egrave; stato verificato", "How it was checked"),
-         ("guida_completa.html", "Come &egrave; costruito", "How it is built")])
-    return html.replace("</style>", CSS_EXTRA + "</style>")
+         ("guida_completa.html", "Come &egrave; costruito", "How it is built")],
+        stile_extra=CSS_EXTRA)
+    return html
 
 
 def main() -> None:
@@ -663,6 +733,9 @@ def main() -> None:
         log.error("payload.json non trovato: esegui prima parte1_analisi.py")
         return
     pay = json.loads(pay_path.read_text(encoding="utf-8"))
+    # La homepage porta la stessa barra della classifica, con la stessa
+    # stagione scritta dentro: vale la stessa verifica.
+    config.pretendi_stagione_coerente(pay.get("stagione"), pay_path.name)
     val_path = OUTPUT_DIR / "validazione_dati.json"
     val = json.loads(val_path.read_text(encoding="utf-8")) if val_path.is_file() else None
     if val is None:

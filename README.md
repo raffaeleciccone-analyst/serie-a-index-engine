@@ -90,7 +90,18 @@ that the page cannot claim anything the tests did not produce.
   it, and that same study is published as a check. The weight was put back, the cost of doing so
   was measured (ρ 0.9989 between the two rankings), and the episode is written on the page under
   the chart it concerns.
-- **115 tests** (`tests/`), including regression tests that pin the payload's invariants: no
+- **A season rollover that runs itself.** `sentinella.py` reads the fixture calendar every
+  morning and asks one question: is matchday 3 archived? It warns 72 hours ahead, then runs the
+  whole publication — download, recompute, rewrite every page, archive the finished season, drop
+  the relegated teams — and **stops before the commit**. Publishing is a decision, and a decision
+  is not a step in a script. It watches the season being *played*, not the one the site
+  *publishes*: those differ for months every year, which is exactly the window the script is for.
+- **A publication sequence, because a checklist is not a guarantee.** `pubblica.py` runs the steps
+  in order and then asks the question none of them asks: do all the published pages name the same
+  season? A skipped step is not an error for any single script — the validation page still says
+  25/26 while the other twenty-five say 26/27, and nothing complains. It is checked once, at the
+  end, across the whole site.
+- **259 tests** (`tests/`), including regression tests that pin the payload's invariants: no
   goalkeepers in an attacking index, no `NaN` in JSON, no player disagreeing with himself between
   the ranking and the squad list. Each of those was a real bug first.
 
@@ -110,8 +121,12 @@ write where it cannot prove itself, and one of them refuses because of a mistake
 other: filling both halves of a person who is still split in two would invent a double count that
 was not there before.
 
-A few strings in `audit/` still point at scripts from that layer (`set_up_tpi_pro/…`). They are
-not broken imports — they are runtime paths and help text in the fuller repository.
+Some strings here still point at scripts from that layer: `audit/` names `set_up_tpi_pro/…`,
+and `pubblica.py` and `sentinella.py` name `parte4_aggiorna.py` — the download — as the first
+step of the run. They are not broken imports, and they have not been edited out. A pipeline whose
+first step is missing, with nothing saying so, reads as an unfinished pipeline; the same one with
+the step named and the file absent reads as what it is, a deliberate omission. The names stay,
+and this section is the explanation.
 
 ## Running it
 

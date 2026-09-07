@@ -6,6 +6,10 @@ il difetto che questo progetto passa il tempo a togliere dai numeri.
 """
 from __future__ import annotations
 
+import re as _re
+
+import config
+
 from pathlib import Path
 
 
@@ -40,10 +44,50 @@ def bi(it: str, en: str) -> str:
 
 
 def el(tag: str, it: str, en: str, cls: str = "", extra: str = "") -> str:
-    """Elemento bilingue: l'italiano e' anche il testo visibile a JS spento."""
+    """Elemento bilingue: il testo visibile e' quello della lingua del sito."""
     c = f' class="{cls}"' if cls else ""
     x = f" {extra}" if extra else ""
-    return f"<{tag}{c}{x} {bi(it, en)}>{it}</{tag}>"
+    return f"<{tag}{c}{x} {bi(it, en)}>{en if config.EN_BASE else it}</{tag}>"
+
+
+# `data-it="..." data-en="..."` seguiti dal testo visibile: e' la forma che
+# esce da bi(), sempre uguale, in tutte le pagine.
+_BILINGUE = _re.compile(r'data-it="([^"]*)"\s+data-en="([^"]*)"([^>]*)>')
+
+
+def testo_base(html: str) -> str:
+    """Il testo a schermo passa alla lingua del sito, se non e' l'italiano.
+
+    Ogni elemento bilingue porta le due versioni negli attributi e i18n.js
+    sceglie quella giusta appena parte. Ma la terza copia — quella scritta fra
+    i tag, che e' quella che si vede — era l'italiano in tutte le pagine, e
+    restava l'italiano anche sul sito della Premier: la si vedeva nell'istante
+    prima che lo script entrasse, la vedeva chi ha JavaScript spento, e
+    soprattutto e' quella che leggono i motori di ricerca. Un sito sulla
+    Premier League indicizzato in italiano.
+
+    Si riscrive qui, su una pagina sola gia' montata, invece che nei settanta
+    punti che la compongono: il testo visibile e' identico all'attributo da cui
+    nasce, quindi si riconosce con certezza e si sostituisce senza toccare il
+    resto. Quando le lingue coincidono non fa niente.
+    """
+    if not config.EN_BASE:
+        return html
+    pezzi, pos = [], 0
+    for m in _BILINGUE.finditer(html):
+        it_attr, en_attr = m.group(1), m.group(2)
+        fine = m.end()
+        # `_at` tocca solo le virgolette: il resto dell'attributo e' il testo
+        # visibile carattere per carattere, entita' HTML comprese.
+        visibile = it_attr.replace("&quot;", '"')
+        for candidato in (it_attr, visibile):
+            if candidato and html.startswith(candidato, fine):
+                pezzi.append(html[pos:fine])
+                pezzi.append(en_attr.replace("&quot;", '"'))
+                pos = fine + len(candidato)
+                break
+    pezzi.append(html[pos:])
+    return "".join(pezzi)
 
 
 SOGLIA_USABILE = 0.85   # dichiarata prima di guardare la curva
@@ -454,14 +498,13 @@ footer a:hover{color:var(--orng);border-color:var(--orng)}
 # ══════════════════════════════════════════════════════════════════
 # Le sei pagine del sito, nell'ordine in cui compaiono in ogni nav. L'ordine
 # e' quello di lettura — si entra dalla homepage, si guarda la classifica, poi
-# si chiede se regge e come e' fatta — e non cambia da una pagina all'altra:
+# si chiede se regge, come e' fatta e a cosa serve — e non cambia da una pagina
+# all'altra:
 # una voce che si sposta costringe a rileggere la fila ogni volta.
 VOCI = [("index.html", "Homepage", "Homepage"),
-        ("dashboard_serie_a.html", "Classifica", "Ranking"),
+        ("dashboard_%s.html" % config.LEGA_SLUG, "Classifica", "Ranking"),
         ("validazione.html", "Validazione", "Validation"),
-        ("guida_completa.html", "Metodo", "Method"),
-        ("caso-mercato.html", "Caso di mercato", "Market case"),
-        ("dashboard_pro.html", "TPI Pro", "TPI Pro")]
+        ("guida_completa.html", "Metodo", "Method")] + config.PAGINE_LEGA
 
 
 def nav(pagina: str) -> str:
@@ -479,8 +522,8 @@ def nav(pagina: str) -> str:
             b=bi(it, en), it=it)
         for h, it, en in VOCI)
     return f"""<nav class="nav">
-  <a class="nav-brand" href="index.html">Serie A Scout <small>25/26</small></a>
-  <a class="nav-mark" href="index.html" aria-label="Serie A Scout Index" title="Serie A Scout Index"><svg viewBox="0 0 32 32" width="19" height="19" aria-hidden="true" focusable="false"><rect x="6" y="19" width="5" height="7" fill="currentColor"/><rect x="13.5" y="13" width="5" height="13" fill="currentColor"/><rect x="21" y="6" width="5" height="20" fill="currentColor"/></svg></a>
+  <a class="nav-brand" href="index.html">{config.SITO_MARCHIO} <small>{config.SEASON_ETICHETTA_BREVE}</small></a>
+  <a class="nav-mark" href="index.html" aria-label="{config.SITO_NOME}" title="{config.SITO_NOME}"><svg viewBox="0 0 32 32" width="19" height="19" aria-hidden="true" focusable="false"><rect x="6" y="19" width="5" height="7" fill="currentColor"/><rect x="13.5" y="13" width="5" height="13" fill="currentColor"/><rect x="21" y="6" width="5" height="20" fill="currentColor"/></svg></a>
   <div class="nav-sp"></div>
   <span data-i18n-switcher></span>
   <div class="nav-links">{link}</div>
@@ -498,24 +541,42 @@ def footer(voci: list[tuple[str, str, str]]) -> str:
     link = "".join(f'<a href="{h}" {bi(it, en)}>{it}</a>' for h, it, en in voci)
     return f"""<footer>
   <div>
-    <span>Raffaele Ciccone &middot; Serie A Scout Index</span>
+    <span>Raffaele Ciccone &middot; {config.SITO_NOME}</span>
     {link}
   </div>
 </footer>"""
 
 
 def guscio(titolo: str, desc_it: str, desc_en: str, pagina: str, corpo: str,
-           voci_footer: list[tuple[str, str, str]]) -> str:
-    """La pagina completa: stesso <head>, stessa nav, stesso piede per tutte."""
-    return f"""<!DOCTYPE html>
-<html lang="it">
+           voci_footer: list[tuple[str, str, str]], stile_extra: str = "") -> str:
+    """La pagina completa: stesso <head>, stessa nav, stesso piede per tutte.
+
+    `stile_extra` e' il CSS che vale per questa pagina e basta — la classifica
+    della home, i riquadri delle formule nella guida. Passa da qui perche'
+    prima le pagine se lo attaccavano da sole con
+    `html.replace("</style>", CSS_EXTRA + "</style>")`: funzionava finche' il
+    guscio portava il foglio dentro un <style>, ma quando il CSS e' uscito nel
+    file esterno quel `replace` ha smesso di trovare qualcosa da sostituire —
+    e `str.replace` senza riscontro non e' un errore, e' un nulla di fatto.
+    Il CSS delle due pagine e' sparito in silenzio: quindici classi della home
+    e tre della guida sono rimaste senza una regola, e i blocchi che
+    disegnavano — la classifica d'apertura, i quattro tasti d'ingresso, i
+    riquadri delle formule — sono tornati a essere testo inline.
+
+    Resta inline nella pagina invece di finire nel foglio condiviso perche' e'
+    scritto con selettori generici (`.hero`, `.cifre`) che qui sovrascrivono
+    apposta la base: nel foglio comune si porterebbero dietro le altre pagine.
+    """
+    extra = ("\n<style>" + stile_extra + "</style>") if stile_extra.strip() else ""
+    return testo_base(f"""<!DOCTYPE html>
+<html lang="{config.LINGUA}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230A1512'/><rect x='6' y='19' width='5' height='7' fill='%23FFB020'/><rect x='13.5' y='13' width='5' height='13' fill='%23FFB020'/><rect x='21' y='6' width='5' height='20' fill='%23FFB020'/></svg>">
 <title>{titolo}</title>
 <meta name="description" {bi(desc_it, desc_en)}>
-<link rel="stylesheet" href="{FOGLIO}">
+<link rel="stylesheet" href="{FOGLIO}">{extra}
 </head>
 <body>
 {nav(pagina)}
@@ -524,7 +585,7 @@ def guscio(titolo: str, desc_it: str, desc_en: str, pagina: str, corpo: str,
 {footer(voci_footer)}
 </main>
 <script src="i18n.js"></script>
-<script src="ai_chat.js" defer></script>
+{'<script src="ai_chat.js" defer></script>' if config.ASSISTENTE else ''}
 </body>
 </html>
-"""
+""")

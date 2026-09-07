@@ -14,6 +14,16 @@ from lib.checks_metric import (
     check_goals_vs_shots,
     check_minutes_range,
 )
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "tests"))
+
+# Questi test girano sui dati, non solo sul codice: senza, non c'e' niente
+# da misurare, e fallire direbbe il falso. Si saltano dichiarando cosa
+# manca — vedi regression/helpers/ambiente.py.
+from regression.helpers.ambiente import senza_database  # noqa: E402
+
+pytestmark = senza_database
 
 
 def run_check_on_synthetic(checker, setup_sql: list[str], cleanup_sql: list[str]):

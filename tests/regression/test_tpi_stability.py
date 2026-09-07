@@ -41,6 +41,13 @@ from serie_a_scout.analytics import (  # noqa: E402
 )
 from serie_a_scout.obs import emit_regression_metrics  # noqa: E402
 
+# Questi test girano sui dati, non solo sul codice: senza, non c'e' niente
+# da misurare, e fallire direbbe il falso. Si saltano dichiarando cosa
+# manca — vedi regression/helpers/ambiente.py.
+from regression.helpers.ambiente import senza_snapshot  # noqa: E402
+
+pytestmark = senza_snapshot
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Configuration

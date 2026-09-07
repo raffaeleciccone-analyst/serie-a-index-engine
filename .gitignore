@@ -1,6 +1,8 @@
 # Credenziali DB — MAI su GitHub
 .env
 .env.*
+# ...tranne il modello, che di segreti non ne ha e serve a chi parte da zero.
+!.env.example
 *.env
 
 # Secret backups e detect-secrets baseline
@@ -9,7 +11,12 @@ audit/reports/sec_backup/
 
 # Audit JSON reports (contengono dati DB)
 audit/reports/*.json
+# Il registro delle esecuzioni: nome della macchina, pid, percorsi locali.
+audit/reports/journal.jsonl
 logs/quarantine/
+# Stato e registro della sentinella: sono di questa macchina.
+logs/sentinella.json
+logs/sentinella.log
 
 # DB backups e snapshot dati (pesanti, locali)
 backup/
@@ -57,3 +64,21 @@ desktop.ini
 
 # Configurazione dello strumento di lavoro: locale, non del progetto.
 .claude/
+
+# Uscite di esecuzione, non sorgenti. Erano tracciate, quindi ogni run le
+# faceva risultare modificate e `git status` era sempre sporco: dieci righe
+# di rumore fra cui cercare le modifiche vere. Restano su disco, fuori da git.
+obs/metrics/*.prom
+audit/lineage/lineage.db
+
+# Copie di sicurezza e materiale di lavoro
+*.bak
+backup_zombie/
+test_screenshots/
+
+# le altre leghe hanno la loro cartella di uscita, e sono artefatti come la prima
+dashboard_output_*/
+
+# Il lucchetto che selenium crea mentre sistema il driver: nasce e muore a
+# ogni giro, e non descrive il progetto. Era finito dentro per sbaglio.
+downloaded_files/

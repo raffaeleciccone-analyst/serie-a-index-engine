@@ -15,6 +15,7 @@ Uso:  python pagina_squadra.py
 from __future__ import annotations
 
 import json
+import config
 import logging
 import os
 import re
@@ -34,8 +35,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("pagina_squadra")
 
 BASE_DIR = Path(__file__).parent
-OUTPUT_DIR = BASE_DIR / "dashboard_output"
-DEMO_DIR = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-index"))
+OUTPUT_DIR = config.cartella_uscita(BASE_DIR)
+# Il repo del sito di QUESTA lega: era "serie-a-index" per tutte, quindi
+# generare la Premier scriveva le sue pagine nel repo della Serie A.
+DEMO_DIR = config.cartella_pubblicazione(BASE_DIR.parent)
 
 # Quanti giocatori mostrare per intero prima di passare all'elenco compatto.
 N_IN_EVIDENZA = 5
@@ -48,15 +51,39 @@ def slug(nome: str) -> str:
 
 
 def _carica() -> dict:
-    """Il payload piu' completo che c'e': serve la posizione vera, non quella
-    dentro i primi cento."""
-    avvisa_se_superato(OUTPUT_DIR / "payload_full.json",
-                       OUTPUT_DIR / "payload.json", log)
-    for nome in ("payload_full.json", "payload.json"):
-        f = OUTPUT_DIR / nome
-        if f.is_file():
-            return json.loads(f.read_text(encoding="utf-8"))
-    raise SystemExit("payload non trovato: lancia prima parte1_analisi.py")
+    """Il payload piu' completo DELLA STAGIONE PUBBLICATA.
+
+    Piu' completo serve: `payload_full.json` ha tutti i qualificati e quindi la
+    posizione vera, non quella dentro i primi cento. Ma quel file non si
+    rigenera al cambio di annata — e' l'ingresso del backtest, che gira sulla
+    stagione conclusa — quindi da settembre e' il file dell'anno prima. Preso
+    com'era, le ventisei pagine delle squadre sarebbero uscite con le rose e i
+    numeri della stagione passata sotto il titolo di quella nuova, e nessun
+    controllo se ne sarebbe accorto: i dati sono veri, e' l'annata a essere
+    un'altra. Se le stagioni non coincidono si pubblica dal payload della
+    stagione in corso, che ha cento giocatori invece di tutti ma e' l'unico che
+    parla del campionato che il sito dichiara.
+    """
+    corrente = OUTPUT_DIR / "payload.json"
+    if not corrente.is_file():
+        raise SystemExit("payload non trovato: lancia prima parte1_analisi.py")
+    pay = json.loads(corrente.read_text(encoding="utf-8"))
+    config.pretendi_stagione_coerente(pay.get("stagione"), corrente.name)
+
+    pieno = OUTPUT_DIR / "payload_full.json"
+    if pieno.is_file():
+        try:
+            dati = json.loads(pieno.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            dati = None
+        if dati is not None:
+            if dati.get("stagione") == pay.get("stagione"):
+                avvisa_se_superato(pieno, corrente, log)
+                return dati
+            log.info(f"payload_full.json e' la stagione {dati.get('stagione')} e il "
+                     f"sito pubblica la {pay.get('stagione')}: le pagine squadra si "
+                     f"scrivono dal payload pubblicato.")
+    return pay
 
 
 def _media(valori: list[float]) -> float | None:
@@ -138,17 +165,17 @@ def _pagina(pay: dict, squadra: str, posizione: int, classifica: list) -> str:
              f'<ul class="nomi">{righe_rosa}</ul>' if righe_rosa else "")
 
     p_it = (f"I giocatori del {squadra} nell&rsquo;indice, con la posizione che occupano fra "
-            f"tutti i qualificati della Serie A. Il TPI medio della squadra &egrave; la media "
+            f"tutti i qualificati della {config.LEGA_NOME}. Il TPI medio della squadra &egrave; la media "
             f"dei suoi qualificati: dice quanto pesa la rosa in attacco, non quanti punti fa.")
     p_en = (f"{squadra}&rsquo;s players in the index, with the position they hold among all "
-            f"qualified Serie A players. The team&rsquo;s mean TPI is the average of its "
+            f"qualified {config.LEGA_NOME} players. The team&rsquo;s mean TPI is the average of its "
             f"qualified players: it says how much the squad weighs in attack, not how many "
             f"points it takes.")
 
     corpo = f"""<header class="hero riga">
   <div class="cap-num">&nbsp;</div>
   <div>
-    <div class="eyebrow" {bi("Serie A Scout Index &middot; squadra", "Serie A Scout Index &middot; team")}>Serie A Scout Index &middot; squadra</div>
+    <div class="eyebrow" {bi(f"{config.SITO_NOME} &middot; squadra", f"{config.SITO_NOME} &middot; team")}>{config.SITO_NOME} &middot; squadra</div>
     <h1>{squadra}</h1>
     <p class="lede" {bi(p_it, p_en)}>{p_it}</p>
   </div>
@@ -161,18 +188,50 @@ def _pagina(pay: dict, squadra: str, posizione: int, classifica: list) -> str:
     <div class="ev-g">{"".join(ev)}</div>
     {resto}
     {fuori}
-    <p class="prosa" style="margin-top:26px"><a class="oltre" href="dashboard_serie_a.html"
+    <p class="prosa" style="margin-top:26px"><a class="oltre" href="dashboard_{config.LEGA_SLUG}.html"
       {bi("Aprire la classifica completa", "Open the full ranking")}>Aprire la classifica completa</a></p>
   </div>
 </section>"""
 
     return guscio(
-        f"{squadra} &mdash; Serie A Scout Index",
+        f"{squadra} &mdash; {config.SITO_NOME}",
         f"I giocatori del {squadra} nell'indice: TPI, ruolo e minuti.",
         f"{squadra} players in the index: TPI, role and minutes.",
         "index.html", corpo,
-        [("dashboard_serie_a.html", "La classifica", "The ranking"),
+        [("dashboard_%s.html" % config.LEGA_SLUG, "La classifica", "The ranking"),
          ("index.html", "Torna alla homepage", "Back to the homepage")])
+
+
+def _togli_squadre_uscite(vive: set[str]) -> None:
+    """Cancella le pagine delle squadre che non sono piu' nel campionato.
+
+    Le pagine si scrivono una per squadra del payload, e chi non c'e' piu' non
+    viene riscritto: viene lasciato. Finche' la stagione e' la stessa non
+    succede niente; al cambio di annata le tre retrocesse restano pubblicate
+    con i numeri dell'anno prima e la stagione vecchia nella barra, raggiungibili
+    dal loro indirizzo anche se nessuna pagina ci punta piu'. Una pagina che
+    nessuno collega ma che Google ha gia' indicizzato e' il modo piu' silenzioso
+    di pubblicare dati scaduti.
+
+    La cancellazione vale solo per un giro completo: se il payload contenesse
+    quattro squadre per un errore a monte, cancellare le altre sedici sarebbe
+    molto peggio del difetto che si sta chiudendo.
+    """
+    if len(vive) < 10:
+        log.warning(f"Solo {len(vive)} pagine squadra scritte: le altre restano "
+                    f"dove sono, non e' un giro completo.")
+        return
+    for cartella in (OUTPUT_DIR, DEMO_DIR):
+        if not cartella.is_dir():
+            continue
+        for vecchia in sorted(cartella.glob("squadra-*.html")):
+            if vecchia.name in vive:
+                continue
+            try:
+                vecchia.unlink()
+                log.info(f"   tolta {vecchia.name} (squadra non piu' nel campionato)")
+            except OSError as e:
+                log.warning(f"   {vecchia.name} non si e' lasciata togliere: {e}")
 
 
 def main() -> None:
@@ -192,6 +251,7 @@ def main() -> None:
         if DEMO_DIR.is_dir():
             (DEMO_DIR / nome).write_bytes(html.encode("utf-8", "replace"))
         scritte.append((nome, squadra, media, n))
+    _togli_squadre_uscite({n for n, _, _, _ in scritte})
     log.info(f"OK → {len(scritte)} pagine squadra in {OUTPUT_DIR}")
     if DEMO_DIR.is_dir():
         log.info(f"OK → copiate anche in {DEMO_DIR}")

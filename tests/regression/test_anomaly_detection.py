@@ -44,6 +44,13 @@ from serie_a_scout.core.retention import (  # noqa: E402
     prune_old_lineage, prune_old_metrics, prune_old_quarantine,
 )
 from serie_a_scout.obs.anomaly_metrics import emit_anomaly_metrics  # noqa: E402
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2] / "tests"))
+
+# Due test su trentadue chiamano il lanciatore, che vive in `snapshots/`: si
+# saltano quei due, non il file — vedi regression/helpers/ambiente.py.
+from regression.helpers.ambiente import senza_runner_anomalie  # noqa: E402
 
 
 FIXED_NOW = datetime(2026, 5, 16, 12, 0, 0, tzinfo=timezone.utc)
@@ -525,6 +532,7 @@ def test_engine_links_run_ids_in_anomalies(engine, store):
 # ─────────────────────────────────────────────────────────────────────
 # CLI runner exit codes
 # ─────────────────────────────────────────────────────────────────────
+@senza_runner_anomalie
 def test_runner_exit_code_safe(tmp_path, monkeypatch):
     # Empty store → CRITICAL missing-data anomalies BUT without
     # --fail-on-critical, exit is 0.
@@ -542,6 +550,7 @@ def test_runner_exit_code_safe(tmp_path, monkeypatch):
     assert rc == 0
 
 
+@senza_runner_anomalie
 def test_runner_fail_on_critical(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "config").mkdir()

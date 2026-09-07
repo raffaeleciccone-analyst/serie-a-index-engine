@@ -30,12 +30,18 @@ logging.basicConfig(
 )
 log = logging.getLogger("valida_tpi")
 
+import config
+
 BASE_DIR   = Path(__file__).parent
-OUTPUT_DIR = BASE_DIR / "dashboard_output"
+OUTPUT_DIR = config.cartella_uscita(BASE_DIR)
 PAYLOAD    = OUTPUT_DIR / "payload.json"
 PAYLOAD_FULL = OUTPUT_DIR / "payload_full.json"
-# Repo demo pubblicato (stesso default di parte2_dashboard.py): override con SERIE_A_DEMO_DIR.
-DEMO_DIR   = Path(os.environ.get("SERIE_A_DEMO_DIR", BASE_DIR.parent / "serie-a-index"))
+# Il repo che pubblica il sito di QUESTA lega: override con SERIE_A_DEMO_DIR.
+# Era "serie-a-index" per tutte le leghe, ed e' da qui che e' arrivato il danno
+# peggiore: la validazione della Premier veniva scritta sopra quella del Serie A,
+# che si ritrovava la pagina intitolata "Premier League Scout Index" con dentro
+# 343 giocatori invece di 354 e rho 0.803 invece di 0.75.
+DEMO_DIR   = config.cartella_pubblicazione(BASE_DIR.parent)
 
 sys.path.insert(0, str(BASE_DIR))
 from config import db_url as _cfg_db_url  # carica .env + fail-fast
@@ -145,7 +151,7 @@ def copia_pagine_nav(escludi: str) -> None:
     versione buona e non va sovrascritta con la copia del repo demo.
     """
     for nome in ("index.html", "guida_completa.html", "dashboard_pro.html",
-                 "dashboard_serie_a.html", "validazione.html"):
+                 "dashboard_%s.html" % config.LEGA_SLUG, "validazione.html"):
         if nome == escludi:
             continue
         src = DEMO_DIR / nome
@@ -251,7 +257,31 @@ def load_payload() -> dict:
              + ("" if src is PAYLOAD_FULL else " (primi 100 — genera payload_full.json"
                                                " con `parte1_analisi.py --top-n 0`)"))
     with open(src, encoding="utf-8") as f:
-        return json.load(f)
+        dati = json.load(f)
+
+    # Una stagione in corso non si valida. Quasi tutte le quindici verifiche
+    # confrontano l'indice di meta' strada con quello di fine anno: su una
+    # stagione di tre giornate la "fine anno" e' la terza giornata, e ognuna
+    # misurerebbe se stessa. Il risultato non sarebbe un errore — sarebbe una
+    # pagina di validazione piena di numeri altissimi e privi di senso, che
+    # sovrascrive quelli veri in `validazione_sintesi.json`.
+    #
+    # Il caso capita da solo: al cambio di stagione `payload.json` diventa
+    # quello della stagione nuova, e chi rigenera il sito con la sequenza di
+    # sempre arriva qui senza avere in mente niente di tutto questo. Quindi ci
+    # si ferma, e si dice quale file usare al posto suo.
+    if dati.get("stagione_in_corso"):
+        raise SystemExit(
+            f"\n{src.name} e' la stagione {dati.get('stagione')} IN CORSO "
+            f"({dati.get('n_giornate')} giornate su {dati.get('giornate_totali')}).\n"
+            "Le verifiche confrontano l'indice con la classifica di fine stagione: "
+            "su una stagione non finita misurerebbero se stesse, e il risultato "
+            "sovrascriverebbe validazione_sintesi.json.\n"
+            "La validazione si rigenera sull'ultima stagione conclusa. Punta "
+            "SERIE_A_SEASON a quella e rilancia, oppure lascia in pagina la "
+            "validazione gia' pubblicata: e' la stessa, e non e' scaduta."
+        )
+    return dati
 
 
 def vintage_ordinati(cartella):
@@ -493,6 +523,81 @@ def valida_correlazione_fanta(players: list) -> dict:
 
 
 # ════════════════════════════════════════════════════════════════
+# VALIDAZIONE R — TPI contro il valore di mercato
+# ════════════════════════════════════════════════════════════════
+def valida_valore_mercato(players: list) -> dict:
+    """Il TPI e' d'accordo con quello che il mercato pensa di questi giocatori?
+
+    Nasce per sostituire un difetto: le verifiche A e B si appoggiano a due
+    fonti ITALIANE — i voti del fantacalcio e un dizionario di trentanove nomi
+    di Serie A scritto a mano. Su un altro campionato non hanno niente da
+    leggere e restano vuote, e una casella vuota in una pagina di validazione
+    e' peggio di una verifica persa: sembra una dimenticanza.
+
+    Questa legge il valore di mercato dall'anagrafica heXI, che copre venti
+    campionati (553 giocatori su 555 in Premier, 535 su 536 in Serie A). E'
+    esterna, non la scrivo io, ed e' la stessa per tutte le leghe: le pagine di
+    validazione di due campionati tornano confrontabili.
+
+    COSA CI SI ASPETTA, e perche' un valore alto sarebbe una cattiva notizia.
+    Il valore di mercato non misura il rendimento di questa stagione: dentro ci
+    sono l'eta', la lunghezza del contratto, il nome e la squadra. Una
+    correlazione moderata dice che l'indice guarda qualcosa di reale senza
+    limitarsi a riscoprire chi e' famoso. Una correlazione alta direbbe che il
+    TPI e' un modo complicato di ordinare i giocatori per prezzo.
+
+    Misurato: rho 0,283 in Premier League e 0,350 in Serie A.
+
+    heXI si LEGGE. Qui non ci si scrive niente.
+    """
+    import html as _html
+    import unicodedata as _ud
+    from pathlib import Path as _Path
+
+    def _nm(s):
+        s = _html.unescape(str(s or "")).lower()
+        for a, b in (("ı", "i"), ("ł", "l"), ("ø", "o"), ("đ", "d")):
+            s = s.replace(a, b)
+        return (_ud.normalize("NFKD", s).encode("ascii", "ignore").decode()
+                .replace("-", " ").replace("'", " ").strip())
+
+    sigla = {"ITA-Serie A": "SA", "ENG-Premier League": "PL", "ESP-La Liga": "LL",
+             "GER-Bundesliga": "BL1", "FRA-Ligue 1": "FL1"}.get(config.LEGA_UNDERSTAT)
+    anno = config.anno_understat()
+    base = _Path("C:/dev/heXI/data/normalized")
+    nome_file = "%s_%d-%d.json" % (sigla, anno, anno + 1) if sigla else None
+    p = (base / nome_file) if nome_file else None
+    if not p or not p.is_file():
+        return {"disponibile": False, "motivo": "anagrafica heXI non trovata per %s"
+                % config.LEGA_NOME}
+
+    valori = {}
+    for g in json.loads(p.read_text(encoding="utf-8")):
+        v = g.get("market_value_eur")
+        if not v:
+            continue
+        for k in (g.get("full_name"), g.get("short_name")):
+            if k:
+                valori.setdefault(_nm(k), v)
+
+    coppie = [(pl["nome"], pl["tpi"]["totale"], valori[_nm(pl["nome"])])
+              for pl in players
+              if isinstance(pl.get("tpi"), dict) and pl["tpi"].get("totale") is not None
+              and _nm(pl.get("nome", "")) in valori]
+    if len(coppie) < 20:
+        return {"disponibile": False,
+                "motivo": "solo %d giocatori agganciati all'anagrafica" % len(coppie)}
+
+    tpi = [c[1] for c in coppie]
+    val = [c[2] for c in coppie]
+    rho, pval = stats.spearmanr(tpi, val)
+    return {"disponibile": True, "n": len(coppie),
+            "rho": round(float(rho), 3), "p": float(pval),
+            "fonte": "heXI / Transfermarkt",
+            "mediana_valore": int(sorted(val)[len(val) // 2])}
+
+
+# ════════════════════════════════════════════════════════════════
 # VALIDAZIONE B — Top 10 Overlap WhoScored
 # ════════════════════════════════════════════════════════════════
 def valida_top10(players: list) -> dict:
@@ -507,6 +612,15 @@ def valida_top10(players: list) -> dict:
          "ws": WHOSCORED[p["nome"]], "tpi": p["tpi"].get("totale")}
         for p in players if p["nome"] in WHOSCORED
     ]
+    if len(ws_rows) < 5:
+        # Il riferimento e' un elenco scritto a mano di giocatori di Serie A: su
+        # un altro campionato non copre nessuno. Restituire 0% direbbe "l'indice
+        # non e' d'accordo con WhoScored", che e' falso: non c'e' confronto.
+        return {"non_applicabile": True,
+                "motivo": "il riferimento WhoScored e' un elenco scritto a mano di "
+                          "giocatori di Serie A: per %s non copre nessuno"
+                          % config.LEGA_NOME,
+                "n_common": len(ws_rows)}
     ws_rows.sort(key=lambda x: x["ws"], reverse=True)
     top10_ws_names = {r["nome"] for r in ws_rows[:10]}
 
@@ -1330,10 +1444,23 @@ def valida_incrementale_pro(players: list) -> dict:
 # basta. Stesso percorso e stesso paracadute di stagione di
 # set_up_tpi_pro/allinea_anagrafica_hexi.py — accanto c'e' SA_2026-2027.json,
 # e agganciarsi a quello darebbe valori plausibili ma dell'anno sbagliato.
-HEXI_ROSTER = Path(os.environ.get(
-    "SERIE_A_HEXI_ROSTER",
-    r"C:\dev\heXI\data\normalized\SA_2025-2026.json"))
-HEXI_STAGIONE = "2025/2026"
+def _rosa_hexi_della_lega():
+    """L'anagrafica heXI del campionato corrente.
+
+    Era scritta fissa sul file della Serie A. Su un altro campionato leggeva
+    comunque quello: sulla Premier agganciava TRE giocatori su 551, e la
+    baseline del valore di mercato spariva senza un errore. I due campionati
+    finivano per essere giudicati su tre baseline uno e due l'altro.
+    """
+    sigla = {"ITA-Serie A": "SA", "ENG-Premier League": "PL", "ESP-La Liga": "LL",
+             "GER-Bundesliga": "BL1", "FRA-Ligue 1": "FL1"}.get(config.LEGA_UNDERSTAT, "SA")
+    anno = config.anno_understat()
+    return Path("C:/dev/heXI/data/normalized") / ("%s_%d-%d.json" % (sigla, anno, anno + 1))
+
+
+HEXI_ROSTER = (Path(os.environ["SERIE_A_HEXI_ROSTER"])
+               if os.environ.get("SERIE_A_HEXI_ROSTER") else _rosa_hexi_della_lega())
+HEXI_STAGIONE = "%d/%d" % (config.anno_understat(), config.anno_understat() + 1)
 
 
 def _valore_mercato_per_giocatore(engine) -> dict[int, float]:
@@ -2032,6 +2159,18 @@ def valida_predittivita_per_ruolo(players: list, df_gp: pd.DataFrame) -> dict:
             r = real_map.get(gid)
             if tpi is not None and r is not None:
                 pairs.append((float(tpi), float(r)))
+        if str(ruolo).upper() == "POR":
+            # I portieri non sono "senza dati": sono tolti dal roster in
+            # parte1_analisi.py, e non per dimenticanza. Il TPI misura l'impatto
+            # offensivo — xG, xA, conversione, coinvolgimento nella manovra —
+            # e su un portiere quelle grandezze non vogliono dire niente.
+            # Lasciare una riga vuota faceva sembrare un buco cio' che e' il
+            # confine dichiarato di cosa questo indice sa misurare.
+            per_role[ruolo] = {
+                "n": len(pairs), "rho": None, "escluso_per_costruzione": True,
+                "msg": "esclusi dall'indice: il TPI misura l'impatto offensivo, "
+                       "che per un portiere non e' definito"}
+            continue
         if len(pairs) < 8:
             per_role[ruolo] = {"n": len(pairs), "rho": None, "msg": "sample insufficiente"}
             continue
@@ -2702,6 +2841,9 @@ def main():
     log.info("[B] Top 10 TPI vs WhoScored...")
     val_b = valida_top10(players)
 
+    log.info("[R] TPI vs valore di mercato...")
+    val_r = valida_valore_mercato(players)
+
     log.info("[C] Backtest predittivo...")
     val_c = valida_backtest_db(df_gp) if (df_gp is not None and len(df_gp) > 0) \
             else valida_backtest_payload(players)
@@ -2778,6 +2920,7 @@ def main():
     dati = {"a": val_a, "b": val_b, "c": val_c, "d": val_d, "e": val_e,
             "f": val_f, "g": val_g, "h": val_h, "i": val_i, "l": val_l,
             "m": val_m, "n": val_n, "o": val_o, "p": val_p, "q": val_q,
+            "r": val_r,
             "soglie": dict(SOGLIE),
             "meta": {"n_giocatori": len(players),
                      "campione_file": payload_corrente().name,
@@ -2888,8 +3031,21 @@ def main():
     copia_pagine_nav(escludi=out.name)
 
     log.info("")
-    log.info(f"  A — r={_sf(val_a.get('r'),3)}  n={val_a.get('n',0)}")
-    log.info(f"  B — overlap={val_b.get('overlap_pct','—')}%")
+    if (val_a.get("n") or 0) < 5:
+        log.info("  A — non applicabile: i voti del fantacalcio sono una fonte "
+                 "italiana e per questo campionato non esistono")
+    else:
+        log.info(f"  A — r={_sf(val_a.get('r'),3)}  n={val_a.get('n',0)}")
+    if val_b.get("n_common", 0) < 5:
+        log.info("  B — non applicabile: il riferimento WhoScored e' un elenco "
+                 "scritto a mano di giocatori di Serie A")
+    else:
+        log.info(f"  B — overlap={val_b.get('overlap_pct','—')}%")
+    if val_r.get("disponibile"):
+        log.info(f"  R — valore di mercato: rho={val_r['rho']}  n={val_r['n']}  "
+                 f"({val_r['fonte']})")
+    else:
+        log.info(f"  R — non disponibile: {val_r.get('motivo')}")
     log.info(f"  C — r={_sf(val_c.get('r'),3)}  n={val_c.get('n',0)}  fonte={val_c.get('source','?')}")
     log.info(f"  D — AII:{val_d.get('n_aii',0)} PRI:{val_d.get('n_pri',0)}  has_data={val_d.get('has_data',False)}")
     log.info(f"  E — TPI Pro: {val_e.get('n_pro',0)} giocatori  r={_sf(val_e.get('r_corr'),3)}  has_data={val_e.get('has_data',False)}")
@@ -2899,7 +3055,10 @@ def main():
     log.info(f"  I — Incrementale Pro: Δ={_sf(val_i.get('delta_rmse'),3)}  pro_better={val_i.get('pro_better')}  has_data={val_i.get('has_data',False)}")
     log.info(f"  M — Calibration: slope={_sf(val_m.get('slope'),3)} monot.ρ={_sf(val_m.get('monotonia_rho'),3)} ACE={_sf(val_m.get('calibration_error'),3)}")
     _pr = val_n.get('per_role', {}) if val_n else {}
-    log.info(f"  N — Per ruolo: " + " · ".join(f"{k}:ρ={_sf(v.get('rho'),3)} n={v.get('n',0)}" for k,v in _pr.items()))
+    log.info("  N — Per ruolo: " + " · ".join(
+        (f"{k}: esclusi per costruzione" if v.get("escluso_per_costruzione")
+         else f"{k}:ρ={_sf(v.get('rho'),3)} n={v.get('n',0)}")
+        for k, v in _pr.items()))
     if val_o and val_o.get("has_data"):
         _ord = val_o["results"]
         log.info(f"  O — Ablation (ρ_real baseline={val_o['baseline_rho_realized']}): "
@@ -2932,5 +3091,45 @@ def main():
         log.info(f"Apri manualmente: {out}")
 
 
+def solo_pagina() -> None:
+    """Riscrive validazione.html dai risultati gia' salvati, senza rimisurare.
+
+    Serve al cambio di stagione. Le quindici verifiche NON si rifanno — girano
+    sulla stagione conclusa e restano quelle — ma la pagina che le mostra porta
+    la stessa barra di tutte le altre, e dentro la barra c'e' la stagione del
+    sito. Senza questa strada, dopo il cambio la validazione sarebbe l'unica
+    pagina delle ventisei a dire ancora "25/26", e l'unico modo di allinearla
+    sarebbe rilanciare il backtest sulla stagione nuova, cioe' esattamente cio'
+    che non si deve fare.
+
+    I numeri arrivano da `validazione_dati.json`, che e' lo stesso dizionario
+    che l'ultima misurazione ha passato alla pagina: non si ricalcola niente e
+    non si puo' cambiare niente per sbaglio.
+    """
+    fonte = OUTPUT_DIR / "validazione_dati.json"
+    if not fonte.is_file():
+        raise SystemExit(
+            f"{fonte} non c'e': la pagina si riscrive dai risultati dell'ultima "
+            f"misurazione, e qui non ce ne sono. Lancia parte3_valida_tpi.py "
+            f"senza --solo-pagina, sulla stagione conclusa."
+        )
+    dati = json.loads(fonte.read_text(encoding="utf-8"))
+    import parte3_pagina
+    html = parte3_pagina.render(dati)
+    from pagina_stile import assicura_css
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    assicura_css(OUTPUT_DIR)
+    out = OUTPUT_DIR / "validazione.html"
+    out.write_bytes(html.encode("utf-8", "replace"))
+    log.info(f"OK → {out}  (solo pagina, numeri invariati)")
+    if DEMO_DIR.is_dir():
+        (DEMO_DIR / out.name).write_bytes(out.read_bytes())
+        log.info(f"OK → {DEMO_DIR / out.name}  (copia per repo demo)")
+
+
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    if "--solo-pagina" in _sys.argv[1:]:
+        solo_pagina()
+    else:
+        main()

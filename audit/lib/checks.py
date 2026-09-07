@@ -102,12 +102,35 @@ def check_orphan_foreign_keys(report: Report) -> None:
 
 
 def check_id_orphans_no_fk(report: Report) -> None:
-    """REF-003: tabelle con giocatore_id ma SENZA FK formale (es. t_player_analytics)."""
+    """REF-003: tabelle con giocatore_id ma SENZA FK formale (es. t_player_analytics).
+
+    Le due tabelle sono di uno schema precedente e in nessuno dei database
+    attuali esistono piu'. Il controllo le interrogava lo stesso e moriva su
+    "Table ... doesn't exist" a ogni giro. Ora chi non c'e' viene saltato e
+    dichiarato: una tabella sparita non e' un guasto dell'audit, ma nemmeno
+    qualcosa da far sparire in silenzio da un rapporto che conta i controlli.
+    """
     candidates = [
         ("t_player_analytics", "giocatore_id"),
         ("t_player_game_log", "giocatore_id"),
     ]
+    assenti = [t for t, _ in candidates if not _tabella_esiste(t)]
+    if assenti:
+        report.add(Finding(
+            code="REF-003", area=Area.REFERENTIAL, severity=Severity.INFO,
+            title="Controllo non applicabile: %s non esiste" % ", ".join(f"`{t}`" for t in assenti),
+            table=assenti[0], rows_affected=0,
+            description=("Tabelle di uno schema precedente, non presenti in questo "
+                         "database. Il controllo sugli orfani senza FK non ha nulla "
+                         "da esaminare qui."),
+            root_cause="Schema cambiato: l'elenco dei candidati non e' stato aggiornato.",
+            fix_available=False,
+            fix_strategy=("Se le tabelle non tornano, togli il nome da `candidates` "
+                          "in check_id_orphans_no_fk."),
+        ))
     for tbl, col in candidates:
+        if tbl in assenti:
+            continue
         # esiste FK?
         n_fk = fetch_one("""
             SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE
@@ -174,7 +197,24 @@ def check_duplicates_by_normalized_name(report: Report) -> None:
 
 
 def check_duplicates_t_player_analytics(report: Report) -> None:
-    """DUP-002: stesso giocatore_id presente più volte in t_player_analytics."""
+    """DUP-002: stesso giocatore_id presente più volte in t_player_analytics.
+
+    Come REF-003: la tabella e' di uno schema precedente e non esiste piu' in
+    nessuno dei due database. Prima il controllo la interrogava comunque e
+    crashava; ora dichiara di non essere applicabile e passa oltre.
+    """
+    if not _tabella_esiste("t_player_analytics"):
+        report.add(Finding(
+            code="DUP-002", area=Area.DUPLICATES, severity=Severity.INFO,
+            title="Controllo non applicabile: `t_player_analytics` non esiste",
+            table="t_player_analytics", rows_affected=0,
+            description=("Tabella di uno schema precedente, non presente in questo "
+                         "database: non ci sono righe in cui cercare duplicati."),
+            root_cause="Schema cambiato: il controllo non e' stato aggiornato.",
+            fix_available=False,
+            fix_strategy="Se la tabella non torna, togli il controllo da CHECKS.",
+        ))
+        return
     n = fetch_one("""
         SELECT COUNT(*) FROM (
             SELECT giocatore_id, COUNT(*) c FROM t_player_analytics
@@ -239,15 +279,59 @@ def check_invisible_unicode(report: Report) -> None:
         ))
 
 
+def _solo_stagione_corrente(alias: str = "gp") -> str:
+    """Clausola che limita le righe per partita alla stagione corrente.
+
+    `giocatori.minuti`, `.partite` e `.xg` descrivono UNA stagione: li scrive
+    Understat da read_player_season_stats. Il database invece tiene piu'
+    stagioni, quindi confrontarli con la somma di tutte le righe per partita
+    fa sembrare rotto cio' che e' semplicemente di un altro anno.
+    Misurato sulla Serie A: 609 giocatori "disallineati" su due stagioni,
+    36 sulla sola stagione corrente.
+
+    Se la colonna `season` non c'e' (database a stagione unica) la clausola
+    resta vuota e il controllo si comporta come prima.
+    """
+    from .db import fetch_one
+    try:
+        c = fetch_one("SELECT COUNT(*) FROM information_schema.columns "
+                      "WHERE table_schema = DATABASE() AND table_name = 'giocatore_partita' "
+                      "AND column_name = 'season'")
+        if not c or not c[0]:
+            return ""
+    except Exception:
+        return ""
+    import os
+    stagione = os.environ.get("SERIE_A_SEASON", "2025-26")
+    return " AND %s.season = '%s'" % (alias, stagione)
+
+
+def _tabella_esiste(nome: str) -> bool:
+    """La tabella c'e' in questo database?
+
+    Serve ai controlli scritti su tabelle che possono non esserci. Chiederlo
+    prima e' diverso dal lasciar sollevare l'errore: un check che crasha ha
+    l'aria di un guasto, mentre un check che non si applica e' un'informazione,
+    e va detta invece che nascosta.
+    """
+    from .db import fetch_one
+    try:
+        r = fetch_one("SELECT COUNT(*) FROM information_schema.tables "
+                      "WHERE table_schema = DATABASE() AND table_name = %s", (nome,))
+        return bool(r and r[0])
+    except Exception:
+        return False
+
+
 def check_minutes_consistency(report: Report) -> None:
     """CON-001: giocatori.minuti != SUM(giocatore_partita.minuti)."""
     rows = fetch_all("""
         SELECT g.id, g.nome, g.minuti AS minuti_agg, COALESCE(SUM(gp.minuti),0) AS minuti_sum
         FROM giocatori g
-        LEFT JOIN giocatore_partita gp ON gp.giocatore_id = g.id
+        LEFT JOIN giocatore_partita gp ON gp.giocatore_id = g.id%s
         GROUP BY g.id, g.nome, g.minuti
         HAVING ABS(g.minuti - COALESCE(SUM(gp.minuti),0)) > 30
-    """)
+    """ % _solo_stagione_corrente())
     if rows:
         report.add(Finding(
             code="CON-001", area=Area.CONSISTENCY, severity=Severity.HIGH,
@@ -256,7 +340,7 @@ def check_minutes_consistency(report: Report) -> None:
             description="Differenza > 30' tra `giocatori.minuti` e `SUM(giocatore_partita.minuti)`.",
             root_cause="`giocatori.minuti` aggiornato da Understat read_player_season_stats; dopo dedup non più allineato a giocatore_partita.",
             fix_available=True,
-            fix_strategy="UPDATE giocatori g JOIN (SELECT giocatore_id, SUM(minuti) m FROM giocatore_partita GROUP BY giocatore_id) s ON s.giocatore_id=g.id SET g.minuti=s.m;",
+            fix_strategy="UPDATE giocatori g JOIN (SELECT giocatore_id, SUM(minuti) m FROM giocatore_partita WHERE season = <stagione corrente> GROUP BY giocatore_id) s ON s.giocatore_id=g.id SET g.minuti=s.m; il filtro sulla stagione e' obbligatorio: senza, si scrivono due anni di minuti in una colonna che ne descrive uno.",
             samples=[{"id": r[0], "nome": r[1], "minuti_agg": int(r[2]), "minuti_sum": int(r[3]),
                       "diff": int(r[2] - r[3])} for r in rows[:5]],
         ))
@@ -264,11 +348,15 @@ def check_minutes_consistency(report: Report) -> None:
 
 def check_partite_field_zero(report: Report) -> None:
     """CON-002: `giocatori.partite` = 0 ma esistono righe in giocatore_partita."""
+    # Chi ha giocato solo in una stagione passata ha giustamente partite = 0
+    # nella colonna, che descrive la stagione corrente: senza il filtro
+    # sembrerebbero tutti errori. Sulla Serie A erano 242.
     n = fetch_one("""
         SELECT COUNT(*) FROM giocatori g
         WHERE g.partite = 0
-          AND EXISTS (SELECT 1 FROM giocatore_partita gp WHERE gp.giocatore_id=g.id AND gp.minuti>0)
-    """)[0]
+          AND EXISTS (SELECT 1 FROM giocatore_partita gp
+                      WHERE gp.giocatore_id=g.id AND gp.minuti>0%s)
+    """ % _solo_stagione_corrente())[0]
     if n > 0:
         report.add(Finding(
             code="CON-002", area=Area.CONSISTENCY, severity=Severity.MEDIUM,
@@ -282,14 +370,27 @@ def check_partite_field_zero(report: Report) -> None:
 
 
 def check_xg_consistency(report: Report) -> None:
-    """CON-003: giocatori.xg vs SUM(giocatore_partita.xg)."""
+    """CON-003: giocatori.xg vs SUM(giocatore_partita.xg), sulla stagione corrente.
+
+    Il `%s` c'era ma non veniva interpolato: mancava il `% _solo_stagione_corrente()`
+    che il controllo gemello sui minuti (CON-001) ha. Senza sostituzione il driver
+    lasciava il `%s` nel testo, la query diventava `ON gp.giocatore_id = g.ids` e
+    MySQL rispondeva "Unknown column 's' in 'on clause'". Il controllo crashava a
+    ogni giro, e il crash non arrivava nel report: l'audit contava quindici check
+    e ne aveva eseguiti dodici.
+
+    Il filtro non e' cosmetico. `giocatori.xg` descrive UNA stagione — la scrive
+    Understat da read_player_season_stats — mentre `giocatore_partita` ne tiene
+    piu' d'una: senza filtro il confronto e' fra un anno e la somma di tutti, e
+    segnalerebbe come disallineato quasi chiunque abbia giocato due stagioni.
+    """
     rows = fetch_all("""
         SELECT g.id, g.nome, g.xg AS xg_agg, COALESCE(SUM(gp.xg),0) AS xg_sum
         FROM giocatori g
-        LEFT JOIN giocatore_partita gp ON gp.giocatore_id = g.id
+        LEFT JOIN giocatore_partita gp ON gp.giocatore_id = g.id%s
         GROUP BY g.id, g.nome, g.xg
         HAVING ABS(g.xg - COALESCE(SUM(gp.xg),0)) > 0.5
-    """)
+    """ % _solo_stagione_corrente())
     if rows:
         report.add(Finding(
             code="CON-003", area=Area.CONSISTENCY, severity=Severity.MEDIUM,
@@ -305,10 +406,14 @@ def check_xg_consistency(report: Report) -> None:
 
 def check_calendario_giornate(report: Report) -> None:
     """CON-004: una giornata Serie A deve avere esattamente 10 partite."""
+    # La giornata 1 esiste in OGNI stagione: contarla senza separare gli anni
+    # da venti partite invece di dieci, e fa sembrare rotte tutte e trentotto.
+    _sw = _solo_stagione_corrente("calendario")
     rows = fetch_all("""
         SELECT giornata, COUNT(*) c FROM calendario
+        WHERE 1=1%s
         GROUP BY giornata HAVING c != 10
-    """)
+    """ % _sw)
     if rows:
         report.add(Finding(
             code="CON-004", area=Area.CONSISTENCY, severity=Severity.MEDIUM,
@@ -317,7 +422,7 @@ def check_calendario_giornate(report: Report) -> None:
             description="Una giornata di Serie A deve avere 10 partite. Anomalie suggeriscono raggruppamento errato (turni infrasettimanali fusi).",
             root_cause="In versioni precedenti parte4 raggruppava per finestra 7gg → confondeva turni vicini.",
             fix_available=True,
-            fix_strategy="Esegui parte6_fix_giornate.py o l'algoritmo `(index // 10) + 1` su partite ordinate per data.",
+            fix_strategy="Esegui deriva_giornata.py: una giornata e' un accoppiamento perfetto (dieci partite, venti squadre diverse), cercato dentro una finestra di date. L'algoritmo `(index // 10) + 1` sbaglia appena c'e' un rinvio.",
             samples=[{"giornata": r[0], "partite": r[1]} for r in rows[:10]],
         ))
 
@@ -429,20 +534,72 @@ def check_unused_tables(report: Report) -> None:
 
 
 def check_orphan_players(report: Report) -> None:
-    """UNU-002: giocatori senza nessuna partita (mai usati)."""
-    n = fetch_one("""
-        SELECT COUNT(*) FROM giocatori g
-        WHERE NOT EXISTS (SELECT 1 FROM giocatore_partita gp WHERE gp.giocatore_id=g.id)
-    """)[0]
-    if n:
+    """UNU-002: giocatori senza partite. Chi e' in rosa e chi e' un residuo.
+
+    Il controllo contava tutti quelli senza una presenza e li chiamava
+    ingombro, proponendo di cancellarli. Sulla Serie A ne trovava ottanta:
+    dentro c'erano Cuadrado, Belotti, Simeone e Scuffet, cioe' gente
+    regolarmente in rosa che in quella stagione non e' mai scesa in campo.
+    Zero minuti non e' un dato mancante, e' il dato — e cancellarli
+    toglierebbe dalla rosa persone che ci stanno per davvero.
+
+    Residuo e' solo chi appartiene a una squadra che non compare in NESSUNA
+    stagione in archivio. Non basta che la squadra sia fuori da quella corrente:
+    dei primi ottanta, venticinque erano di Empoli, Venezia e Monza — retrocesse
+    dopo il 2024-25, ma il sito quella stagione la pubblica, e quelle rose
+    servono a mostrarla. Cancellarli avrebbe rotto una vista viva.
+    """
+    in_rosa, passati, residui = fetch_one("""
+        SELECT SUM(corrente), SUM(passata), SUM(mai)
+        FROM (
+          SELECT
+            EXISTS (SELECT 1 FROM squadra_calendario sc
+                    WHERE sc.squadra_id = g.squadra_id
+                      AND sc.season = (SELECT MAX(season) FROM squadra_calendario)
+                   ) AS corrente,
+            (EXISTS (SELECT 1 FROM squadra_calendario sc
+                     WHERE sc.squadra_id = g.squadra_id)
+             AND NOT EXISTS (SELECT 1 FROM squadra_calendario sc
+                             WHERE sc.squadra_id = g.squadra_id
+                               AND sc.season = (SELECT MAX(season) FROM squadra_calendario))
+            ) AS passata,
+            NOT EXISTS (SELECT 1 FROM squadra_calendario sc
+                        WHERE sc.squadra_id = g.squadra_id) AS mai
+          FROM giocatori g
+          WHERE NOT EXISTS (SELECT 1 FROM giocatore_partita gp
+                            WHERE gp.giocatore_id = g.id)
+        ) x
+    """) or (0, 0, 0)
+    in_rosa = int(in_rosa or 0)
+    passati = int(passati or 0)
+    residui = int(residui or 0)
+
+    if residui:
         report.add(Finding(
             code="UNU-002", area=Area.UNUSED, severity=Severity.LOW,
-            title=f"{n} giocatori senza alcuna partita",
-            table="giocatori", rows_affected=n,
-            description="Ingombrano la tabella ma non contribuiscono ad alcuna metrica.",
-            root_cause="Acquisti recenti, infortunati a inizio stagione o residui di import precedenti.",
+            title=f"{residui} giocatori di squadre che non compaiono in nessuna stagione",
+            table="giocatori", rows_affected=residui,
+            description=("Nessuna presenza e una squadra che in archivio non gioca "
+                         "mai: sono avanzi di un import, e non servono a nessuna "
+                         "vista del sito."),
+            root_cause="Import interrotto o rosa di un campionato che non e' questo.",
             fix_available=True,
-            fix_strategy="DELETE solo dopo verifica che non siano nel calciomercato attuale.",
+            fix_strategy=("DELETE dei soli giocatori la cui squadra non ha partite in "
+                          "NESSUNA stagione. Gli altri servono alle viste per annata."),
+        ))
+
+    if in_rosa or passati:
+        report.add(Finding(
+            code="UNU-003", area=Area.UNUSED, severity=Severity.INFO,
+            title=f"{in_rosa + passati} giocatori in rosa senza presenze",
+            table="giocatori", rows_affected=in_rosa + passati,
+            description=(f"{in_rosa} in una squadra della stagione corrente e "
+                         f"{passati} in rose di stagioni passate, mai scesi in campo: "
+                         "infortunati, seconde scelte, arrivi tardivi. Zero minuti e' "
+                         "il dato, non un dato mancante."),
+            root_cause="Nessuno: e' come sono fatte le rose.",
+            fix_available=False,
+            fix_strategy="Niente da correggere. Restano in rosa, fuori dai qualificati.",
         ))
 
 

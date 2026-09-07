@@ -55,7 +55,7 @@ def check_extreme_metrics_xg_p90(report: Report) -> None:
             code="MET-001", area=Area.METRIC, severity=Severity.HIGH,
             title=f"{len(rows)} giocatori con xG/90 fuori [{lo},{hi}]",
             table="giocatori", rows_affected=len(rows),
-            description="xG/90 fuori dal range fisico atteso per Serie A.",
+            description="xG/90 fuori dal range fisicamente plausibile: vale per qualunque campionato.",
             root_cause="SUM duplicata, errata aggregazione, o bug di calcolo.",
             fix_strategy="UPDATE giocatori SET xg=(SELECT SUM(xg) FROM giocatore_partita WHERE giocatore_id=g.id)",
             samples=[{"id": r[0], "nome": r[1], "xg_p90": float(r[4] or 0)} for r in rows[:5]],
